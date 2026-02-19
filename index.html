@@ -131,11 +131,14 @@
   color:#ccc;
 }
     /* ====== VÄLKOMSTSIDA ====== */
-    :root{ --welcome-bg-url: bg.webp; }
-    body.welcome-bg-on{
-      background-image: linear-gradient(180deg, rgba(0,0,0,.6), rgba(0,0,0,.6)), var(--welcome-bg-url);
-      background-size: cover; background-position:center; background-repeat:no-repeat;
-    }
+  body {
+  background-image:
+    linear-gradient(180deg, rgba(0,0,0,.6), rgba(0,0,0,.6)),
+    url("bg.webp");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
     .welcome-message{ display:none; text-align:center; margin:12px 20px 40px; color:#ccc; }
 
     #welcomeMessage{
