@@ -1,0 +1,3925 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spökhotellet Korpen</title>
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&display=swap" rel="stylesheet">
+
+  <style>
+    /* ====== BAS ====== */
+    html, body { min-height: 100vh; }
+    body { font-family: Arial, sans-serif; background:#111; color:#fff; margin:0; }
+/* Topbar som grid (som vi redan satt) */
+.topbar{
+  background:#222;
+  padding:10px 20px;
+  border-bottom:2px solid #333;
+
+  display:grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items:center;
+  gap:12px;
+}
+
+/* MITTENBLOCK */
+#openBlock{
+  text-align:center;
+  white-space:nowrap;     /* 1 rad som standard */
+  line-height:1.2;
+}
+
+/* "Öppet idag:" ska vara inline */
+.open-label{
+  display:inline;
+  font-size:16px;
+}
+
+/* tiderna: får hoppa ner vid behov */
+.open-time{
+  display:inline;
+  font-size:16px;
+  opacity:0.9;
+}
+
+/* När det blir trångt: låt just tiderna hoppa ner */
+@media (max-width: 520px){
+  #openBlock{
+    white-space:normal;   /* tillåt brytning */
+  }
+  .open-time{
+    display:block;        /* tiderna går ner */
+    font-size:14px;
+    margin-top:2px;
+  }
+}
+.user-menu{
+  justify-self:end;     /* ← VIKTIG */
+  position:relative;
+}
+    .topbar .status { font-size:16px; white-space:nowrap; }
+    .clickable { cursor:pointer; }
+#openBlock{ white-space:nowrap; }          /* default */
+@media (max-width:520px){ #openBlock{ white-space:normal; } }
+    .user-menu { position:relative; }
+    .user-menu button {
+      background:#444; color:#fff; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;
+      display:flex; flex-direction:column; align-items:center;
+    }
+    .user-menu .dropdown{
+      display:none; position:absolute; right:0; background:#1a1a1a; min-width:180px;
+      box-shadow:0 8px 16px rgba(0,0,0,.5); border-radius:5px; overflow:hidden; z-index:100;
+    }
+    .user-menu .dropdown a { display:block; padding:10px; color:#fff; text-decoration:none; }
+    .user-menu .dropdown a:hover { background:#333; }
+
+    .section{
+      background:#161616; border:1px solid #333; border-radius:10px;
+      padding:12px; margin:10px 0; text-align:left;
+    }
+    .section h4 { margin:0 0 8px; font-size:16px; }
+    .row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .muted { color:#bbb; font-size:12px; }
+    .tag{
+      display:inline-block; padding:4px 10px; border-radius:999px;
+      background:#333; margin:4px 6px 0 0; font-size:12px;
+    }
+
+    .disclosure{
+      display:flex; justify-content:space-between; align-items:center;
+      background:#2a2a2a; border:none; border-radius:8px;
+      padding:10px 12px; color:#fff; cursor:pointer; width:100%;
+    }
+    .disclosure + .content{ display:none; padding:10px 0 0; }
+
+    .input{ background:#1a1a1a; color:#fff; border:1px solid #333; border-radius:8px; padding:8px; }
+    .btn{ background:#444; color:#fff; border:none; border-radius:8px; padding:8px 12px; cursor:pointer; }
+    .btn:hover{ filter:brightness(1.1); }
+    .btn-danger{ background:#c0392b; }
+    .btn-primary{ background:#2d6cdf; }
+    .btn-green{ background:#28a745; }
+    .pill{
+      display:inline-block; padding:6px 10px; border-radius:999px;
+      background:#2a2a2a; color:#fff; font-size:12px; border:1px solid #444;
+    }
+    .tiny{ font-size:11px; color:#aaa; }
+
+    /* ====== MENYER ====== */
+    #hoursMenu, #queueMenu, #adminSettings{
+      display:none; background:#1a1a1a; padding:15px; text-align:center;
+      border-bottom:2px solid #333; max-width:820px; margin:20px auto; border-radius:10px;
+    }
+    #hoursMenu select, #hoursMenu input, #hoursMenu button,
+    #queueMenu select, #queueMenu button,
+    #adminSettings input, #adminSettings select, #adminSettings button, #adminSettings textarea{
+      font-size:16px; margin:6px 0; padding:8px;
+    }
+    #userSelect{ font-family:monospace; }
+.admin-password{
+  margin:6px 0 10px;
+  font-size:12px;
+  color:#aaa;
+}
+
+.admin-password .label{
+  margin-right:6px;
+  opacity:.8;
+}
+
+.admin-password .value{
+  font-family:monospace;
+  color:#ccc;
+}
+    /* ====== VÄLKOMSTSIDA ====== */
+    :root{ --welcome-bg-url: none; }
+    body.welcome-bg-on{
+      background-image: linear-gradient(180deg, rgba(0,0,0,.6), rgba(0,0,0,.6)), var(--welcome-bg-url);
+      background-size: cover; background-position:center; background-repeat:no-repeat;
+    }
+    .welcome-message{ display:none; text-align:center; margin:12px 20px 40px; color:#ccc; }
+
+    #welcomeMessage{
+      border-radius:0; padding:16px 20px; max-width:900px; margin:12px auto 40px;
+      color:#eee; background:transparent; box-shadow:none;
+    }
+    #welcomeLogoWrap{
+      position:relative; display:none; justify-content:center; align-items:center;
+      margin:8px auto 12px; width:100%;
+    }
+    #welcomeLogoWrap::before{
+      content:""; position:absolute; width:min(480px, 86vw); height:calc(min(480px, 86vw) * 0.58);
+      background: radial-gradient(60% 70% at 50% 50%, rgba(255,255,255,.32) 0%, rgba(255,255,255,.18) 45%, rgba(255,255,255,0) 100%);
+      filter: blur(12px); opacity:.9; z-index:0;
+    }
+    #welcomeLogo{
+      position:relative; z-index:1; display:none; max-width:280px; width:60%; height:auto; margin:0 auto 12px;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.25)) drop-shadow(0 0 12px rgba(255,255,255,.18));
+    }
+    #welcomeMessage h1{
+      font-family: "IM Fell English SC", system-ui, serif; letter-spacing:.5px;
+      text-shadow:0 2px 10px rgba(0,0,0,.55); font-weight:400;
+    }
+    #welcomeInfoText{
+      display:none; max-width:900px; margin:10px auto 0; padding:0; background:none; border:none; border-radius:0;
+      color:#f5f5f5; text-align:center; line-height:1.55; font-family: 'Courier New', Courier, monospace; font-size:1.1em;
+    }
+
+    /* ====== PROFIL (“Min sida”) ====== */
+    #profileContainer{
+      display:none; max-width:820px; margin:60px auto; background:#222; padding:20px;
+      border-radius:16px; color:#fff; text-align:left;
+      box-shadow:0 8px 24px rgba(0,0,0,.35); border:1px solid #333;
+    }
+    #profileContainer h2{ text-align:center; margin-top:0; }
+    #profileContainer.theme-default{ background:#222; }
+    #profileContainer.theme-forest{ background: linear-gradient(180deg, #1e2a22, #18221c); }
+    #profileContainer.theme-royal{ background: linear-gradient(180deg, #241a36, #1a1226); }
+
+    .theme-dots{ display:flex; gap:10px; align-items:center; }
+    .theme-dot{
+      width:28px; height:28px; border-radius:999px; border:2px solid #555;
+      cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.35);
+    }
+    .theme-dot:focus{ outline:2px solid #999; outline-offset:2px; }
+    .theme-dot[data-theme="default"]{ background:#2a2a2a; }
+    .theme-dot[data-theme="forest"]{ background: linear-gradient(180deg, #2c3b32, #213127); }
+    .theme-dot[data-theme="royal"]{ background: linear-gradient(180deg, #33254a, #261a38); }
+    .theme-dot.active{ border-color:#fff; box-shadow:0 0 0 3px rgba(255,255,255,.18); }
+
+    /* ====== KASSA ====== */
+    #kassaContainer{ display:none; }
+    #kassaContainer h1{ text-align:center; margin:24px 0 16px; }
+    #closedMessage{
+      display:none; color:#ff4444; text-align:center; font-size:24px; font-weight:700; margin:16px 0;
+    }
+
+    .products{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-bottom:12px; }
+    .products button{
+  background:#222;
+  color:#fff;
+  padding:22px 26px;     /* större knapp */
+  font-size:20px;        /* större text */
+  border:none;
+  border-radius:14px;
+  cursor:pointer;
+
+  min-width: 220px;      /* gör att de blir “kort” istället för små lappar */
+  min-height: 64px;      /* bra för touch */
+}
+.products .btn-adult{
+  background:#1f2a33;
+  border:1px solid #334a5e;
+}
+
+.products .btn-child{
+  background:#222b26;
+  border:1px solid #3c5a49;
+}
+
+.products .btn-reentry{
+  background:#2a2236;
+  border:1px solid #5b4a7a;
+}
+
+.products .btn-other{
+  background:#2a2622;
+  border:1px solid #5a4e3c;
+}
+
+    .cart-table{ width:100%; max-width:820px; margin:0 auto 20px; border-collapse:collapse; background:#222; }
+    .cart-table th, .cart-table td{ padding:10px; border-bottom:1px solid #333; text-align:left; color:#fff; }
+    .cart-table th{ background:#333; }
+    .remove-btn{ background:#ff4444; color:#fff; border:none; padding:5px 10px; cursor:pointer; border-radius:5px; }
+
+    #discountBtn{ margin:0 auto 10px; display:block; padding:8px 14px; border-radius:8px; border:none; cursor:pointer; background:#444; color:#fff; }
+    #discountBtn.applied{ background:#2b6; }
+
+    #total{ font-size:22px; text-align:center; margin:10px 0; }
+    #checkout{ display:block; margin:10px auto 40px; padding:15px 30px; font-size:20px; background:#28a745; color:#fff; border:none; border-radius:10px; cursor:pointer; }
+    #checkout:disabled{ opacity:.55; cursor:not-allowed; filter: grayscale(15%); }
+    .qty-btn{
+  background:#2a2a2a;
+  color:#ddd;
+  border:1px solid #444;
+  border-radius:6px;
+  width:28px;
+  height:28px;
+  cursor:pointer;
+  font-size:16px;
+  line-height:1;
+}
+
+.qty-btn:hover{
+  background:#3a3a3a;
+}
+
+.qty-btn:active{
+  transform: scale(0.95);
+}
+
+    /* ====== MODAL ====== */
+    .modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; z-index:10000; }
+    .modal{
+      background:#1b1b1b; border:1px solid #333; border-radius:12px; padding:18px;
+      width:min(420px, 92vw); color:#fff; box-shadow:0 10px 30px rgba(0,0,0,.5);
+    }
+    .modal h3{ margin:6px 0 10px; font-size:18px; }
+    .modal .actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:14px; }
+
+    /* ====== KVITTENSER ====== */
+    .log-section{ max-width:820px; margin:0 auto 60px; background:#1a1a1a; padding:20px; border-radius:10px; color:#fff; }
+    .log-section h2{ font-size:20px; margin-bottom:10px; }
+    .log-entry{ border-top:1px solid #333; padding:5px 0; }
+    .summary{ font-weight:bold; margin-bottom:10px; }
+
+    /* (resten av din CSS är oförändrad) */
+    /* ====== DISPLAY-LÄGE (spooky) ====== */
+    .display-view{ position: fixed; inset: 0; background: #000; color: #fff; display:flex; align-items:center; justify-content:center; z-index: 9999; cursor:pointer; overflow:hidden; }
+    .display-view::before{ content:""; position:absolute; inset:-10%; pointer-events:none; box-shadow: inset 0 0 300px rgba(0,0,0,0.9), inset 0 0 120px rgba(0,0,0,0.9); }
+    .display-view::after{ content:""; position:absolute; inset:-20%; background: radial-gradient(120% 80% at 50% 10%, rgba(255,255,255,0.06), transparent 60%), radial-gradient(100% 60% at 20% 70%, rgba(255,255,255,0.04), transparent 60%), radial-gradient(100% 60% at 80% 60%, rgba(255,255,255,0.05), transparent 60%); opacity:.5; filter:blur(30px); animation: fog-drift 50s linear infinite; }
+    #displayQueue{ font-family:"IM Fell English SC", system-ui, serif; font-weight:400; font-size: clamp(6rem, 16vw, 20rem); letter-spacing:.5px; line-height:1; text-align:center; padding:0 4vw; animation: flicker 6s infinite steps(60, end), glow 3.5s ease-in-out infinite; will-change:text-shadow, opacity; }
+    .display-view.state-open #displayQueue{ color:#eaffea; text-shadow: 0 0 1px #0a0, 0 0 12px rgba(0,255,140,.55), 0 0 26px rgba(0,180,100,.35), 2px 2px 0 rgba(0,0,0,.7); }
+    .display-view.state-closed #displayQueue{ color:#ffeaea; text-shadow: 0 0 1px #900, 0 0 12px rgba(255,60,60,.55), 0 0 26px rgba(180,0,0,.35), 2px 2px 0 rgba(0,0,0,.8); }
+    .display-view .scanlines{ position:absolute; inset:0; background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 2px, transparent 4px); mix-blend-mode: overlay; pointer-events:none; animation: scan 12s linear infinite; opacity:.25; }
+    #displayLabel{ font-family:"IM Fell English SC", system-ui, serif; font-size: clamp(1.5rem, 4vw, 3rem); letter-spacing:.5px; text-shadow:0 2px 10px rgba(0,0,0,.55); margin-bottom:.6em; color:#ccc; animation:flickerLabel 6s infinite steps(60, end); }
+    @keyframes flicker { 0%,97%,100%{opacity:1;} 98%{opacity:.92;} 99%{opacity:.85;} }
+    @keyframes glow { 0%,100%{filter:drop-shadow(0 0 0 rgba(0,0,0,0));} 50%{filter:drop-shadow(0 0 6px rgba(0,0,0,.35));} }
+    @keyframes fog-drift { 0%{transform:translate3d(-5%,-2%,0) scale(1.05);} 50%{transform:translate3d(6%,3%,0) scale(1.1);} 100%{transform:translate3d(-5%,-2%,0) scale(1.05);} }
+    @keyframes scan { 0%{background-position-y:0;} 100%{background-position-y:200px;} }
+    @keyframes flickerLabel { 0%,97%,100%{opacity:1;} 98%{opacity:.96;} 99%{opacity:.92;} }
+#displayHours{
+  margin-top: 0.6em;
+  font-family:"IM Fell English SC", system-ui, serif;
+  font-size: clamp(1.2rem, 3vw, 2.2rem);
+  letter-spacing:.4px;
+  color:#ccc;
+  text-shadow:0 2px 10px rgba(0,0,0,.55);
+}
+    /* ====== FÄLTLÄGE (Senaste biljetter) ====== */
+    .field-view{ position: fixed; inset:0; z-index:10000; background:#000 radial-gradient(120% 80% at 50% 10%, rgba(255,255,255,.06), transparent 60%); color:#fff; display:flex; flex-direction:column; overflow:hidden; }
+    .field-view::after{ content:""; position:absolute; inset:-20%; background: radial-gradient(120% 80% at 50% 10%, rgba(255,255,255,0.06), transparent 60%), radial-gradient(100% 60% at 20% 70%, rgba(255,255,255,0.04), transparent 60%), radial-gradient(100% 60% at 80% 60%, rgba(255,255,255,0.05), transparent 60%); opacity:.5; filter:blur(30px); pointer-events:none; }
+    .field-header{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid #333; background:#111; position:relative; z-index:1; }
+    .field-title{ font-family:"IM Fell English SC", system-ui, serif; font-size:28px; letter-spacing:.4px; color:#e53935; text-shadow:0 0 12px rgba(229,57,53,.45), 2px 2px 0 rgba(0,0,0,.7); }
+    .field-content{ flex:1; overflow:auto; padding:20px 16px 32px; position:relative; z-index:1; }
+    .ticket-list{ max-width:820px; margin:0 auto; }
+    .ticket-row{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px; margin:12px 0; background:#141414; border:1px solid #2a2a2a; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,.35); transition: transform .18s ease, box-shadow .28s ease, border-color .28s ease, opacity .28s ease; }
+    .ticket-row:hover{ transform:translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.45); border-color:#333; }
+    .ticket-row .meta{ font-size:13px; color:#bbb; }
+    .ticket-row .who{ font-family:"IM Fell English SC", system-ui, serif; font-size:22px; letter-spacing:.3px; line-height:1.2; word-break:break-word; color:#f1eaea; text-shadow:0 0 8px rgba(255,255,255,.06); }
+    .ticket-row .nums{ margin-top:4px; white-space:nowrap; font-size:14px; color:#ddd; }
+    .ticket-row .nums .pill{ margin-left:6px; }
+    .ticket-row.flash-green{ background:rgba(60,180,100,.08); border-color: rgba(60,180,100,.35); box-shadow: 0 0 10px rgba(60,180,100,.25); animation: fieldPulse 6s ease-out 1; }
+    @keyframes fieldPulse { 0%{box-shadow:0 0 0 12px rgba(60,180,100,0);} 12%{box-shadow:0 0 0 0 rgba(60,180,100,.25);} 100%{box-shadow:0 0 0 0 rgba(60,180,100,0);} }
+    .ticket-row.slide-out{ transform: translateY(20px); opacity:0; }
+    .reentry-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; margin:8px auto; max-width:820px; background:#131313; border:1px solid #2a2a2a; border-radius:10px; }
+    .reentry-row .label{ font-family:"IM Fell English SC", system-ui, serif; letter-spacing:.3px; font-size:18px; }
+  
+/* ====== VÄLKOMST FAQ ====== */
+.welcome-faq{
+  max-width: 500px;
+  margin: 20px auto 0;
+}
+
+/* Själva knappen */
+.welcome-faq .disclosure{
+  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
+  border: 1px solid #3a3a3a;
+  box-shadow:
+    inset 0 0 12px rgba(0,0,0,.8),
+    0 0 18px rgba(0,0,0,.6);
+  font-family: "IM Fell English SC", serif;
+  letter-spacing: .4px;
+  font-size: 18px;
+}
+
+/* Pil/indikator */
+.welcome-faq .disclosure::after{
+  content: "▾";
+  opacity: .6;
+  transition: transform .3s ease;
+}
+
+/* När öppen */
+.welcome-faq.open .disclosure::after{
+  transform: rotate(180deg);
+}
+
+/* Innehållet */
+#welcomeFaqContent{
+  background: radial-gradient(
+    circle at top,
+    rgba(255,255,255,.06),
+    rgba(0,0,0,.9) 70%
+  );
+  border: 1px solid #2f2f2f;
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  padding: 18px 20px 22px;
+
+  box-shadow:
+    inset 0 0 25px rgba(0,0,0,.85),
+    0 10px 30px rgba(0,0,0,.7);
+
+  font-family: "Courier New", Courier, monospace;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #e0e0e0;
+}
+
+.welcome-faq.open .content{
+  display:block;
+}
+#welcomeFaqContent strong{
+  color: #f5d28a;
+  font-weight: 600;
+}
+
+#welcomeFaqContent em{
+  color: #b38cff;
+  font-style: normal;
+}
+
+#welcomeFaqContent br + br{
+  display:block;
+  margin-top: 10px;
+}
+/* Centrera "Bra att veta (FAQ)" */
+.welcome-faq .disclosure{
+  justify-content: center;   /* centrerar texten */
+  text-align: center;
+  position: relative;
+}
+
+/* Flytta pilen till höger utan att påverka centreringen */
+.welcome-faq .disclosure::after{
+  position: absolute;
+  right: 14px;
+}
+.welcome-faq:not(.open) .disclosure{
+  padding: 8px 12px;      /* mindre höjd */
+  font-size: 16px;        /* lite mindre text */
+}
+
+.welcome-faq:not(.open){
+  max-width: 200px;       /* lite smalare när stängd */
+}
+  </style>
+</head>
+
+<body>
+  <!-- ===== TOPBAR ===== -->
+<div class="topbar">
+  <div id="queueTopbar" class="status clickable" onclick="maybeEditQueueTime(event)">
+    Kö: <span id="queueTimeText">Ingen info</span>
+  </div>
+
+ <div class="status" id="openBlock">
+  <span class="open-label">Öppet idag:</span>
+  <span id="openHoursText" class="open-time clickable" onclick="maybeEditHours(event)">Stängt</span>
+</div>
+
+  <!-- HÖGER: USER -->
+  <div class="user-menu">
+    <button id="loginBtn" onclick="promptPassword()" style="display:inline-block;">Logga in</button>
+
+    <button id="logoutBtn" style="display:none;">
+      <div id="logoutName">Namn</div>
+      <div style="font-size:12px;color:#ccc;">Meny</div>
+    </button>
+
+    <div id="userDropdown" class="dropdown">
+      <a href="#" onclick="selectMenu('kassa');return false;">Kassa</a>
+      <a href="#" onclick="selectMenu('profile');return false;">Min sida</a>
+      <a href="#" onclick="selectMenu('stats');return false;">Statistik</a>
+      <a href="#" id="adminLink" onclick="selectMenu('admin');return false;">Hantera</a>
+<a href="#" id="ticketsLink" onclick="openRecentTicketsFull();hideDropdown();return false;">Insläpp</a>
+      <a href="#" onclick="selectMenu('logout');return false;">Logga ut</a>
+    </div>
+  </div>
+</div>
+  <!-- ===== VÄLKOMST ===== -->
+ <div class="welcome-message" id="welcomeMessage">
+  <div id="welcomeLogoWrap"><img id="welcomeLogo" alt="Logotyp" /></div>
+  <h1>Vågar du checka in och ta reda på hotellets mörkaste hemligheter?</h1>
+  <p>⏳ Nuvarande kötid: <span id="queueTimeDisplay">Ingen info</span></p>
+  <div id="welcomeInfoText"></div>
+
+  <!-- ✅ FAQ ska ligga här inne -->
+  <div class="welcome-faq">
+  <button class="disclosure" type="button" onclick="toggleWelcomeFAQ()">
+    Frågor & Svar
+  </button>
+  <div class="content" id="welcomeFaqContent">
+    <!-- FAQ-texten hamnar här -->
+  </div>
+</div>
+
+  <p id="showHoursInfo" class="muted"></p>
+</div>
+
+  <!-- ===== ÖPPETTIDER (endast admin) ===== -->
+  <div id="hoursMenu">
+    <label>Öppettid:</label>
+    <select id="preset" onchange="presetSelected(this.value)">
+      <option value="Stängt">Stängt</option>
+      <option value="10:00–22:00">10:00–22:00</option>
+      <option value="10:00–18:00">10:00–18:00</option>
+      <option value="18:00–21:00">18:00–21:00</option>
+      <option value="custom">Ange själv...</option>
+    </select>
+    <input id="customHours" class="input" placeholder="16:30–20:00" style="display:none; width:260px;" />
+    <button class="btn btn-green" onclick="applyCustomHours()">Spara</button>
+  </div>
+
+  <!-- ===== KÖTID (inloggad får ändra via topbartext) ===== -->
+  <div id="queueMenu">
+    <label>Kötid:</label>
+    <select id="queuePreset" onchange="applyQueuePreset(this.value)">
+      <option value="">-- Välj --</option>
+      <option>Stängt</option>
+      <option>Tillfälligt Stängt</option>
+      <option>0–5 min</option>
+      <option>5–10 min</option>
+      <option>10–15 min</option>
+      <option>15–20 min</option>
+      <option>20–25 min</option>
+      <option>25–30 min</option>
+      <option>Stängt för kvällen</option>
+    </select>
+  </div>
+
+  <!-- ===== ADMIN (Hantera) ===== -->
+  <div id="adminSettings">
+    <h3>Hantera</h3>
+
+    <!-- Personalinställningar -->
+    <div class="section">
+      <button class="disclosure" type="button" onclick="adminAccordion('personalContent', this)">Personalinställningar</button>
+      <div id="personalContent" class="content">
+        <h4>Välj medarbetare</h4>
+        <select id="userSelect"></select>
+        
+<div class="admin-password">
+  <span class="label">Lösenord</span>
+  <span id="selectedUserPassword" class="value">–</span>
+</div>
+
+        <div class="row" style="gap:24px; align-items:flex-start; margin-top:8px;">
+          <div style="flex:1;">
+            <h4 style="margin:0 0 6px;">Arbetstid</h4>
+            <input id="setHours" class="input" placeholder="t.ex. 10:00–18:00" style="width:100%;">
+          </div>
+          <div style="flex:1;">
+            <h4 style="margin:0 0 6px;">Dagens uppgift</h4>
+            <select id="setTaskSelect" class="input" style="width:100%;"></select>
+            <div class="tiny" style="margin-top:4px;">Visas på “Min sida”.</div>
+          </div>
+        </div>
+        <h4 style="margin:12px 0 6px;">Kassa-access</h4>
+        <label style="display:block; margin-top:6px;"><input type="checkbox" id="accessCheckbox"> Kassa-access</label>
+        <small id="adamNote" style="display:none; color:#9f9;"></small>
+
+        <h4 style="margin:12px 0 6px;">Kompetenser</h4>
+        <div id="adminSkillsOptions" class="row"></div>
+
+        <button id="saveAdminBtn" class="btn btn-green" style="margin-top:12px;">Spara ändringar</button>
+        <div id="adminConfirm" style="display:none;color:#0f0;margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <!-- Lägg till/ta bort medarbetare -->
+    <div class="section">
+      <button class="disclosure" type="button" onclick="adminAccordion('manageUserContent', this)">Lägg till/ta bort medarbetare</button>
+      <div id="manageUserContent" class="content">
+        <label>Användarnamn:<br><input id="newUserName" class="input" placeholder="Användarnamn" /></label>
+        <br>
+        <label>Lösenord:<br><input id="newUserPass" class="input" placeholder="Lösenord" /></label>
+        <label style="display:block;margin-top:8px;"><input type="checkbox" id="newUserAccessCheckbox"> Kassa-access</label>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button id="addUserBtn" class="btn btn-primary">Lägg till</button>
+          <button id="removeUserBtn" class="btn btn-danger">Ta bort</button>
+        </div>
+        <small class="tiny" style="display:block; margin-top:6px;">För att ta bort krävs korrekt namn <em>och</em> lösenord. Casper & Adam kan inte tas bort.</small>
+      </div>
+    </div>
+
+    <!-- Kataloger -->
+    <div class="section">
+      <button class="disclosure" type="button" onclick="adminAccordion('catalogContent', this)">Kataloger (kompetenser & uppgifter)</button>
+      <div id="catalogContent" class="content">
+        <div class="row" style="gap:24px; align-items:flex-start; margin-top:8px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:280px;">
+            <h4 style="margin:0 0 6px;">Kompetenser</h4>
+            <div id="skillCatalogList"></div>
+            <div class="row" style="margin-top:8px;">
+              <input id="newSkillInput" class="input" placeholder="Ny kompetens…" style="flex:1;">
+              <button id="addSkillBtn" class="btn btn-green">Lägg till</button>
+            </div>
+          </div>
+
+          <div style="flex:1; min-width:280px;">
+            <h4 style="margin:0 0 6px;">Uppgifter</h4>
+            <div id="taskCatalogList"></div>
+            <div class="row" style="margin-top:8px;">
+              <input id="newTaskInput" class="input" placeholder="Ny uppgift..." style="flex:1;">
+              <button id="addTaskBtn" class="btn btn-green">Lägg till</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Välkomstsida -->
+    <div class="section">
+      <button class="disclosure" type="button" onclick="adminAccordion('welcomeEditContent', this)">Redigera välkomstsida</button>
+      <div id="welcomeEditContent" class="content">
+        <h4>Välkomsttext</h4>
+        <textarea id="welcomeTextInput" rows="6" placeholder="Skriv informationstexten..." style="width:100%; box-sizing:border-box; padding:10px; background:#141414; color:#fff; border:1px solid #333; border-radius:8px;"></textarea>
+        <div class="row" style="justify-content:flex-end; margin-top:8px;">
+          <button id="saveWelcomeTextBtn" class="btn btn-green">Spara text</button>
+          <button id="clearWelcomeTextBtn" class="btn btn-danger">Ta bort text</button>
+        </div>
+<hr style="border-color:#333; margin:14px 0;">
+
+<h4>FAQ (välkomstsidan)</h4>
+<textarea id="welcomeFaqInput" rows="10"
+  placeholder="Skriv FAQ... Använd {{PRICE_ADULT}} och {{PRICE_CHILD}} för biljettpriser."
+  style="width:100%; box-sizing:border-box; padding:10px; background:#141414; color:#fff; border:1px solid #333; border-radius:8px;"></textarea>
+
+<div class="row" style="justify-content:flex-end; margin-top:8px;">
+  <button id="saveWelcomeFaqBtn" class="btn btn-green">Spara FAQ</button>
+  <button id="clearWelcomeFaqBtn" class="btn btn-danger">Ta bort FAQ</button>
+</div>
+        <hr style="border-color:#333; margin:14px 0;">
+
+        <h4 style="margin-top:0;">Bakgrundsbild</h4>
+        <input type="file" id="welcomeBgFile" accept="image/*" />
+        <div class="muted">Bilden sparas lokalt i webbläsaren (ingen uppladdning).</div>
+        <img id="welcomeBgPreview" style="display:none; max-width:100%; margin-top:8px; border-radius:8px;" alt="Förhandsvisning"/>
+        <button id="clearWelcomeBg" class="btn btn-danger" style="margin-top:8px;">Ta bort bild</button>
+
+        <hr style="border-color:#333; margin:14px 0;">
+
+        <h4>Logga</h4>
+        <input type="file" id="welcomeLogoFile" accept="image/*" />
+        <div class="muted">PNG/SVG rekommenderas. Sparas lokalt (ingen uppladdning).</div>
+        <img id="welcomeLogoPreview" style="display:none; max-width:200px; margin-top:8px; border-radius:6px; background:#222; padding:6px;" alt="Förhandsvisning logga" />
+        <button id="clearWelcomeLogo" class="btn btn-danger" style="margin-top:8px;">Ta bort logga</button>
+      </div>
+    </div>
+
+    <!-- Produkter -->
+    <div class="section">
+      <button class="disclosure" type="button" onclick="adminAccordion('productsContent', this)">Produkter</button>
+      <div id="productsContent" class="content">
+        <div id="productsList"></div>
+        <div class="row" style="justify-content:space-between; margin-top:8px;">
+          <div class="row">
+            <input id="pNewName" class="input" placeholder="Produktnamn">
+            <input id="pNewPrice" class="input" type="number" min="0" step="1" placeholder="Pris">
+          </div>
+          <button id="pAddBtn" class="btn btn-green">Lägg till produkt</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MIN SIDA ===== -->
+  <div id="profileContainer" class="theme-default">
+    <h2 id="welcomeUser">Välkommen</h2>
+    <p><strong>Arbetstid:</strong> <span id="myHours">–</span></p>
+    <p><strong>Uppgift:</strong> <span id="myTask">–</span></p>
+    <div id="skillsSection">
+      <p><strong>Kompetenser:</strong> <span id="skillsList" class="row muted">–</span></p>
+    </div>
+
+    <div id="themePicker" style="margin-top:16px;">
+      <h4 style="margin:8px 0 6px;">Bakgrundsfärg</h4>
+      <div class="theme-dots">
+        <button type="button" class="theme-dot" data-theme="default" title="Standard"></button>
+        <button type="button" class="theme-dot" data-theme="forest" title="Grön"></button>
+        <button type="button" class="theme-dot" data-theme="royal" title="Lila"></button>
+      </div>
+      <div class="muted" style="margin-top:6px;">Välj en bakgrundsfärg för just din sida!</div>
+    </div>
+  </div>
+  <!-- ===== KASSA ===== -->
+  <div id="kassaContainer">
+    <h1>Spökhotellet Korpen</h1>
+    <div id="closedMessage">Kassan är stängd</div>
+
+    <div class="products"></div>
+
+    <button id="discountBtn" title="Använd 50% rabatt en gång på denna kund">50% rabatt (1 gång)</button>
+
+    <table class="cart-table">
+      <thead><tr><th>Produkt</th><th>Antal</th><th>Pris</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div id="total">Totalt: 0 kr</div>
+    <button id="checkout" disabled>Genomför köp</button>
+
+   <!-- Betalningsmodal -->
+<div id="payModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="payTitle">
+  <div class="modal">
+    <h3 id="payTitle">Välj betalningsmetod</h3>
+    <div id="paySum" class="tiny" style="margin-bottom:8px;">Summa: –</div>
+    <input id="ticketLabelInput" class="input" placeholder="Biljettnamn (vid köp av biljett)" style="width:100%; margin:6px 0 10px;">
+    <div class="row" style="gap:12px; margin-bottom:8px;">
+      <label class="pill"><input type="radio" name="payModal" value="Swish" checked> Swish</label>
+      <label class="pill"><input type="radio" name="payModal" value="Kort"> Kort</label>
+      <label class="pill"><input type="radio" name="payModal" value="Kontant"> Kontant</label>
+    </div>
+
+    <div class="actions">
+      <button id="payCancel" class="btn">Avbryt</button>
+      <button id="payConfirm" class="btn btn-green">Bekräfta</button>
+    </div>
+  </div>
+</div>
+
+<!-- ✅ Bekräftelsemodal (LIGG UTANFÖR payModal) -->
+<div id="approveModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="approveTitle">
+  <div class="modal">
+    <h3 id="approveTitle">Bekräftelse av godkänt köp</h3>
+    <div class="tiny" id="approveMeta" style="margin-bottom:10px;">–</div>
+
+    <div class="row" style="justify-content:flex-end; gap:10px;">
+      <button id="approveNo" class="btn btn-danger">Avböj</button>
+      <button id="approveYes" class="btn btn-green">Godkänt</button>
+    </div>
+  </div>
+</div>
+</div>
+  <!-- ===== STATISTIK ===== -->
+  <div id="statsContainer" style="display:none; max-width:820px; margin:60px auto;">
+    <div class="section">
+      <h3 style="margin:0 0 10px;">Statistik</h3>
+      <div id="statsContent">
+        <div id="cockpitWrap"></div>
+        <div id="statsList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  const API_URL = 'https://script.google.com/macros/s/AKfycbx54qTF1ymnSm8t_qmjiHh7f2smc_Dk6gCxZXF12eALYR-ly6GKdVQjNhkCKu3WOzLiIQ/exec';
+
+async function apiGet(key){
+  const r = await fetch(`${API_URL}?key=${encodeURIComponent(key)}&_=${Date.now()}`, {
+    cache: 'no-store'
+  });
+  const j = await r.json();
+  return j.value;
+}
+
+async function apiSet(key, value){
+  const body = new URLSearchParams({ key, value: String(value ?? '') });
+
+  const r = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body
+  });
+
+  const text = await r.text(); // <-- läs alltid råtext först
+  let j = null;
+  try { j = JSON.parse(text); } catch(e){}
+
+  if(!r.ok){
+    throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`);
+  }
+  if(!j || j.ok !== true){
+    throw new Error(`Bad JSON: ${text.slice(0,200)}`);
+  }
+  return j;
+}
+/* =========================
+   LAGRING
+========================= */
+const STORAGE_KEY='userData';
+const DAILY_KEY='dailyStats';
+const SALESHISTORY_KEY='salesHistoryV1';
+const PRODUCTS_KEY='productsV1';
+const WELCOME_BG_KEY='welcomeBg';
+const WELCOME_LOGO_KEY='welcomeLogo';
+const WELCOME_TEXT_KEY='welcomeTextV1';
+const SKILL_CATALOG_KEY='skillCatalogV1';
+const TASK_CATALOG_KEY='taskCatalogV1';
+const OPEN_TICKETS_KEY='openTicketsV1';
+const REENTRY_KEY='reEntryV1';
+const ADMIT_KEY='admissionsTodayV1';
+const QUEUE_KEY='queueTimeV1';
+const OPENING_KEY='openingHoursV1';
+const WELCOME_FAQ_KEY='welcomeFaqV1';
+const DAILY_COSTS_KEY='dailyCostsV1';
+const DAILY_FORECAST_KEY='dailyForecastV1';
+const USERS_KEY='usersV1';
+const SESSION_KEY = 'sessionV1';
+const COCKPIT_TAB_KEY = 'cockpitTabV1';
+
+function getSavedCockpitTab(){
+  const v = localStorage.getItem(COCKPIT_TAB_KEY);
+  return (v === 'intake' || v === 'guests') ? v : 'guests';
+}
+
+function saveCockpitTab(mode){
+  localStorage.setItem(COCKPIT_TAB_KEY, mode === 'intake' ? 'intake' : 'guests');
+}
+
+/* =========================
+   SERVER-DB (Apps Script) – allt utom bilder
+========================= */
+
+// Vilka nycklar vi vill ha på servern (JSON)
+const SERVER_JSON_KEYS = new Set([
+  STORAGE_KEY,
+  DAILY_KEY,
+  SALESHISTORY_KEY,
+  PRODUCTS_KEY,
+  SKILL_CATALOG_KEY,
+  TASK_CATALOG_KEY,
+  OPEN_TICKETS_KEY,
+  REENTRY_KEY,
+  ADMIT_KEY,
+  WELCOME_TEXT_KEY,
+  WELCOME_FAQ_KEY,
+  DAILY_COSTS_KEY,
+  DAILY_FORECAST_KEY,
+  QUEUE_KEY,
+  OPENING_KEY,
+  USERS_KEY
+  
+]);
+
+// Lokal cache (så resten av koden kan vara synk)
+const _db = {
+  cache: new Map(),          // key -> value (obj/array/string)
+  loaded: new Set(),         // keys vi hämtat minst en gång
+  inflight: new Map(),       // key -> Promise
+};
+/* =========================
+   PERSISTENT CACHE (localStorage)
+   - visar senaste kända data direkt
+   - uppdaterar i bakgrunden
+========================= */
+const PERSIST_CACHE_PREFIX = 'dbcache_v1__';
+
+function _cacheLSKey(key){ return PERSIST_CACHE_PREFIX + key; }
+
+function persistCacheWrite(key, value){
+  try{
+    const payload = {
+      t: Date.now(),
+      v: value
+    };
+    localStorage.setItem(_cacheLSKey(key), JSON.stringify(payload));
+  }catch(_e){}
+}
+
+function persistCacheRead(key){
+  try{
+    const raw = localStorage.getItem(_cacheLSKey(key));
+    if(!raw) return null;
+    const obj = JSON.parse(raw);
+    if(!obj || !('v' in obj)) return null;
+    return obj.v;
+  }catch(_e){
+    return null;
+  }
+}
+
+// Ladda cache för en lista av keys INNAN vi ens fetchar servern
+function persistCacheHydrate(keysWithFallback){
+  keysWithFallback.forEach(({key, fallback})=>{
+    const v = persistCacheRead(key);
+    if(v === null || typeof v === 'undefined'){
+      _db.cache.set(key, _clone(fallback));
+    }else{
+      _db.cache.set(key, _clone(v));
+    }
+    _db.loaded.add(key);
+  });
+}
+
+function _clone(v){
+  // billig säkerhet för objekt/arrayer
+  try { return JSON.parse(JSON.stringify(v)); } catch(_e){ return v; }
+}
+
+async function dbFetch(key, fallback){
+  // dedupe samtidiga fetchar
+  if(_db.inflight.has(key)) return _db.inflight.get(key);
+
+  const p = (async ()=>{
+    try{
+      const raw = await apiGet(key); // string eller null
+      if(raw == null || raw === ''){
+        _db.cache.set(key, _clone(fallback));
+        _db.loaded.add(key);
+        return _clone(fallback);
+      }
+
+      if(SERVER_JSON_KEYS.has(key)){
+        try{
+          const parsed = JSON.parse(raw);
+_db.cache.set(key, parsed);
+_db.loaded.add(key);
+persistCacheWrite(key, parsed);
+return _clone(parsed);
+        }catch(e){
+          // korrupt JSON på servern -> fallback
+          _db.cache.set(key, _clone(fallback));
+          persistCacheWrite(key, _db.cache.get(key));
+          _db.loaded.add(key);
+          return _clone(fallback);
+        }
+      }
+
+      // string key
+      const str = String(raw);
+_db.cache.set(key, str);
+_db.loaded.add(key);
+persistCacheWrite(key, str);
+return str;
+    }finally{
+      _db.inflight.delete(key);
+    }
+  })();
+
+  _db.inflight.set(key, p);
+  return p;
+}
+
+function dbGet(key, fallback){
+  if(_db.cache.has(key)) return _clone(_db.cache.get(key));
+  return _clone(fallback);
+}
+
+async function dbEnsure(key, fallback){
+  if(_db.loaded.has(key)) return dbGet(key, fallback);
+  return dbFetch(key, fallback);
+}
+
+async function dbSet(key, value){
+  // uppdatera cache direkt (så UI känns snabb)
+  _db.cache.set(key, _clone(value));
+  _db.loaded.add(key);
+  persistCacheWrite(key, _clone(value));
+
+  if(SERVER_JSON_KEYS.has(key)){
+    return apiSet(key, JSON.stringify(value ?? null));
+  }
+  return apiSet(key, String(value ?? ''));
+}
+
+async function dbRefreshMany(keysWithFallback){
+  // keysWithFallback: [{key, fallback}, ...]
+  await Promise.all(keysWithFallback.map(kf => dbFetch(kf.key, kf.fallback)));
+}
+
+/* =========================
+   DEFAULTS (server)
+========================= */
+function defaultDailyStats(){
+  return { date: todayStr(), guestCount: 0, totalIncome: 0 };
+}
+function defaultSalesHistory(){
+  return {}; // { "YYYY-MM-DD": {adult,child,income,count,entries,...} }
+}
+function defaultOpenTickets(){
+  return { date: todayStr(), seq: 0, items: [] };
+}
+function defaultAdmissions(){
+  return { date: todayStr(), count: 0, entries: [] };
+}
+function defaultReEntry(){
+  return { date: todayStr(), passes: [] };
+}
+function defaultDailyCosts(){
+  return { date: todayStr(), costs: 0 };
+}
+function defaultDailyForecast(){
+  return { date: todayStr(), target: 0, fallbackAvg: 40 };
+}
+function defaultProducts(){
+  return [
+    {id:1,name:'Vuxenbiljett',price:50},
+    {id:2,name:'Barnbiljett',price:30},
+    {id:3,name:'Spel',price:10},
+    {id:4,name:'Re-Entry-Pass',price:100}
+  ];
+}
+function defaultSkillCatalog(){
+  return ['Skräckaktör','Mingelaktör','Kassör','Spelvärd','Driftansvarig','Utbildare'];
+}
+function defaultTaskCatalog(){
+  return ['Skräckaktör','Mingelaktör','Kassör','Spelvärd','Driftansvarig','Utbildare'];
+}
+/* =========================
+   STATE
+========================= */
+let _lastProfileWelcomeFor = '';
+let userData = {};
+try{
+  const raw=localStorage.getItem(STORAGE_KEY);
+  userData = raw ? JSON.parse(raw) : {};
+}catch(e){
+  userData={};
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+function defaultUsers(){
+  return {
+    'spök123':{name:'Casper',admin:true,hasAccess:true},
+    '7997':{name:'Adam',admin:false,hasAccess:true}
+  };
+}
+
+function enforceCoreUsers(){
+  if(!users || typeof users !== 'object') users = {};
+  users['spök123'] = {name:'Casper',admin:true,hasAccess:true};
+  users['7997']    = {name:'Adam',admin:false,hasAccess:true};
+}
+
+let users = defaultUsers();
+
+function saveUsers(){
+  return dbSet(USERS_KEY, users || {}).catch(()=>{});
+}
+
+async function loadUsersFromServer(){
+  const u = await dbEnsure(USERS_KEY, defaultUsers());
+  users = (u && typeof u === 'object') ? u : defaultUsers();
+
+  // safety: se till att Casper/Adam alltid finns kvar
+  enforceCoreUsers();
+  await saveUsers();
+}
+
+const THEME_CLASSES=['theme-default','theme-forest','theme-royal'];
+
+let cart={}, totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0;
+let loggedInKey='', loggedInUser='', isAdmin=false, currentHasAccess=false;
+let discountApplied=false, _lastPayChoice='Swish';
+let _pendingPayChoice = null;
+let _pendingPaySumText = '';
+/* =========================
+   HELPERS
+========================= */
+function todayStr(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function escapeHtml(s){
+  return (s||'').replace(/[&<>\"']/g,(ch)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]);
+}
+function getReEntryStatsForDate(date){
+  if(date !== todayStr()) return { created:0, used:0, lines:[] };
+
+  const db = loadReEntry();
+  const passes = Array.isArray(db.passes) ? db.passes : [];
+
+  const created = passes.length;
+  const used = passes.reduce((sum,p)=>sum + Number(p.count||0), 0);
+
+  const lines = passes
+    .slice()
+    .sort((a,b)=>Number(b.count||0)-Number(a.count||0))
+    .map(p => `${p.label||'Pass'} — ${Number(p.count||0)} gånger`);
+
+  return { created, used, lines };
+}
+
+function renderReEntryLineForHistory(date){
+  const s = getReEntryStatsForDate(date);
+  if(!s.created) return `Re-entry (skapat: 0)`;
+
+  const top = s.lines.slice(0,3).join(' • ');
+  const more = s.lines.length > 3 ? ` (+${s.lines.length-3} till)` : '';
+
+  return `Re-entry: ${s.used} användningar • Skapat: ${s.created}${top ? ` • ${top}${more}` : ''}`;
+}
+function safePrepend(parent, node){
+  try{
+    if(!parent||!node) return;
+    if(typeof parent.prepend==='function') parent.prepend(node);
+    else parent.insertBefore(node, parent.firstChild||null);
+  }catch(e){}
+}
+function normalizeRangeStr(s){
+  s=(s||'').trim();
+  s=s.replace(/\s*/g,'');
+  s=s.replace('-', '–');
+  const parts=s.split('–');
+  if(parts.length!==2) return null;
+  if(!/^\d{1,2}:\d{2}$/.test(parts[0]) || !/^\d{1,2}:\d{2}$/.test(parts[1])){
+    const toHHMM = (x)=>{
+      const m = /^(\d{1,2})(?::?(\d{2}))?$/.exec(x);
+      if(!m) return null;
+      const h = String(+m[1]).padStart(2,'0');
+      const mi = String(m[2]?+m[2]:0).padStart(2,'0');
+      return `${h}:${mi}`;
+    };
+    const a=toHHMM(parts[0]), b=toHHMM(parts[1]);
+    if(!a||!b) return null;
+    return `${a}–${b}`;
+  }
+  return `${parts[0]}–${parts[1]}`;
+}
+
+function pick(arr){
+  return arr[Math.floor(Math.random()*arr.length)];
+}
+
+function setRandomWelcome(name){
+  const w = document.getElementById('welcomeUser');
+  if(!w) return;
+
+  const greetings = [
+    `Välkommen ${name}!`,
+    `Rysligt kul att se dig, ${name}!`,
+    `Kul att se dig igen, ${name}!`,
+       `Välkommen tillbaka, ${name}!`,
+    `God dag, ${name}!`,
+    `Hej igen, ${name}!`
+    
+  ];
+
+  w.textContent = pick(greetings);
+}
+const STATS_OPEN_DAYS_KEY = 'statsOpenDaysV1';
+
+function loadOpenStatsDays(){
+  try{
+    const arr = JSON.parse(localStorage.getItem(STATS_OPEN_DAYS_KEY) || '[]');
+    return Array.isArray(arr) ? arr : [];
+  }catch(_e){ return []; }
+}
+function saveOpenStatsDays(arr){
+  try{
+    localStorage.setItem(STATS_OPEN_DAYS_KEY, JSON.stringify((arr||[]).slice(0,20)));
+  }catch(_e){}
+}
+function rememberStatsDayOpen(date, isOpen){
+  const cur = loadOpenStatsDays();
+  const has = cur.includes(date);
+  const next = isOpen
+    ? (has ? cur : [date, ...cur])     // lägg först
+    : cur.filter(d => d !== date);
+
+  saveOpenStatsDays(next);
+}
+/* =========================
+   VÄLKOMSTSIDA FAQ
+========================= */
+function getTicketPricesFromProducts(){
+  const prods = loadProducts();
+  let adult = null, child = null;
+
+  prods.forEach(p=>{
+    const n = String(p.name||'').toLowerCase();
+    if(adult===null && n.includes('vuxen')) adult = Number(p.price||0);
+    if(child===null && n.includes('barn')) child = Number(p.price||0);
+  });
+
+  return {
+    adult: (adult===null ? '—' : adult),
+    child: (child===null ? '—' : child)
+  };
+}
+function setWelcomeFAQText(raw){
+  const box = document.getElementById('welcomeFaqContent');
+  const wrap = document.querySelector('.welcome-faq');
+  if(!box || !wrap) return;
+
+  const txt = (raw||'').trim();
+
+  // Om tom: dölj hela FAQ-blocket (knapp + content)
+  if(!txt){
+    box.innerHTML = '';
+    wrap.style.display = 'none';
+    wrap.classList.remove('open');
+    return;
+  }
+
+  // Har vi text: visa själva FAQ-blocket, men INTE content automatiskt
+  wrap.style.display = 'block';
+  wrap.classList.remove('open'); // <-- gör att den alltid startar stängd
+
+  const prices = getTicketPricesFromProducts();
+  const duration = (localStorage.getItem('welcomeDurationV1') || '10–15 min');
+  const qShown = (openingHours==='Stängt') ? 'Stängt' : (queueTime || 'Ingen info');
+
+  const rendered = txt
+    .replaceAll('{{VUXEN}}', String(prices.adult))
+    .replaceAll('{{BARN}}', String(prices.child))
+    .replaceAll('{{DURATION}}', String(duration))
+    .replaceAll('{{QUEUE}}', String(qShown));
+
+  box.innerHTML = escapeHtml(rendered).replace(/\n/g,'<br>');
+}
+function toggleWelcomeFAQ(){
+  const wrap = document.querySelector('.welcome-faq');
+  if(!wrap) return;
+
+  const isOpen = wrap.classList.contains('open');
+
+  if(isOpen){
+    // STÄNG → scrolla upp
+    wrap.classList.remove('open');
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  }else{
+    // ÖPPNA
+    wrap.classList.add('open');
+
+    // scrolla så hela FAQ syns
+    setTimeout(()=>{
+      wrap.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }, 50); // liten delay så boxen hinner öppnas
+  }
+}
+
+/* =========================
+   ÖPPETTIDER & KÖ
+========================= */
+function saveOpeningHours(v){
+  return dbSet(OPENING_KEY, String(v || 'Stängt'));
+}
+function loadOpeningHours(){
+  return String(dbGet(OPENING_KEY, 'Stängt') || 'Stängt');
+}
+
+function saveQueue(v){
+  return dbSet(QUEUE_KEY, String(v || ''));
+}
+function loadQueue(){
+  return String(dbGet(QUEUE_KEY, '') || '');
+}
+
+async function setupLiveStatus(){
+  openingHours = loadOpeningHours();
+queueTime = loadQueue();
+
+  if(openingHours === 'Stängt') queueTime = 'Stängt';
+  updateTopbar();
+
+  setInterval(async ()=>{
+  await dbFetch(OPENING_KEY, 'Stängt');
+  await dbFetch(QUEUE_KEY, '');
+
+  const oh = loadOpeningHours();
+  const qt = loadQueue();
+
+  const newOpening = oh || 'Stängt';
+  const newQueue = (newOpening === 'Stängt') ? 'Stängt' : (qt || '');
+
+  if(newOpening !== openingHours || newQueue !== queueTime){
+    openingHours = newOpening;
+    queueTime = newQueue;
+    updateTopbar();
+    refreshDisplayOverlay();
+    refreshCockpitIfOpen();
+  }
+}, 3000);
+ 
+}
+
+
+/* Admin ändrar öppettid genom att klicka på själva öppettiden */
+function maybeEditHours(ev){
+  if(ev){ ev.stopPropagation(); ev.preventDefault(); }
+  if(!isAdmin) return;
+  const el=document.getElementById('hoursMenu');
+  if(el) el.style.display='block';
+}
+
+async function presetSelected(v){
+  const inp=document.getElementById('customHours');
+  if(v==='custom'){
+    if(inp){ inp.style.display='inline-block'; inp.focus(); }
+    return;
+  }
+
+  openingHours = v;
+
+  try{
+    await saveOpeningHours(openingHours);
+
+    // om du vill nolla kön när öppettid ändras:
+    queueTime = 'Stängt';
+    await saveQueue(queueTime);
+
+    updateTopbar();
+    refreshCockpitIfOpen();
+
+    const hm=document.getElementById('hoursMenu');
+    if(hm) hm.style.display='none';
+  }catch(e){
+    alert('Kunde inte spara öppettid:\n' + (e?.message || e));
+console.error(e);
+  }
+}
+
+async function applyCustomHours(){
+  const inp=document.getElementById('customHours');
+  const raw=(inp?inp.value.trim():'') || '';
+  const norm=normalizeRangeStr(raw);
+  if(!norm){ alert('Skriv t.ex. 16-02 eller 10:00–18:00'); return; }
+
+  openingHours = norm;
+
+  try{
+    await saveOpeningHours(openingHours);
+
+    queueTime='Stängt';
+    await saveQueue(queueTime);
+
+    updateTopbar();
+    refreshCockpitIfOpen();
+
+    const hm=document.getElementById('hoursMenu');
+    if(hm) hm.style.display='none';
+  }catch(e){
+    alert('Kunde inte spara öppettid:\n' + (e?.message || e));
+console.error(e);
+  }
+}
+/* Inloggade får ändra kötid genom att klicka på statusraden i topbaren */
+function maybeEditQueueTime(ev){
+  if(ev){ ev.stopPropagation(); ev.preventDefault(); }
+  if(!loggedInUser) return;
+  if(openingHours==='Stängt' && !isAdmin) return;
+
+  const el=document.getElementById('queueMenu');
+  if(el) el.style.display='block';
+}
+function applyQueuePreset(v){
+  if(!v) return;
+  queueTime=v;
+  saveQueue(v);
+  updateTopbar();
+  const el=document.getElementById('queueMenu');
+  if(el) el.style.display='none';
+}
+function refreshCockpitIfOpen(){
+  const sc = document.getElementById('statsContainer');
+  if(!sc) return;
+
+  const isVisible = getComputedStyle(sc).display !== 'none';
+  if(!isVisible) return;
+
+  // synka state
+  openingHours = loadOpeningHours();
+  queueTime = loadQueue();
+  loadDailyCosts();
+  loadDailyForecast();
+
+  renderCockpit();
+  if(isAdmin) renderStats();
+}
+/* =========================
+   DAGLIG STAT
+========================= */
+function loadDailyStats(){
+  // server
+  let ds = dbGet(DAILY_KEY, defaultDailyStats());
+  if(ds.date !== todayStr()) ds = defaultDailyStats();
+
+  guestCount = Number(ds.guestCount || 0);
+  totalIncome = Number(ds.totalIncome || 0);
+
+  // skriv tillbaka om datum byttes
+  dbSet(DAILY_KEY, { date: todayStr(), guestCount, totalIncome }).catch(()=>{});
+}
+function saveDailyStats(){
+  dbSet(DAILY_KEY, { date: todayStr(), guestCount, totalIncome }).catch(()=>{});
+}
+
+function guestBucketsByHourFromAdmissionsHistory(dateStr){
+  const out = Array.from({length:24}, ()=>0);
+  const day = loadSalesHistory()[dateStr] || {};
+  const entries = Array.isArray(day.admissionsEntries) ? day.admissionsEntries : [];
+
+  entries.forEach(e=>{
+    const h = new Date(e.ts).getHours();
+    out[h] += Number(e.n || 0);
+  });
+
+  return out;
+}
+
+function loadDailyCosts(){
+  let o = dbGet(DAILY_COSTS_KEY, defaultDailyCosts());
+  if(o.date !== todayStr()) o = defaultDailyCosts();
+  o.costs = Number(o.costs || 0);
+  dbSet(DAILY_COSTS_KEY, o).catch(()=>{});
+  return o;
+}
+function saveDailyCosts(costs){
+  const n = Math.max(0, Number(costs || 0));
+  dbSet(DAILY_COSTS_KEY, { date: todayStr(), costs: Math.round(n) }).catch(()=>{});
+}
+function getDailyCosts(){
+  return Number(loadDailyCosts().costs || 0);
+}
+
+
+function setDailyCostsViaPrompt(){
+  if(!isAdmin) return;
+  const current = getDailyCosts();
+  const raw = prompt('Dagens utgifter (kr)', String(current));
+  if(raw === null) return;
+
+  const n = Number(String(raw).replace(',', '.').trim());
+  if(!Number.isFinite(n) || n < 0){
+    alert('Skriv en giltig siffra (0 eller mer).');
+    return;
+  }
+  saveDailyCosts(Math.round(n));
+  refreshCockpitIfOpen();
+}
+/* =========================
+   DAGENS PROGNOS (Insläpp -> Intäkt)
+========================= */
+function loadDailyForecast(){
+  let o = dbGet(DAILY_FORECAST_KEY, defaultDailyForecast());
+  if(o.date !== todayStr()) o = defaultDailyForecast();
+  o.target = Math.max(0, Number(o.target || 0));
+  o.fallbackAvg = Math.max(0, Number(o.fallbackAvg || 0));
+  dbSet(DAILY_FORECAST_KEY, o).catch(()=>{});
+  return o;
+}
+function saveDailyForecast(next){
+  const safe = next && typeof next === 'object' ? next : {};
+  const o = {
+    date: todayStr(),
+    target: Math.max(0, Number(safe.target || 0)),
+    fallbackAvg: Math.max(0, Number(safe.fallbackAvg || 0)),
+  };
+  dbSet(DAILY_FORECAST_KEY, o).catch(()=>{});
+}
+
+function getForecastTarget(){
+  return loadDailyForecast().target;
+}
+function getForecastFallbackAvg(){
+  return loadDailyForecast().fallbackAvg;
+}
+
+function setForecastTargetViaPrompt(){
+  if(!isAdmin) return;
+  const cur = getForecastTarget();
+  const raw = prompt('Prognos: antal insläppta idag', String(cur));
+  if(raw === null) return;
+
+  const n = Number(String(raw).replace(',', '.').trim());
+  if(!Number.isFinite(n) || n < 0){
+    alert('Skriv en giltig siffra (0 eller mer).');
+    return;
+  }
+
+  const o = loadDailyForecast();
+  o.target = Math.round(n);
+  saveDailyForecast(o);
+  refreshCockpitIfOpen();
+}
+
+function setForecastFallbackAvgViaPrompt(){
+  if(!isAdmin) return;
+  const cur = getForecastFallbackAvg();
+  const raw = prompt('Fallback-snitt (kr per insläppt)', String(cur));
+  if(raw === null) return;
+
+  const n = Number(String(raw).replace(',', '.').trim());
+  if(!Number.isFinite(n) || n < 0){
+    alert('Skriv en giltig siffra (0 eller mer).');
+    return;
+  }
+
+  const o = loadDailyForecast();
+  o.fallbackAvg = Math.round(n);
+  saveDailyForecast(o);
+  refreshCockpitIfOpen();
+}
+
+// kärnlogik: 0–4 fallback, 5–9 mix, 10+ live
+function computeForecastForToday(totalsIntake, admitted){
+  const target = getForecastTarget();
+  const fallbackAvg = getForecastFallbackAvg();
+
+  const liveAvg = (Number(admitted||0) > 0)
+    ? (Number(totalsIntake||0) / Number(admitted||0))
+    : 0;
+
+  let avgUsed = fallbackAvg;
+  let label = 'Fallback (tidigt på dagen)';
+
+  if(admitted >= 10 && liveAvg > 0){
+    avgUsed = liveAvg;
+    label = 'Live-snitt (dagens data)';
+  }else if(admitted >= 5){
+    // mixa – men om liveAvg är 0 (t.ex. insläpp innan köp) blir mixen ändå stabil
+    const a = fallbackAvg;
+    const b = (liveAvg > 0 ? liveAvg : fallbackAvg);
+    avgUsed = (a + b) / 2;
+    label = 'Blandad (fallback + live)';
+  }
+
+  const predicted = Math.round(Number(target||0) * Number(avgUsed||0));
+
+  return {
+    target,
+    fallbackAvg,
+    liveAvg,
+    avgUsed,
+    predicted,
+    label
+  };
+}
+/* =========================
+   SALES HISTORY (Statistik)
+========================= */
+function loadSalesHistory(){
+  return dbGet(SALESHISTORY_KEY, defaultSalesHistory());
+}
+function saveSalesHistory(h){
+  dbSet(SALESHISTORY_KEY, h || {}).catch(()=>{});
+}
+
+function ensureHistDay(hist, date){
+  if(!hist[date]) hist[date]={adult:0,child:0,income:0,count:0,entries:[]};
+  if(!Array.isArray(hist[date].entries)) hist[date].entries=[];
+  if(!Array.isArray(hist[date].reEntryPasses)) hist[date].reEntryPasses=[];
+  if(!Array.isArray(hist[date].admissionsEntries)) hist[date].admissionsEntries=[];
+  return hist[date];
+}
+
+function recordAdmission(n, isoTs){
+  const date = todayStr();
+  const hist = loadSalesHistory();
+  const day  = ensureHistDay(hist, date);
+
+  day.admissionsEntries.push({
+    ts: isoTs || new Date().toISOString(),
+    n: Number(n||0)
+  });
+
+  saveSalesHistory(hist);
+}
+// Lägg till ett re-entry-pass i historiken (om det inte finns)
+function histUpsertReEntryPass({id,label,createdAt}){
+  const date=todayStr();
+  const hist=loadSalesHistory();
+  const day=ensureHistDay(hist, date);
+
+  const exists = day.reEntryPasses.find(p=>p.id===id);
+  if(!exists){
+    day.reEntryPasses.push({
+      id,
+      label: label || 'Re-entry',
+      createdAt: createdAt || new Date().toISOString(),
+      count: 0,
+      uses: []
+    });
+    saveSalesHistory(hist);
+  }
+}
+
+// Öka count + logga use-timestamp i historiken
+function histIncReEntryUse(id, isoTs){
+  const date=todayStr();
+  const hist=loadSalesHistory();
+  const day=ensureHistDay(hist, date);
+
+  const p = day.reEntryPasses.find(x=>x.id===id);
+  if(!p) return;
+
+  p.count = Number(p.count||0) + 1;
+  if(!Array.isArray(p.uses)) p.uses=[];
+  p.uses.push(isoTs || new Date().toISOString());
+
+  saveSalesHistory(hist);
+}
+function recordSale({ time, items, sum, adult, child, seller, payType, ticketUid, ticketLabel, used, breakdown, reEntryCreated, reEntryIds }){
+  const date=todayStr();
+  const hist=loadSalesHistory();
+  if(!hist[date]) hist[date]={adult:0,child:0,income:0,count:0,entries:[]};
+  hist[date].adult  += Number(adult||0);
+  hist[date].child  += Number(child||0);
+  hist[date].income += Number(sum||0);
+  hist[date].count  += 1;
+  hist[date].entries.unshift({
+    time: time || new Date().toLocaleTimeString(),
+    items: Array.isArray(items) ? items : [],
+    sum: Number(sum||0),
+    adult: Number(adult||0),
+    child: Number(child||0),
+    seller: seller || '—',
+    payType: payType || '—',
+    ticketUid: ticketUid || null,
+    ticketLabel: ticketLabel || null,
+    used: !!used,
+    breakdown: breakdown || null,
+    reEntryCreated: Number(reEntryCreated || 0),
+    reEntryIds: Array.isArray(reEntryIds) ? reEntryIds : [],
+  });
+  saveSalesHistory(hist);
+}
+function markSaleTicketUsed(ticketUid, date=todayStr()){
+  if(!ticketUid) return;
+  const hist=loadSalesHistory();
+  const day=hist[date];
+  if(!day||!Array.isArray(day.entries)) return;
+  const e=day.entries.find(x=>x.ticketUid===ticketUid);
+  if(e){ e.used=true; saveSalesHistory(hist); }
+}
+
+/* NYTT: radera en hel dag ur statistiken */
+function deleteStatsDay(date){
+  if(!isAdmin) return;
+  if(!date) return;
+
+  const pw = prompt(
+    `BEKRÄFTELSE\n\n` +
+    `Skriv lösenordet för att radera statistik för:\n${date}`
+  );
+
+  if(!pw) return;
+
+  const u = users[pw];
+  if(!u || !u.admin){
+    alert('Fel adminlösenord. Ingen data har raderats.');
+    return;
+  }
+
+  const ok = confirm(
+    `Är du HELT säker?\n\n` +
+    `Detta tar bort all statistik för ${date}.\n` +
+    `Åtgärden kan inte ångras.`
+  );
+  if(!ok) return;
+
+  // 1) Ta bort ur historik
+  const hist = loadSalesHistory();
+  if(hist[date]) delete hist[date];
+  saveSalesHistory(hist);
+
+  // 2) Om man raderar IDAG: nollställ även "operativt" (kassa, biljetter, insläpp, re-entry)
+  if(date === todayStr()){
+    // Kassa-siffror för dagen
+    guestCount = 0;
+    totalIncome = 0;
+    saveDailyStats();
+    updateLogSummary();
+
+    // Senaste biljetter / insläpp / REP
+    saveOpenTickets({date: todayStr(), seq: 0, items: []});
+    saveAdmissions({date: todayStr(), count: 0, entries: []});
+    saveReEntry({date: todayStr(), passes: []});
+
+    // (valfritt) töm korgen så man inte råkar checka ut efter reset
+    cart = {};
+    discountApplied = false;
+    renderCart();
+  }
+
+  // 3) Rita om adminvyn
+  renderCockpit();
+  renderStats();
+
+  alert('Dagen raderad.');
+}
+/* =========================
+   ÖPPNA BILJETTER + REP + INSLÄPP
+========================= */
+function loadOpenTickets(){
+  let o = dbGet(OPEN_TICKETS_KEY, defaultOpenTickets());
+  if(!o || o.date !== todayStr()) o = defaultOpenTickets();
+  o.seq = Number(o.seq || 0);
+  o.items = Array.isArray(o.items) ? o.items : [];
+  return o;
+}
+function saveOpenTickets(o){
+  const safe = o && typeof o==='object' ? o : defaultOpenTickets();
+  if(safe.date !== todayStr()) safe.date = todayStr();
+  if(!Array.isArray(safe.items)) safe.items = [];
+  if(typeof safe.seq !== 'number') safe.seq = 0;
+  dbSet(OPEN_TICKETS_KEY, safe).catch(()=>{});
+}
+function nextTicketId(){
+  const o=loadOpenTickets();
+  o.seq=(o.seq||0)+1;
+  saveOpenTickets(o);
+  const d=todayStr().replaceAll('-','');
+  return `${d}-${String(o.seq).padStart(3,'0')}`;
+}
+function addOpenTicket({ label, adult, child, sum }){
+  const o=loadOpenTickets();
+  const id = label && label.trim() ? null : nextTicketId();
+  const item={
+    id: id || null,
+    label: (label||'').trim() || null,
+    time: new Date().toLocaleTimeString(),
+    createdAt: new Date().toISOString(),
+    adult:Number(adult||0),
+    child:Number(child||0),
+    sum:Number(sum||0)
+  };
+  o.items.unshift(item);
+  saveOpenTickets(o);
+  return item;
+}
+function isJustCreated(iso, seconds=8){
+  const t=Date.parse(iso||''); if(!t) return false;
+  return (Date.now()-t) < seconds*1000;
+}
+
+function loadAdmissions(){
+  let o = dbGet(ADMIT_KEY, defaultAdmissions());
+  if(!o || o.date !== todayStr()) o = defaultAdmissions();
+  o.entries = Array.isArray(o.entries) ? o.entries : [];
+  o.count = Number(o.count || 0);
+  return o;
+}
+function saveAdmissions(o){
+  const safe = o && typeof o==='object' ? o : defaultAdmissions();
+  if(safe.date !== todayStr()) safe.date = todayStr();
+  if(!Array.isArray(safe.entries)) safe.entries = [];
+  safe.count = Number(safe.count || 0);
+  dbSet(ADMIT_KEY, safe).catch(()=>{});
+}
+
+function bumpAdmissions(n){
+  n = Math.max(0, Number(n||0));
+  if(!n) return;
+
+  const o = loadAdmissions();
+  o.count = Math.max(0, Number(o.count||0) + n);
+
+  o.entries = Array.isArray(o.entries) ? o.entries : [];
+
+  o.entries.push({
+    ts: new Date().toISOString(),
+    n
+  });
+
+  saveAdmissions(o);
+  try{ recordAdmission(n, o.entries[o.entries.length-1]?.ts); }catch(_e){}
+  refreshCockpitIfOpen();
+}
+function admittedToday(){
+  const a = loadAdmissions();
+  return Number(a.count || 0);
+}
+function reEntryAdmittedToday(){
+  const db = loadReEntry(); // {date, passes:[{count,...}]}
+  const passes = Array.isArray(db.passes) ? db.passes : [];
+  return passes.reduce((sum, p) => sum + Number(p.count || 0), 0);
+}
+function loadReEntry(){
+  let o = dbGet(REENTRY_KEY, defaultReEntry());
+  if(!o || o.date !== todayStr()) o = defaultReEntry();
+  o.passes = Array.isArray(o.passes) ? o.passes : [];
+  return o;
+}
+function saveReEntry(o){
+  const safe = o && typeof o==='object' ? o : defaultReEntry();
+  if(safe.date !== todayStr()) safe.date = todayStr();
+  if(!Array.isArray(safe.passes)) safe.passes = [];
+  dbSet(REENTRY_KEY, safe).catch(()=>{});
+}
+function addReEntry(label){
+  const lab=(label||'').trim(); if(!lab) return null;
+  const db=loadReEntry();
+  const id=Math.random().toString(36).slice(2,8);
+  const createdAt=new Date().toISOString();
+
+  db.passes.push({id, label:lab, count:0, uses:[], createdAt});
+  saveReEntry(db);
+
+  // NYTT: spara passet i dagshistoriken också
+  histUpsertReEntryPass({id, label: lab, createdAt});
+
+  return id;
+}
+
+function incReEntry(id){
+  const db=loadReEntry();
+  const p=(db.passes||[]).find(x=>x.id===id);
+  if(!p) return;
+
+  p.count=Number(p.count||0)+1;
+
+  if(!Array.isArray(p.uses)) p.uses=[];
+  const ts = new Date().toISOString();
+  p.uses.push(ts);
+
+  saveReEntry(db);
+
+  // NYTT: spara även i salesHistory (så admin kan se per dag)
+  histIncReEntryUse(id, ts);
+
+  bumpAdmissions(1);
+}
+/* (resten av din field-view är oförändrad) */
+function openRecentTicketsFull(){
+  const REENTRY_COOLDOWN_KEY='reEntryCooldownV1';
+  const REENTRY_COOLDOWN_MS=2000;
+
+  function loadReCooldown(){ try{return JSON.parse(localStorage.getItem(REENTRY_COOLDOWN_KEY)||'{}')||{};}catch(_e){return {};} }
+  function saveReCooldown(m){ try{localStorage.setItem(REENTRY_COOLDOWN_KEY, JSON.stringify(m||{}));}catch(_e){} }
+  function canClickRe(id){
+    const map=loadReCooldown(); const now=Date.now();
+    if(map[id] && (now-map[id]<REENTRY_COOLDOWN_MS)) return false;
+    map[id]=now; saveReCooldown(map); return true;
+  }
+
+  const root=document.createElement('div');
+  root.className='field-view';
+  root.innerHTML=`
+    <div class="field-header">
+      <div class="field-title">Aktiva biljetter</div>
+      <div class="field-ctrls">
+        <button class="btn" id="fvClose">Stäng</button>
+      </div>
+    </div>
+
+    <div class="field-content">
+      <div id="fvList" class="ticket-list"></div>
+
+      <hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #333;">
+
+      <div style="max-width:820px;margin:0 auto;">
+        <div class="field-title" style="font-size:22px;margin:0;color:#ddd;text-shadow:none;">Re-entry-pass</div>
+      </div>
+      <div id="reList"></div>
+
+      <hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #999;">
+
+      <div style="max-width:820px;margin:0 auto;padding:12px 14px;border:1px solid #333;border-radius:12px;background:#131313;display:flex;justify-content:space-between;gap:10px;">
+        <div style="font-weight:700;">Insläppta idag</div>
+        <div id="fieldSummary" style="font-size:14px;color:#ccc;">0</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(root);
+
+  const list=root.querySelector('#fvList');
+  const reList=root.querySelector('#reList');
+  const summaryEl=root.querySelector('#fieldSummary');
+
+ function renderTickets(){
+  const db=loadOpenTickets();
+  const items=(db.items||[]).filter(it => (Number(it.adult||0)+Number(it.child||0))>0);
+
+  const unused = items.filter(it => !it.used);
+  const oldestFirst = unused.slice().reverse();
+  const visible = oldestFirst.slice(0, 5);
+
+  list.innerHTML='';
+  if(!visible.length){
+    list.innerHTML='<div class="muted">Inga biljetter just nu.</div>';
+    return;
+  }
+
+    visible.forEach((it, idx)=>{
+      const row=document.createElement('div');
+      row.className='ticket-row';
+      const nameOrId = (it.label && it.label.trim()) ? it.label.trim() : (it.id ? `#${it.id}` : '(utan id)');
+      const a=Number(it.adult||0), c=Number(it.child||0);
+
+      row.innerHTML=`
+        <div style="min-width:0;">
+          <div class="meta">${it.time||''}</div>
+          <div class="who">${escapeHtml(nameOrId)}</div>
+          <div class="nums">
+            <span class="pill">Vuxen x${a}</span>
+            <span class="pill">Barn x${c}</span>
+            ${Number(it.sum||0)?`<span class="tiny" style="opacity:.7;">• ${it.sum} kr</span>`:''}
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-green use-btn">Markera som använd</button>
+        </div>
+      `;
+
+      if(idx===visible.length-1 && isJustCreated(it.createdAt, 8)){
+        row.classList.add('flash-green');
+        setTimeout(()=>row.classList.remove('flash-green'), 8000);
+      }
+
+      row.querySelector('.use-btn')?.addEventListener('click', ()=>{
+        row.classList.add('slide-out');
+        row.addEventListener('transitionend', function onEnd(ev){
+          if(ev.propertyName!=='opacity') return;
+          row.removeEventListener('transitionend', onEnd);
+
+          try{ markSaleTicketUsed(it.createdAt); }catch(_e){}
+
+          const db2=loadOpenTickets();
+          const pos=(db2.items||[]).findIndex(x=>x.createdAt===it.createdAt);
+          if(pos>-1){ db2.items.splice(pos,1); saveOpenTickets(db2); }
+
+          bumpAdmissions((a||0)+(c||0));
+          renderTickets(); renderSummary();
+        });
+      });
+
+      list.appendChild(row);
+    });
+  }
+
+  function renderReEntry(){
+    const db=loadReEntry();
+    const passes=db.passes||[];
+    reList.innerHTML='';
+    if(!passes.length){
+      reList.innerHTML='<div class="muted" style="max-width:820px;margin:8px auto;">Inga re-entry-pass ännu.</div>';
+      return;
+    }
+    passes.forEach(p=>{
+      const row=document.createElement('div');
+      row.className='reentry-row';
+      row.innerHTML=`
+        <div class="label">${escapeHtml(p.label||'Pass')}</div>
+        <div class="count">Insläppt ${Number(p.count||0)} gånger</div>
+        <div class="actions"><button class="btn btn-green re-btn">Släpp in</button></div>
+      `;
+      const btn=row.querySelector('.re-btn');
+      btn?.addEventListener('click', ()=>{
+        if(!canClickRe(p.id)){
+          btn.disabled=true;
+          setTimeout(()=>btn.disabled=false, REENTRY_COOLDOWN_MS);
+          return;
+        }
+        btn.disabled=true;
+        incReEntry(p.id);
+        renderReEntry(); renderSummary();
+        setTimeout(()=>btn.disabled=false, REENTRY_COOLDOWN_MS);
+      });
+      reList.appendChild(row);
+    });
+  }
+
+  function renderSummary(){
+    const a=loadAdmissions();
+    summaryEl.textContent=String(Number(a.count||0));
+  }
+
+  renderTickets();
+  renderReEntry();
+  renderSummary();
+
+  const tick=setInterval(()=>{ renderTickets(); renderReEntry(); renderSummary(); }, 4000);
+
+  const onStorage=(e)=>{
+    if(!e) return;
+    if([OPEN_TICKETS_KEY, REENTRY_KEY, ADMIT_KEY].includes(e.key)){
+      renderTickets(); renderReEntry(); renderSummary();
+    }
+  };
+  window.addEventListener('storage', onStorage);
+
+  const close=()=>{
+    clearInterval(tick);
+    window.removeEventListener('storage', onStorage);
+    root.remove();
+  };
+  root.querySelector('#fvClose')?.addEventListener('click', close);
+  const onKey=(e)=>{ if(e.key==='Escape'){ close(); window.removeEventListener('keydown', onKey); } };
+  window.addEventListener('keydown', onKey);
+}
+
+/* =========================
+   PRODUKTER
+========================= */
+function loadProducts(){
+  const arr = dbGet(PRODUCTS_KEY, null);
+  if(Array.isArray(arr) && arr.length) return arr;
+
+  const seed = defaultProducts();
+  dbSet(PRODUCTS_KEY, seed).catch(()=>{});
+  return seed;
+}
+function saveProducts(arr){
+  dbSet(PRODUCTS_KEY, Array.isArray(arr) ? arr : []).catch(()=>{});
+}
+
+function renderProductButtons(){
+  const wrap=document.querySelector('.products'); if(!wrap) return;
+  wrap.innerHTML='';
+  loadProducts().forEach(p=>{
+   const btn=document.createElement('button');
+btn.textContent = `${p.name} – ${p.price} kr`;
+
+const n = p.name.toLowerCase();
+if(n.includes('vuxen')) btn.classList.add('btn-adult');
+else if(n.includes('barn')) btn.classList.add('btn-child');
+else if(n.includes('re')) btn.classList.add('btn-reentry');
+else btn.classList.add('btn-other');
+    btn.addEventListener('click',()=>addItem(p.name,p.price));
+    wrap.appendChild(btn);
+  });
+}
+function renderProductsManager(){
+  const root=document.getElementById('productsList'); if(!root) return;
+  const prods=loadProducts();
+  root.innerHTML = prods.map(p=>`
+    <div class="row" style="justify-content:space-between;gap:8px;margin:6px 0;">
+      <div class="row" style="flex:1;">
+        <input class="input" style="min-width:220px;" id="pname-${p.id}" value="${escapeHtml(p.name)}">
+        <input class="input" type="number" id="pprice-${p.id}" min="0" step="1" value="${p.price}">
+      </div>
+      <div class="row">
+        <button class="btn" onclick="saveProduct(${p.id})">Spara</button>
+        <button class="btn btn-danger" onclick="deleteProduct(${p.id})">Ta bort</button>
+      </div>
+    </div>
+  `).join('');
+
+  const addBtn=document.getElementById('pAddBtn');
+  if(addBtn && !addBtn._bound){
+    addBtn.addEventListener('click', ()=>{
+      const nameEl=document.getElementById('pNewName');
+      const priceEl=document.getElementById('pNewPrice');
+      const name=(nameEl?.value||'').trim();
+      const price=parseInt(priceEl?.value||'0',10);
+      if(!name || isNaN(price) || price<0){ alert('Fyll i giltigt namn och pris.'); return; }
+      const list=loadProducts();
+      const id=list.reduce((m,x)=>Math.max(m,x.id||0),0)+1;
+      list.push({id,name,price}); saveProducts(list);
+      nameEl.value=''; priceEl.value='';
+      renderProductsManager(); renderProductButtons();
+    });
+    addBtn._bound=true;
+  }
+}
+function saveProduct(id){
+  const prods=loadProducts();
+  const i=prods.findIndex(p=>p.id===id); if(i===-1) return;
+  const name=(document.getElementById('pname-'+id)?.value||'').trim();
+  const price=parseInt(document.getElementById('pprice-'+id)?.value||'0',10);
+  if(!name || isNaN(price) || price<0){ alert('Ogiltigt namn eller pris.'); return; }
+  prods[i].name=name; prods[i].price=price;
+  saveProducts(prods);
+  renderProductsManager(); renderProductButtons();
+}
+function deleteProduct(id){
+  saveProducts(loadProducts().filter(p=>p.id!==id));
+  renderProductsManager(); renderProductButtons();
+}
+try{ loadWelcomeFAQ(); }catch(_e){}
+/* =========================
+   KASSA
+========================= */
+function addItem(n,p){ cart[n]=cart[n]?{qty:cart[n].qty+1,price:p}:{qty:1,price:p}; renderCart(); }
+function removeItem(n){ delete cart[n]; renderCart(); }
+function incItem(name){
+  if(cart[name]){
+    cart[name].qty += 1;
+    renderCart();
+  }
+}
+
+function decItem(name){
+  if(cart[name]){
+    cart[name].qty -= 1;
+    if(cart[name].qty <= 0){
+      delete cart[name];
+    }
+    renderCart();
+  }
+}
+function cartSumRaw(){ return Object.values(cart).reduce((s,i)=>s+i.qty*i.price,0); }
+
+function updateLogSummary(){
+  const el=document.getElementById('logSummary');
+  if(el) el.textContent=`Gäster: ${guestCount} | Inkomst: ${totalIncome} kr`;
+}
+
+function renderCart(){
+  const tbody=document.querySelector('.cart-table tbody'); if(!tbody) return;
+  tbody.innerHTML='';
+  Object.entries(cart).forEach(([n,i])=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+  <td>${escapeHtml(n)}</td>
+
+  <td>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <button class="qty-btn" onclick="decItem('${n.replace(/'/g,"\\'")}')">−</button>
+      <strong>${i.qty}</strong>
+      <button class="qty-btn" onclick="incItem('${n.replace(/'/g,"\\'")}')">+</button>
+    </div>
+  </td>
+
+  <td>${i.qty * i.price} kr</td>
+
+  <td>
+    <button class="remove-btn" onclick="removeItem('${n.replace(/'/g,"\\'")}')">
+      Ta bort
+    </button>
+  </td>
+`;
+    tbody.appendChild(tr);
+  });
+
+  const raw=cartSumRaw();
+  const sum=discountApplied?Math.round(raw/2):raw;
+  const t=document.getElementById('total');
+  if(t) t.textContent=`Totalt: ${sum} kr${discountApplied?' (50% rabatt)':''}`;
+
+  const chk=document.getElementById('checkout');
+  if(chk) chk.disabled=(sum===0);
+}
+
+(function bindDiscount(){
+  const b=document.getElementById('discountBtn');
+  if(!b || b._bound) return;
+  b.addEventListener('click', ()=>{
+    const hasItems=Object.keys(cart).length>0;
+    if(!hasItems){
+      if(discountApplied){
+        discountApplied=false;
+        b.classList.remove('applied');
+        b.textContent='50% rabatt (1 gång)';
+        renderCart();
+      }else{
+        alert('Lägg något i kassan först.');
+      }
+      return;
+    }
+    discountApplied=!discountApplied;
+    b.classList.toggle('applied', discountApplied);
+    b.textContent = discountApplied ? '50% rabatt aktiv — klicka för att ta bort' : '50% rabatt (1 gång)';
+    renderCart();
+  });
+  b._bound=true;
+})();
+
+function cartFinalSum(){
+  const raw=cartSumRaw();
+  return discountApplied?Math.round(raw/2):raw;
+}
+function openPayModal(){
+  if(!Object.keys(cart).length) return;
+  document.getElementById('paySum').textContent = `Summa: ${cartFinalSum()} kr${discountApplied?' (50% rabatt)':''}`;
+  document.getElementById('payModal').style.display='flex';
+}
+function closePayModal(){ document.getElementById('payModal').style.display='none'; }
+function getModalPayChoice(){
+  const el=document.querySelector('input[name="payModal"]:checked');
+  return el?el.value:'Swish';
+}
+function openApproveModal(){
+  const el = document.getElementById('approveModal');
+  const meta = document.getElementById('approveMeta');
+  if(meta){
+    meta.textContent = _pendingPaySumText || 'Kontrollera att betalningen gick igenom.';
+  }
+  if(el) el.style.display = 'flex';
+}
+
+function closeApproveModal(){
+  const el = document.getElementById('approveModal');
+  if(el) el.style.display = 'none';
+}
+function performCheckout(payType){
+  if(!Object.keys(cart).length) return;
+
+  let sumRaw=0, guests=0, lines=[];
+let adult=0, child=0, reEntryCount=0;
+let createdReEntryIds = [];
+
+// NYTT: intäkts-breakdown (rå, innan eventuell rabatt)
+let incomeAdult=0, incomeChild=0, incomeReEntry=0, incomeOther=0;
+
+  for(const [n,i] of Object.entries(cart)){
+    const qty=Number(i.qty||0);
+    const price=Number(i.price||0);
+    const lineSum=qty*price;
+    sumRaw+=lineSum;
+
+    const lower=String(n||'').toLowerCase();
+    const isTicket = /biljett|entr/.test(lower) || lower.includes('vuxen') || lower.includes('barn');
+    const isReEntry = /(re[-\s]?entry|återinträde|rep\b)/i.test(n);
+    // NYTT: dela upp intäkten per kategori (rå, innan rabatt)
+if (isReEntry) {
+  incomeReEntry += lineSum;
+} else if (isTicket && lower.includes('vuxen')) {
+  incomeAdult += lineSum;
+} else if (isTicket && lower.includes('barn')) {
+  incomeChild += lineSum;
+} else {
+  incomeOther += lineSum;
+}
+
+    if(isTicket){
+      guests+=qty;
+      if(lower.includes('vuxen')) adult+=qty;
+      if(lower.includes('barn')) child+=qty;
+    }
+    if(isReEntry) reEntryCount+=qty;
+
+    lines.push(`${n} x ${qty} = ${lineSum} kr`);
+  }
+
+  const finalSum = discountApplied ? Math.round(sumRaw/2) : sumRaw;
+  const discountAmount = discountApplied ? (sumRaw-finalSum) : 0;
+  // NYTT: applicera rabatt proportionellt på breakdown
+const factor = (sumRaw > 0) ? (finalSum / sumRaw) : 1;
+
+const breakdown = {
+  adult: Math.round(incomeAdult * factor),
+  child: Math.round(incomeChild * factor),
+  reEntry: Math.round(incomeReEntry * factor),
+  other: Math.round(incomeOther * factor)
+};
+
+// NYTT: justera ev avrundningsdiff så summan matchar finalSum exakt
+let diff = finalSum - (breakdown.adult + breakdown.child + breakdown.reEntry + breakdown.other);
+if (diff !== 0) breakdown.other += diff;
+
+  guestCount = Number(guestCount||0) + guests;
+  totalIncome = Number(totalIncome||0) + finalSum;
+  updateTopbar();
+  updateLogSummary();
+  saveDailyStats();
+
+  let newOpenTicket=null;
+  try{
+    const label=(document.getElementById('ticketLabelInput')?.value||'').trim();
+    if((adult+child)>0) newOpenTicket = addOpenTicket({ label, adult, child, sum: finalSum });
+    if(reEntryCount>0){
+  const baseLabel = (label || 'Re-entry').trim();
+  for(let k=0;k<reEntryCount;k++){
+    const suffix = reEntryCount>1 ? ` #${k+1}` : '';
+    const id = addReEntry(baseLabel + suffix);
+    if(id) createdReEntryIds.push(id);
+  }
+}
+    const tl=document.getElementById('ticketLabelInput'); if(tl) tl.value='';
+  }catch(_e){}
+
+  const nowStr=new Date().toLocaleTimeString();
+  const logWrap=document.getElementById('logEntries');
+  const entry=document.createElement('div');
+  entry.className='log-entry';
+  let html=`<strong>${nowStr}<br></strong>${lines.join('<br>')}`;
+  if(discountAmount>0) html += `<br><span style="color:#6f6;">Rabatt använd: -${discountAmount} kr</span>`;
+  html += `<br><em>Summa: ${finalSum} kr</em>`;
+  html += `<br><span class="tiny">Betalning: ${escapeHtml(payType||'—')} • Säljare: ${escapeHtml(loggedInUser||'—')}</span>`;
+  entry.innerHTML=html;
+  safePrepend(logWrap, entry);
+
+  try{
+    recordSale({
+      time: nowStr,
+      items: lines,
+      sum: finalSum,
+      adult, child,
+      seller: loggedInUser||'—',
+      payType: payType||'—',
+      ticketUid: newOpenTicket?.createdAt||null,
+      ticketLabel: newOpenTicket?.label || (newOpenTicket?.id ? `#${newOpenTicket.id}` : null),
+    used: false,
+breakdown: breakdown,
+reEntryCreated: reEntryCount,
+reEntryIds: createdReEntryIds,
+    });
+  }catch(_e){}
+
+  cart={};
+  discountApplied=false;
+  const db=document.getElementById('discountBtn');
+  if(db){ db.classList.remove('applied'); db.textContent='50% rabatt (1 gång)'; }
+  renderCart();
+
+  const sc=document.getElementById('statsContainer');
+  if(sc && sc.style.display==='block'){
+    renderCockpit();
+    renderStats();
+  }
+}
+
+/* =========================
+   STATISTIK (Cockpit + lista)
+========================= */
+function guestsByHourFromSales(dateStr){
+  const out = Array.from({length:24}, ()=>0);
+  const day = loadSalesHistory()[dateStr] || {};
+  const entries = Array.isArray(day.entries) ? day.entries : [];
+  entries.forEach(e=>{
+    const h = parseHourFromTimeStr(e.time);
+    const g = Number(e.adult||0) + Number(e.child||0);
+    out[h] += g;
+  });
+  return out;
+}
+
+function formatBarsLine(arr, unit=''){
+  // enkel rad som "00: 0 | 01: 2 | 02: 0 ..."
+  return arr.map((v,i)=>`${String(i).padStart(2,'0')}: ${v}${unit}`).join(' | ');
+}
+
+function sliceToOpenHours(arr24){
+  const range = getOpenHourRange(); // använder openingHours
+  if(!range) return { data: arr24.slice(), startHour: 0 };
+
+  const start = Math.max(0, Math.min(23, range.start));
+  const end   = Math.max(start+1, Math.min(24, range.end)); // end exklusiv
+  return { data: arr24.slice(start, end), startHour: start };
+}
+
+function formatBarsLineWithOffset(arr, startHour, unit=''){
+  return arr
+    .map((v,i)=>`${String((startHour+i)%24).padStart(2,'0')}: ${v}${unit}`)
+    .join(' | ');
+}
+
+function formatBarsLineTrimZeros(arr, unit=''){
+  const nums = arr.map(v=>Number(v||0));
+  let first = nums.findIndex(v=>v>0);
+  if(first === -1) return '(Ingen aktivitet)';
+
+  let last = -1;
+  for(let i=nums.length-1;i>=0;i--){
+    if(nums[i]>0){ last=i; break; }
+  }
+
+  const parts = [];
+  for(let i=first;i<=last;i++){
+    parts.push(`${String(i).padStart(2,'0')}: ${nums[i]}${unit}`);
+  }
+  return parts.join(' | ');
+}
+function reEntryUsesForDate(dateStr){
+  const day = loadSalesHistory()[dateStr] || {};
+  const passes = Array.isArray(day.reEntryPasses) ? day.reEntryPasses : [];
+  const used = passes.reduce((sum,p)=>sum + Number(p.count||0), 0);
+  return used;
+}
+
+function summaryForDate(dateStr){
+  const totals = cockpitTotals(dateStr);
+  const reUsed = reEntryUsesForDate(dateStr);
+  const reEntryBuys = reEntryPurchasesForDate(dateStr);
+
+  // Total insläpp:
+  // - Idag: admissions är sannast (dörren)
+  // - Historik: biljetter + re-entry uses (för du har det sparat)
+  const totalInslapp = (dateStr === todayStr())
+    ? admittedToday()
+    : (Number(totals.total||0) + Number(reUsed||0));
+
+  return {
+    totalInslapp,
+    reEntryInslapp: Number(reUsed||0),
+    reEntryBuys: Number(reEntryBuys||0),
+    buys: Number(totals.receipts||0),
+    adult: Number(totals.adult||0),
+    child: Number(totals.child||0),
+    intakeAdult: Number(totals.intakeAdult||0),
+    intakeChild: Number(totals.intakeChild||0),
+    intakeReEntry: Number(totals.intakeReEntry||0),
+    intakeOther: Number(totals.intakeOther||0),
+    intakeTotal: Number(totals.intake||0),
+  };
+}
+function reEntryPurchasesForDate(dateStr){
+  const day = loadSalesHistory()[dateStr] || {};
+  const passes = Array.isArray(day.reEntryPasses) ? day.reEntryPasses : [];
+  return passes.length; // antal köpta re-entry-pass
+}
+function reEntryAdmittedForDate(dateStr){
+  // Idag: sanningen är "dörren" (reEntry + vanliga biljetter loggas i admissions)
+  if(dateStr === todayStr()) return reEntryAdmittedToday();
+
+  // Historik: sparas i salesHistory (reEntryPasses[].count)
+  return reEntryUsesForDate(dateStr);
+}
+function buildDayExportText(dateStr){
+  const s = summaryForDate(dateStr);
+
+  // 1) Gäster/timme från insläpp
+  let guestsPerHour = (dateStr === todayStr())
+    ? guestBucketsByHour() // admissionsTodayV1 (sannast för idag)
+    : guestBucketsByHourFromAdmissionsHistory(dateStr); // salesHistoryV1[date].admissionsEntries
+
+  // 2) Om ingen insläppsdata finns: fallback till köp (så exporten inte blir tom)
+  const hasAnyAdmission = guestsPerHour.some(v => Number(v||0) > 0);
+  if(!hasAnyAdmission){
+    guestsPerHour = guestsByHourFromSales(dateStr);
+  }
+
+  // Intäkt/timme är alltid från köp
+  const intakePerHour = intakeBucketsByHour(dateStr);
+
+  const lines = [];
+  lines.push(`Spökhotellet Korpen`);
+  lines.push(`${dateStr}`);
+  lines.push(``);
+  lines.push(`Gäster: ${s.totalInslapp}`);
+  lines.push(`|| ${s.adult} Vuxna || ${s.child} Barn || ${s.reEntryInslapp} Re-entry ||`);
+  lines.push(``);
+  lines.push(`Köp: ${s.buys}`);
+  lines.push(`Re-entry köp: ${s.reEntryBuys}`);
+  lines.push(`Intäkt vuxna: ${s.intakeAdult} kr`);
+  lines.push(`Intäkt barn: ${s.intakeChild} kr`);
+  lines.push(`Intäkt re-entry: ${s.intakeReEntry} kr`);
+  lines.push(`Intäkt övrigt: ${s.intakeOther} kr`);
+  lines.push(`INTÄKT TOTAL: ${s.intakeTotal} kr`);
+    const costsObj = (()=>{ 
+    try{ return JSON.parse(localStorage.getItem(DAILY_COSTS_KEY)||'{}')||{}; }catch(_e){ return {}; }
+  })();
+
+  const costsForDay = (costsObj.date===dateStr) ? Number(costsObj.costs||0) : 0;
+  const netForDay = Number(s.intakeTotal||0) - Number(costsForDay||0);
+
+  lines.push(`Utgifter: ${costsForDay} kr`);
+  lines.push(`Resultat: ${netForDay} kr`);
+
+  lines.push(``);
+  lines.push(`Gäster/timme (från insläpp${hasAnyAdmission ? '' : ', fallback köp'})`);
+  lines.push(formatBarsLineTrimZeros(guestsPerHour, ''));
+
+  lines.push(``);
+  lines.push(`Intäkt/timme`);
+  lines.push(formatBarsLineTrimZeros(intakePerHour, ' kr'));
+
+  return lines.join('\n');
+}
+
+async function copyTextToClipboard(text){
+  try{
+    await navigator.clipboard.writeText(text);
+    alert('Export kopierad till urklipp!');
+    return true;
+  }catch(e){
+    // fallback: prompt så du kan Ctrl+C manuellt
+    window.prompt('Kopiera exporttexten (Ctrl+C):', text);
+    return false;
+  }
+}
+
+function downloadTextFile(filename, text){
+  const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  }, 0);
+}
+
+function exportDay(dateStr, mode='copy'){
+  const txt = buildDayExportText(dateStr);
+  if(mode === 'download'){
+    downloadTextFile(`korpen-${dateStr}.txt`, txt);
+  }else{
+    copyTextToClipboard(txt);
+  }
+}
+function upsert(parent, id, html){
+  let el=document.getElementById(id);
+  if(!el){ el=document.createElement('div'); el.id=id; parent.appendChild(el); }
+  el.innerHTML=html;
+}
+function cockpitTotals(dateStr){
+  const hist=loadSalesHistory();
+  const d=hist[dateStr]||{};
+  const adult=d.adult||0, child=d.child||0, total=adult+child, intake=d.income||0, receipts=d.count||0;
+
+  // NYTT: summera breakdown från entries (om det finns)
+  let intakeAdult=0, intakeChild=0, intakeReEntry=0, intakeOther=0;
+  const entries = Array.isArray(d.entries) ? d.entries : [];
+  entries.forEach(e=>{
+    const b = e && e.breakdown;
+    if(b){
+      intakeAdult += Number(b.adult||0);
+      intakeChild += Number(b.child||0);
+      intakeReEntry += Number(b.reEntry||0);
+      intakeOther += Number(b.other||0);
+    }
+  });
+
+  return {adult,child,total,intake,receipts, intakeAdult,intakeChild,intakeReEntry,intakeOther};
+}
+function parseHourFromTimeStr(t){
+  if(typeof t!=='string') return 0;
+  const m=t.match(/(\d{1,2}):(\d{2})/);
+  if(!m) return 0;
+  let h=parseInt(m[1],10);
+  if(/pm/i.test(t) && h<12) h+=12;
+  if(/am/i.test(t) && h===12) h=0;
+  return h%24;
+}
+function getOpenHourRange(){
+  if(!openingHours || openingHours === 'Stängt') return null;
+
+  const m = openingHours.match(/(\d{1,2}):\d{2}\s*[–-]\s*(\d{1,2}):\d{2}/);
+  if(!m) return null;
+
+  let start = parseInt(m[1],10);
+  let end   = parseInt(m[2],10);
+
+  // säkerhet
+  start = Math.max(0, Math.min(23, start));
+  end   = Math.max(0, Math.min(24, end));
+
+  return { start, end }; // end är EXKLUSIV
+}
+function bucketsByHour(dateStr){
+  const out=Array.from({length:24}, ()=>({guests:0,intake:0}));
+  const day=(loadSalesHistory()[dateStr]||{});
+  const entries=Array.isArray(day.entries)?day.entries:[];
+  entries.forEach(e=>{
+    const h=parseHourFromTimeStr(e.time);
+    out[h].intake += +((e&&e.sum)||0);
+  });
+  return out;
+}
+function intakeBucketsByHour(dateStr){
+  const out = Array.from({length:24}, ()=>0);
+  const day = loadSalesHistory()[dateStr] || {};
+  const entries = Array.isArray(day.entries) ? day.entries : [];
+
+  entries.forEach(e=>{
+    const h = parseHourFromTimeStr(e.time);
+    out[h] += Number(e.sum || 0);
+  });
+
+  return out;
+}
+function guestBucketsByHour(){
+  const out = Array.from({length:24}, ()=>0);
+
+  // admissions.entries innehåller redan ALLA insläpp (inkl re-entry),
+  // eftersom både "Markera som använd" och incReEntry() kör bumpAdmissions().
+  const a = loadAdmissions();
+  (a.entries || []).forEach(e=>{
+    const h = new Date(e.ts).getHours();
+    out[h] += Number(e.n || 0);
+  });
+
+  return out;
+}
+function svgBars24(dataArr, maxVal, height=80, opts={}){
+  const pad=4, wPer=18, gap=6;
+  const id=opts.id || ('chart_'+Math.random().toString(36).slice(2,9));
+  const unit=opts.unit||'';
+  const width=dataArr.length*(wPer+gap)+pad*2-gap;
+  const h=height+pad*2+12;
+  const scale=maxVal>0 ? height/maxVal : 0;
+
+  let bars='';
+  dataArr.forEach((v,i)=>{
+    const barH=Math.round(v*scale);
+    const x=pad+i*(wPer+gap);
+    const y=pad+(height-barH);
+    bars += `<rect x="${x}" y="${y}" width="${wPer}" height="${barH}" rx="2" ry="2"
+      onclick="cockpitBarClick('${id}', ${(opts.startHour||0)+i}, ${v}, '${unit}')"
+      style="cursor:pointer" fill="currentColor" fill-opacity="0.85"></rect>`;
+  });
+
+  let labels='';
+  const startHour = opts.startHour || 0;
+
+for(let i=0;i<dataArr.length;i++){
+  const hour = (startHour + i) % 24;
+  const x = pad + i*(wPer+gap) + Math.floor(wPer/2);
+
+  labels += `<text x="${x}" y="${h-2}"
+    font-size="10"
+    text-anchor="middle"
+    fill="currentColor"
+    fill-opacity="0.75">
+    ${String(hour).padStart(2,'0')}
+  </text>`;
+}
+ 
+ return `<svg id="${id}"
+  width="${width}"
+  height="${h}"
+  viewBox="0 0 ${width} ${h}"
+  style="display:block;margin:0 auto;">
+  ${bars}
+  ${labels}
+</svg>`;
+}
+function cockpitBarClick(chartId, hour, value, unit){
+  const info=document.getElementById(chartId+'-info');
+  if(!info) return;
+  const start=String(hour).padStart(2,'0')+':00';
+  const end=String((hour+1)%24).padStart(2,'0')+':00';
+  info.textContent=`${start}–${end}: ${value} ${unit}`.trim();
+  info.classList.remove('muted');
+}
+
+function renderCockpit(){
+  const statsRoot=document.getElementById('statsContent');
+  if(!statsRoot) return;
+
+  if(!loggedInUser){
+  upsert(statsRoot, 'cockpitWrap', '<div class="muted">Logga in för att se cockpiten.</div>');
+  return;
+}
+
+  const today = todayStr();
+const totals = cockpitTotals(today);
+const costs = getDailyCosts();
+const net = Number(totals.intake||0) - Number(costs||0);
+const remaining = Math.max(0, Number(costs||0) - Number(totals.intake||0));
+
+const admitted = admittedToday();
+const reEntryAdmitted = reEntryAdmittedToday();
+
+const range = getOpenHourRange();
+
+// källor
+let guestsPerHour = guestBucketsByHour();       // insläppta per timme
+let intakePerHour = intakeBucketsByHour(today); // intäkt per timme
+
+// etiketter
+let hourOffset = 0;
+
+if(range){
+  guestsPerHour = guestsPerHour.slice(range.start, range.end);
+  intakePerHour = intakePerHour.slice(range.start, range.end);
+  hourOffset = range.start;
+}
+
+const maxG = guestsPerHour.reduce((m,v)=>Math.max(m,v), 0);
+const maxI = intakePerHour.reduce((m,v)=>Math.max(m,v), 0);
+
+  // En enda yta för piller + diagram (byts via JS)
+  const html=`
+    <div class="section" style="margin-bottom:12px;">
+      <div class="row" style="justify-content:space-between; align-items:center;">
+        <h3 style="margin:0;">Cockpit – idag (${today})</h3>
+        <div class="row">
+          ${isAdmin ? `<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button>
+<button class="btn pill" type="button" id="tabIntake" aria-selected="false">Intäkt</button>`
+: `<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button>`}
+        </div>
+      </div>
+
+      <div id="cockpitPills" class="row" style="gap:8px; flex-wrap:wrap; margin-top:10px;"></div>
+
+      <div style="margin-top:10px;">
+        <div id="cockpitChartLabel" class="tiny muted" style="margin-bottom:4px;"></div>
+        <div id="cockpitChartWrap" style="overflow:auto;"></div>
+        <div id="cockpitChart-info" class="tiny muted" aria-live="polite"></div>
+      </div>
+    </div>
+  `;
+  upsert(statsRoot, 'cockpitWrap', html);
+
+  const btnG=document.getElementById('tabGuests');
+  const btnI=document.getElementById('tabIntake');
+
+  const pillsEl=document.getElementById('cockpitPills');
+  const labelEl=document.getElementById('cockpitChartLabel');
+  const wrapEl=document.getElementById('cockpitChartWrap');
+  const infoEl=document.getElementById('cockpitChart-info');
+
+  // Byter hela innehållet i "en och samma" yta
+  function setCockpitMode(mode){
+  saveCockpitTab(mode);
+    const isGuests = (mode === 'guests');
+
+    // tabs
+    btnG?.setAttribute('aria-selected', isGuests ? 'true' : 'false');
+    btnI?.setAttribute('aria-selected', isGuests ? 'false' : 'true');
+
+    // nollställ info-raden när man byter vy
+    if(infoEl){
+      infoEl.textContent = '';
+      infoEl.classList.add('muted');
+    }
+
+    if(isGuests){
+  const guestTarget = getForecastTarget(); // prognos insläppta (visas bara)
+
+  if(pillsEl){
+    pillsEl.innerHTML = `
+      <span class="pill">Insläppta idag: <strong>${admitted}</strong></span>
+      <span class="pill">Vuxna: ${totals.adult}</span>
+      <span class="pill">Barn: ${totals.child}</span>
+      <span class="pill">Re-Entry: <strong>${reEntryAdmitted}</strong></span>
+
+      <span class="pill">Dagens prognos: <strong>${guestTarget}</strong></span>
+
+      <span class="pill">Köp: ${totals.receipts}</span>
+    `;
+  }
+
+  if(labelEl) labelEl.textContent = 'Gäster per timme';
+  if(wrapEl){
+    wrapEl.innerHTML = svgBars24(
+      guestsPerHour,
+      Math.max(maxG,5),
+      90,
+      { id:'cockpitChart', unit:'gäster', startHour: hourOffset }
+    );
+      }
+   }else{
+  const fc = computeForecastForToday(totals.intake, admitted);
+  const fcNote = `${fc.label} • ${admitted} insläppta`;
+
+  if(pillsEl){
+    pillsEl.innerHTML = `
+      <span class="pill">Dagens intäkt: <strong>${totals.intake} kr</strong></span>
+
+      <span class="pill" style="${net>=0 ? 'border-color:#2b6;' : 'border-color:#c0392b;'}">
+        Resultat: <strong>${net} kr</strong>
+      </span>
+
+      <span class="pill">Beräknad intäkt: <strong>~ ${fc.predicted} kr</strong></span>
+
+      <button class="btn pill" type="button" id="buyBtn" style="margin-left:auto;">
+        Köp: <strong>${totals.receipts}</strong>
+      </button>
+
+      <button class="btn pill" type="button" id="intakeDetailsBtn">
+        +
+      </button>
+
+      <!-- KÖP-PANEL -->
+      <div id="buyPanel" style="display:none; width:100%; margin-top:10px;">
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          <span class="pill">Köptillfällen: <strong>${totals.receipts}</strong></span>
+          <span class="pill">Biljetter sålda: <strong>${totals.adult + totals.child}</strong></span>
+          <span class="pill">Vuxen: <strong>${totals.adult}</strong></span>
+          <span class="pill">Barn: <strong>${totals.child}</strong></span>
+          <span class="pill">Övrigt: <strong>${totals.intakeOther||0} kr</strong></span>
+          <span class="pill">Re-entry köp: <strong>${reEntryPurchasesForDate(todayStr())}</strong></span>
+        </div>
+      </div>
+
+      <!-- DETALJER-PANEL -->
+      <div id="intakeDetails" style="display:none; width:100%; margin-top:10px;">
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+ <span class="pill ${isAdmin ? 'clickable' : ''}"
+                title="${isAdmin ? 'Klicka för att ändra (admin)' : ''}"
+                onclick="${isAdmin ? 'setDailyCostsViaPrompt()' : ''}">
+  Utgifter: <strong>${costs} kr</strong>
+          </span>
+${remaining>0 ? `` : ``}
+
+          <span class="pill ${isAdmin ? 'clickable' : ''}"
+                title="${isAdmin ? 'Klicka för att ändra (admin)' : ''}"
+                onclick="${isAdmin ? 'setForecastTargetViaPrompt()' : ''}">
+            Prognos insläppta: <strong>${fc.target}</strong>
+          </span>
+
+          <span class="pill tiny" style="opacity:.9;">${escapeHtml(fcNote)}</span>
+
+          ${isAdmin ? `
+            <span class="pill clickable"
+                  title="Klicka för att justera fallback (admin)"
+                  onclick="setForecastFallbackAvgViaPrompt()">
+              Fallback-snitt: <strong>${Math.round(fc.fallbackAvg)} kr/p</strong>
+            </span>
+          ` : ``}
+        </div>
+      </div>
+    `;
+
+    // Toggle: köp-panel (ingen textändring)
+    const buyBtn = document.getElementById('buyBtn');
+    if(buyBtn && !buyBtn._bound){
+      buyBtn.addEventListener('click', ()=>{
+        const buy = document.getElementById('buyPanel');
+        const det = document.getElementById('intakeDetails');
+
+        const open = buy && buy.style.display === 'block';
+        if(buy) buy.style.display = open ? 'none' : 'block';
+
+        // stäng detaljer om köp öppnas
+        if(!open && det) det.style.display = 'none';
+      });
+      buyBtn._bound = true;
+    }
+
+    // Toggle: detaljer-panel (ingen textändring)
+    const detBtn = document.getElementById('intakeDetailsBtn');
+    if(detBtn && !detBtn._bound){
+      detBtn.addEventListener('click', ()=>{
+        const buy = document.getElementById('buyPanel');
+        const det = document.getElementById('intakeDetails');
+
+        const open = det && det.style.display === 'block';
+        if(det) det.style.display = open ? 'none' : 'block';
+
+        // stäng köp om detaljer öppnas
+        if(!open && buy) buy.style.display = 'none';
+      });
+      detBtn._bound = true;
+    }
+  }
+
+  if(labelEl) labelEl.textContent = 'Intäkt per timme';
+  if(wrapEl){
+    wrapEl.innerHTML = svgBars24(
+      intakePerHour,
+      Math.max(maxI,100),
+      90,
+      { id:'cockpitChart', unit:'kr', startHour: hourOffset }
+    );
+  }
+}
+}
+
+  // bind events (med "once" logik)
+  if(btnG && !btnG._bound){
+    btnG.addEventListener('click', ()=>setCockpitMode('guests'));
+    btnG._bound=true;
+  }
+  if(btnI && !btnI._bound){
+    btnI.addEventListener('click', ()=>setCockpitMode('intake'));
+    btnI._bound=true;
+  }
+
+  // startläge
+  setCockpitMode(getSavedCockpitTab());
+}
+function renderStats(){
+  const root=document.getElementById('statsList');
+  if(!root) return;
+
+  if(!isAdmin){
+    root.innerHTML='<div class="muted">Endast admin ser historik.</div>';
+    return;
+  }
+
+  const hist=loadSalesHistory();
+  const dates=Object.keys(hist).sort().reverse();
+  if(!dates.length){
+    root.innerHTML='<div class="muted">Ingen historik än.</div>';
+    return;
+  }
+
+  root.innerHTML='';
+
+  // 1) Bygg listan
+  dates.forEach(date=>{
+    const s=hist[date]||{};
+    const totalGuests=(s.adult||0)+(s.child||0);
+    const detailId=`statsDetail-${date}`;
+    const btnId = `statsBtn-${date}`;
+
+    const wrap=document.createElement('div');
+    wrap.className='section';
+    wrap.innerHTML=`
+      <button id="${btnId}" class="disclosure" type="button" onclick="toggleStats('${date}', this)">
+        ${date} — Gäster: ${totalGuests} (Vuxna: ${s.adult||0}, Barn: ${s.child||0}) • Inkomst: ${s.income||0} kr • Köp: ${s.count||0}
+      </button>
+      <div id="${detailId}" class="content" style="display:none;"></div>
+    `;
+    root.appendChild(wrap);
+  });
+
+  // 2) ✅ Återöppna sparade dagar (UTANFÖR loopen)
+  const openDays = loadOpenStatsDays();
+  setTimeout(() => {
+    openDays.forEach(d=>{
+      const btn = document.getElementById(`statsBtn-${d}`);
+      const el  = document.getElementById(`statsDetail-${d}`);
+      if(btn && el && el.style.display !== 'block'){
+        toggleStats(d, btn);
+      }
+    });
+  }, 0);
+}
+function toggleStats(date, btnEl){
+  const el=document.getElementById(`statsDetail-${date}`);
+  if(!el) return;
+
+  const willOpen = el.style.display !== 'block';
+  el.style.display = willOpen ? 'block' : 'none';
+
+  // ✅ Spara state oavsett (öppna + stäng)
+  rememberStatsDayOpen(date, willOpen);
+
+  if(willOpen){
+    const histAll = loadSalesHistory();
+    const s = histAll[date];
+    const deleteBar = `
+      <div class="row" style="justify-content:space-between; align-items:center; margin:6px 0 12px; gap:10px; flex-wrap:wrap;">
+        <div class="tiny muted">Administratör: exportera eller radera dagen.</div>
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          <button class="btn" onclick="exportDay('${date}','copy')">Kopiera dagens statistik</button>
+          <button class="btn btn-danger" onclick="deleteStatsDay('${date}')">Radera dag</button>
+        </div>
+      </div>
+      <hr style="border-color:#333; margin:10px 0;">
+    `;
+
+    if(!s || !Array.isArray(s.entries) || !s.entries.length){
+      el.innerHTML = deleteBar + '<div class="muted">Inga detaljposter för datumet.</div>';
+    }else{
+      el.innerHTML =
+        deleteBar +
+        s.entries.map(e=>{
+          const isReEntryPurchase =
+            Number(e?.reEntryCreated || 0) > 0 ||
+            Number(e?.breakdown?.reEntry || 0) > 0;
+
+          let usedBadge = '';
+
+          if(isReEntryPurchase){
+            // Hämta dagens pass så vi kan visa "X gånger" per pass
+            const day = histAll[date] || {};
+            const passes = Array.isArray(day.reEntryPasses) ? day.reEntryPasses : [];
+
+            // id -> count
+            const countMap = {};
+            passes.forEach(p => { countMap[p.id] = Number(p.count || 0); });
+
+            const ids = Array.isArray(e.reEntryIds) ? e.reEntryIds : [];
+            if(ids.length){
+              usedBadge = ids.map(id=>{
+                const p = passes.find(x=>x.id===id);
+                const label = p?.label || 'Re-entry';
+                const n = (countMap[id] ?? 0);
+                return `<span class="pill" style="background:#4b0082;border-color:#8e6ad8;">${escapeHtml(label)}: ${n} gånger</span>`;
+              }).join(' ');
+            }else{
+              // fallback om gamla köp saknar ids
+              usedBadge = `<span class="pill" style="background:#4b0082;border-color:#8e6ad8;">Re-entry</span>`;
+            }
+          }else if(typeof e.used==='boolean'){
+            usedBadge = e.used
+              ? '<span class="pill" style="background:#1f4026;border-color:#2b6;">Använd</span>'
+              : '<span class="pill">Ej använd</span>';
+          }
+
+          const labelPart = e.ticketLabel ? ` — <em>${escapeHtml(e.ticketLabel)}</em>` : '';
+
+          // ✅ Flyttat: badge visas på samma rad som "Summa"
+          return `<div class="log-entry">
+            <strong>${escapeHtml(e.time)}<br></strong>
+            ${(e.items||[]).map(escapeHtml).join('<br>')}
+            <br><em>Summa: ${e.sum} kr</em>${labelPart}${usedBadge ? ` ${usedBadge}` : ``}
+            <br><span class="tiny">Säljare: ${escapeHtml(e.seller||'—')} • Betalning: ${escapeHtml(e.payType||'—')}</span>
+          </div>`;
+        }).join('');
+    }
+  }
+
+  if(btnEl){
+    const base=btnEl.textContent.replace(/^Visa |^Dölj /,'');
+    btnEl.textContent=(willOpen?'Dölj ':'Visa ')+base;
+  }
+}
+
+/* =========================
+   UI / NAV
+========================= */
+function updateTopbar(){
+  const oh=document.getElementById('openHoursText');
+  const qt=document.getElementById('queueTimeText');
+  const disp=document.getElementById('queueTimeDisplay');
+
+  if(oh) oh.textContent=openingHours || 'Stängt';
+
+  const shownQueue = (openingHours==='Stängt') ? 'Stängt' : (queueTime || 'Ingen info');
+  if(qt) qt.textContent=shownQueue;
+  if(disp) disp.textContent=shownQueue;
+
+  const ln=document.getElementById('logoutName');
+  if(ln) ln.textContent=loggedInUser||'Namn';
+
+  const lo=document.getElementById('logoutBtn');
+  const li=document.getElementById('loginBtn');
+
+  if(lo) lo.style.display = loggedInUser ? 'inline-flex' : 'none';
+  if(li) li.style.display = loggedInUser ? 'none' : 'inline-block';
+
+  const al=document.getElementById('adminLink');
+  if(al) al.style.display=isAdmin?'block':'none';
+  const tl=document.getElementById('ticketsLink');
+if(tl) tl.style.display = isAdmin ? 'block' : 'none';  // bara admin
+
+  updateLogSummary();
+}
+
+function hideAll(){
+  ['hoursMenu','queueMenu','adminSettings','profileContainer','kassaContainer','welcomeMessage','statsContainer']
+    .forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.style.display='none';
+    });
+  document.body.classList.remove('welcome-bg-on');
+}
+function hideDropdown(){
+  const dd=document.getElementById('userDropdown');
+  if(dd) dd.style.display='none';
+}
+
+async function promptPassword(){
+  // ✅ se till att users är laddat innan vi frågar efter lösenord
+  if(!_db.loaded.has(USERS_KEY)) await loadUsersFromServer();
+
+  const pw = prompt('Lösenord');
+
+  if(pw === '00'){ showDisplay(); return; }
+  if(pw === '0000'){ openRecentTicketsFull(); return; }
+
+  const u = users[pw];
+if(u){
+  enforceCoreUsers(); // säkerställ innan vi sätter isAdmin
+
+  loggedInKey = pw;
+  loggedInUser = u.name;
+
+  // ✅ tvinga Casper-admin oavsett hur users råkar se ut
+  isAdmin = (pw === 'spök123') ? true : !!u.admin;
+
+  currentHasAccess = !!u.hasAccess || u.name==='Adam' || u.name==='Casper';
+
+  updateTopbar();
+  selectMenu(isAdmin ? 'admin' : 'profile');
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ pw: loggedInKey }));
+}else{
+  alert('Fel lösenord.');
+}
+}
+
+function logout(){
+  loggedInKey=''; loggedInUser=''; isAdmin=false; currentHasAccess=false;
+  _lastProfileWelcomeFor = '';
+  updateTopbar(); hideAll();
+  localStorage.removeItem(SESSION_KEY);
+  document.getElementById('welcomeMessage').style.display='block';
+  document.body.classList.add('welcome-bg-on');
+}
+
+/* ===== display overlay ===== */
+function computeDisplayTextAndState(){
+  const q=String(queueTime||'').trim();
+  const qLower=q.toLowerCase();
+  const isClosed = openingHours==='Stängt' || qLower.includes('stängt');
+  let text='Ingen info';
+  if(qLower==='stängt för kvällen') text='Stängt för kvällen';
+  else if(qLower==='tillfälligt stängt') text='Tillfälligt stängt';
+  else if(openingHours==='Stängt' || qLower==='stängt') text='Stängt';
+  else if(q) text=q;
+  return {text, isClosed};
+}
+function showDisplay(){
+  const {text, isClosed}=computeDisplayTextAndState();
+  const o=document.createElement('div');
+  o.className='display-view ' + (isClosed?'state-closed':'state-open');
+
+  const inner=document.createElement('div');
+  inner.style.display='flex';
+  inner.style.flexDirection='column';
+  inner.style.alignItems='center';
+  inner.style.justifyContent='center';
+  inner.style.textAlign='center';
+
+  const label=document.createElement('div');
+  label.id='displayLabel';
+  label.textContent='Beräknad kötid';
+
+  const d=document.createElement('div');
+  d.id='displayQueue';
+  d.textContent=text;
+  
+    const hours=document.createElement('div');
+  hours.id='displayHours';
+  hours.textContent = (openingHours && openingHours !== 'Stängt')
+    ? `Öppet idag: ${openingHours}`
+    : `Stängt idag`;
+
+  const scan=document.createElement('div');
+  scan.className='scanlines';
+
+  inner.appendChild(label);
+  inner.appendChild(d);
+  inner.appendChild(hours);
+  o.appendChild(inner);
+  o.appendChild(scan);
+
+    const close = ()=> o.remove();
+
+  // ✅ Stäng med ESC (tangentbord)
+  document.addEventListener('keydown', function esc(e){
+    if(e.key === 'Escape'){
+      close();
+      document.removeEventListener('keydown', esc);
+    }
+  });
+
+  // ✅ Kräver 3 tryck(endast touch)
+  let taps = 0;
+  let tapTimer = null;
+
+  o.addEventListener('pointerdown', (e)=>{
+    // Endast touch ska kunna stänga via tryck
+    if(e.pointerType !== 'touch') return;
+
+    taps += 1;
+
+    // Nollställ om man pausar för länge mellan trycken
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(()=>{ taps = 0; }, 1500);
+
+    if(taps >= 3){
+      close();
+    }
+  }, {passive:true});
+
+  document.body.appendChild(o);
+}
+function refreshDisplayOverlay(){
+  const root=document.querySelector('.display-view');
+  if(!root) return;
+  const lbl=root.querySelector('#displayQueue');
+    const hrs=root.querySelector('#displayHours');
+  const {text,isClosed}=computeDisplayTextAndState();
+  if(lbl) lbl.textContent=text;
+    if(hrs){
+    hrs.textContent = (openingHours && openingHours !== 'Stängt')
+      ? `Öppet idag: ${openingHours}`
+      : `Stängt idag`;
+  }
+  root.classList.toggle('state-closed', isClosed);
+  root.classList.toggle('state-open', !isClosed);
+}
+
+/* =========================
+   ADMIN accordion
+========================= */
+function adminAccordion(id, btn){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const isOpen=el.style.display==='block';
+
+  document.querySelectorAll('#adminSettings .content, #statsContainer .content').forEach(c=>c.style.display='none');
+  document.querySelectorAll('#adminSettings .section > button.disclosure, #statsContainer .section > button.disclosure').forEach(b=>{
+    const base=b.textContent.replace(/^Visa |^Dölj /,'');
+    b.textContent='Visa '+base;
+  });
+
+  if(!isOpen){
+    el.style.display='block';
+    if(btn){
+      const base=btn.textContent.replace(/^Visa |^Dölj /,'');
+      btn.textContent='Dölj '+base;
+    }
+    if(id==='productsContent') renderProductsManager();
+    if(id==='catalogContent') renderCatalogManager();
+    if(id==='welcomeEditContent') syncWelcomeEditor();
+    if(id==='personalContent') initUserSelect();
+  }
+}
+
+/* =========================
+   PROFIL: data + tema + badges
+========================= */
+function ensureProfileDefaults(name){
+  if(!userData[name]) userData[name]={};
+  if(!userData[name].theme) userData[name].theme='default';
+  if(!Array.isArray(userData[name].skills)) userData[name].skills=[];
+  if(typeof userData[name].hours!=='string') userData[name].hours='';
+  if(typeof userData[name].task!=='string') userData[name].task='';
+}
+function saveUserData(){
+  dbSet(STORAGE_KEY, userData || {}).catch(()=>{});
+}
+
+async function loadUserDataFromServer(){
+  const u = await dbEnsure(STORAGE_KEY, {});
+  userData = (u && typeof u === 'object') ? u : {};
+}
+function applyProfileTheme(theme){
+  const el=document.getElementById('profileContainer'); if(!el) return;
+  THEME_CLASSES.forEach(c=>el.classList.remove(c));
+  el.classList.add(theme==='forest'?'theme-forest':theme==='royal'?'theme-royal':'theme-default');
+}
+function setThemeRadios(theme){
+  const sel=theme||'default';
+  document.querySelectorAll('.theme-dot').forEach(d=>d.classList.toggle('active', d.dataset.theme===sel));
+}
+function renderSkillsBadges(skills){
+  if(!skills||!skills.length) return '<span class="muted">–</span>';
+  return skills.map(s=>`<span class="tag">${escapeHtml(s)}</span>`).join('');
+}
+(function attachThemeDotHandlers(){
+  document.querySelectorAll('.theme-dot').forEach(dot=>{
+    dot.addEventListener('click', ()=>{
+      if(!loggedInUser){ alert('Logga in först.'); return; }
+      ensureProfileDefaults(loggedInUser);
+      const theme=dot.dataset.theme;
+      userData[loggedInUser]=Object.assign({}, userData[loggedInUser], {theme});
+      saveUserData();
+      applyProfileTheme(theme);
+      setThemeRadios(theme);
+    });
+  });
+})();
+
+function loadProfile(){
+  if(!userData || typeof userData !== 'object') userData = {};
+
+  const name = loggedInUser;
+  ensureProfileDefaults(name);
+
+  if(_lastProfileWelcomeFor !== name){
+    setRandomWelcome(name);
+    _lastProfileWelcomeFor = name;
+  }
+
+  document.getElementById('myHours').textContent = (userData[name].hours||'').trim() || '–';
+  document.getElementById('myTask').textContent  = (userData[name].task||'').trim()  || '–';
+
+  const sk = document.getElementById('skillsList');
+  if(sk) sk.innerHTML = renderSkillsBadges(userData[name].skills);
+
+  applyProfileTheme(userData[name].theme);
+  setThemeRadios(userData[name].theme);
+}
+
+/* =========================
+   KATALOGER
+========================= */
+function loadSkillCatalog(){
+  const arr = dbGet(SKILL_CATALOG_KEY, null);
+  if(Array.isArray(arr) && arr.length) return arr;
+
+  const seed = defaultSkillCatalog();
+  dbSet(SKILL_CATALOG_KEY, seed).catch(()=>{});
+  return seed;
+}
+function saveSkillCatalog(list){
+  dbSet(SKILL_CATALOG_KEY, (list||[]).filter(Boolean)).catch(()=>{});
+}
+
+function loadTaskCatalog(){
+  const arr = dbGet(TASK_CATALOG_KEY, null);
+  if(Array.isArray(arr) && arr.length) return arr;
+
+  const seed = defaultTaskCatalog();
+  dbSet(TASK_CATALOG_KEY, seed).catch(()=>{});
+  return seed;
+}
+function saveTaskCatalog(list){
+  dbSet(TASK_CATALOG_KEY, (list||[]).filter(Boolean)).catch(()=>{});
+}
+
+function renderCatalogList(rootEl, list, kind){
+  if(!rootEl) return;
+  if(!Array.isArray(list)||!list.length){
+    rootEl.innerHTML='<div class="muted">Inga poster.</div>';
+    return;
+  }
+  rootEl.innerHTML=list.map((name,idx)=>`
+    <div class="row" style="justify-content:space-between;gap:8px;margin:6px 0;">
+      <input class="input ${kind}-name" data-index="${idx}" value="${escapeHtml(name)}" style="flex:1;min-width:220px;">
+      <div class="row">
+        <button class="btn save-${kind}" data-index="${idx}">Spara</button>
+        <button class="btn btn-danger del-${kind}" data-index="${idx}">Ta bort</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderCatalogManager(){
+  const skills=loadSkillCatalog();
+  const tasks=loadTaskCatalog();
+  renderCatalogList(document.getElementById('skillCatalogList'), skills, 'skill');
+  renderCatalogList(document.getElementById('taskCatalogList'), tasks, 'task');
+
+  const addSkill=document.getElementById('addSkillBtn');
+  const addTask=document.getElementById('addTaskBtn');
+
+  if(addSkill && !addSkill._bound){
+    addSkill.addEventListener('click', ()=>{
+      const inp=document.getElementById('newSkillInput');
+      const val=(inp?.value||'').trim();
+      if(!val) return;
+      const list=loadSkillCatalog();
+      if(list.includes(val)){ alert('Finns redan.'); return; }
+      list.push(val); saveSkillCatalog(list);
+      inp.value='';
+      renderCatalogManager();
+      if(isAdmin && document.getElementById('adminSettings').style.display==='block') initUserSelect();
+    });
+    addSkill._bound=true;
+  }
+
+  if(addTask && !addTask._bound){
+    addTask.addEventListener('click', ()=>{
+      const inp=document.getElementById('newTaskInput');
+      const val=(inp?.value||'').trim();
+      if(!val) return;
+      const list=loadTaskCatalog();
+      if(list.includes(val)){ alert('Finns redan.'); return; }
+      list.push(val); saveTaskCatalog(list);
+      inp.value='';
+      renderCatalogManager();
+      if(isAdmin && document.getElementById('adminSettings').style.display==='block') initUserSelect();
+    });
+    addTask._bound=true;
+  }
+
+  const catRoot=document.getElementById('catalogContent');
+  if(catRoot && !catRoot._bound){
+    catRoot.addEventListener('click', (e)=>{
+      const t=e.target;
+      if(!(t instanceof HTMLElement)) return;
+
+      if(t.classList.contains('save-skill')){
+        const idx=+t.dataset.index;
+        const list=loadSkillCatalog();
+        const input=catRoot.querySelector(`.skill-name[data-index="${idx}"]`);
+        const val=(input?.value||'').trim();
+        if(!val){ alert('Tomt namn.'); return; }
+        list[idx]=val; saveSkillCatalog(list);
+        renderCatalogManager(); initUserSelect();
+      }
+      if(t.classList.contains('del-skill')){
+        const idx=+t.dataset.index;
+        const list=loadSkillCatalog();
+        const removed=list.splice(idx,1)[0];
+        saveSkillCatalog(list);
+
+        Object.keys(userData||{}).forEach(u=>{
+          const arr=userData[u]?.skills;
+          if(Array.isArray(arr)){
+            const i=arr.indexOf(removed);
+            if(i>-1) arr.splice(i,1);
+          }
+        });
+        saveUserData();
+
+        renderCatalogManager(); initUserSelect();
+      }
+      if(t.classList.contains('save-task')){
+        const idx=+t.dataset.index;
+        const list=loadTaskCatalog();
+        const input=catRoot.querySelector(`.task-name[data-index="${idx}"]`);
+        const val=(input?.value||'').trim();
+        if(!val){ alert('Tomt namn.'); return; }
+        list[idx]=val; saveTaskCatalog(list);
+        renderCatalogManager(); initUserSelect();
+      }
+      if(t.classList.contains('del-task')){
+        const idx=+t.dataset.index;
+        const list=loadTaskCatalog();
+        list.splice(idx,1);
+        saveTaskCatalog(list);
+        renderCatalogManager(); initUserSelect();
+      }
+    });
+    catRoot._bound=true;
+  }
+}
+
+/* =========================
+   ADMIN: personal (utan schema)
+========================= */
+function buildAdminSkillsOptions(userName){
+  const wrap=document.getElementById('adminSkillsOptions'); if(!wrap) return;
+  wrap.innerHTML='';
+  const catalog=loadSkillCatalog();
+  ensureProfileDefaults(userName);
+  const selected=userData[userName].skills || [];
+  catalog.forEach(s=>{
+    const checked = selected.includes(s) ? 'checked' : '';
+    const lbl=document.createElement('label');
+    lbl.className='row';
+    lbl.innerHTML=`<input type="checkbox" class="admin-skill" value="${escapeHtml(s)}" ${checked}> ${escapeHtml(s)}`;
+    wrap.appendChild(lbl);
+  });
+}
+
+function fillTaskSelect(current){
+  const sel=document.getElementById('setTaskSelect');
+  if(!sel) return;
+  const tasks=loadTaskCatalog();
+  sel.innerHTML = ['— välj —', ...tasks].map(t=>{
+    const val = t==='— välj —' ? '' : t;
+    const selected = (val && val===current) ? 'selected' : '';
+    return `<option value="${escapeHtml(val)}" ${selected}>${escapeHtml(t)}</option>`;
+  }).join('');
+}
+
+function initUserSelect(){
+  const sel=document.getElementById('userSelect'); if(!sel) return;
+  sel.innerHTML='';
+  Object.entries(users).forEach(([k,u])=>{
+    const o=document.createElement('option');
+    o.value=k; o.textContent=u.name;
+    sel.appendChild(o);
+  });
+
+  sel.onchange=()=>{
+    const key=sel.value;
+    const u=users[key]; if(!u) return;
+    const pwEl = document.getElementById('selectedUserPassword');
+if(pwEl){
+  pwEl.textContent = key;
+}
+
+    ensureProfileDefaults(u.name);
+
+    const a=document.getElementById('accessCheckbox');
+    const n=document.getElementById('adamNote');
+    if(a) a.checked=!!u.hasAccess;
+saveUsers();
+    if(u.name==='Adam' || u.name==='Casper'){
+      if(a) a.disabled=true;
+      if(n){ n.textContent=`${u.name} har alltid access och kan inte stängas av.`; n.style.display='block'; }
+    }else{
+      if(a) a.disabled=false;
+      if(n) n.style.display='none';
+    }
+
+    document.getElementById('setHours').value = userData[u.name].hours || '';
+    fillTaskSelect(userData[u.name].task || '');
+
+    buildAdminSkillsOptions(u.name);
+  };
+
+  sel.onchange();
+}
+
+document.getElementById('saveAdminBtn')?.addEventListener('click', ()=>{
+  const key=document.getElementById('userSelect')?.value || '';
+  const u=users[key]; if(!u) return;
+
+  ensureProfileDefaults(u.name);
+
+  const accEl=document.getElementById('accessCheckbox');
+  if(u.name==='Adam' || u.name==='Casper'){
+    if(accEl) accEl.checked=true;
+    u.hasAccess=true;
+  }else{
+    u.hasAccess = !!(accEl && accEl.checked);
+  }
+
+  userData[u.name].hours = (document.getElementById('setHours')?.value || '').trim();
+  userData[u.name].task  = (document.getElementById('setTaskSelect')?.value || '').trim();
+
+  const skills=[...document.querySelectorAll('.admin-skill:checked')].map(el=>el.value);
+  userData[u.name].skills = skills;
+
+  saveUserData();
+  if(loggedInUser===u.name) loadProfile();
+
+  const c=document.getElementById('adminConfirm');
+  if(c){ c.textContent=`Sparat för ${u.name}`; c.style.display='block'; setTimeout(()=>c.style.display='none', 2000); }
+});
+
+/* =========================
+   ADMIN: add/remove users
+========================= */
+(function bindUserMgmt(){
+  const root=document.getElementById('adminSettings');
+  if(!root || root._boundUserMgmt) return;
+
+  root.addEventListener('click', (e)=>{
+    const t=e.target;
+    if(!(t instanceof HTMLElement)) return;
+
+    if(t.id==='addUserBtn'){
+      e.preventDefault();
+      const name=(document.getElementById('newUserName')?.value||'').trim();
+      const pw=(document.getElementById('newUserPass')?.value||'').trim();
+      const acc=!!document.getElementById('newUserAccessCheckbox')?.checked;
+
+      if(!name || !pw){ alert('Fyll i både namn och lösenord.'); return; }
+      if(users[pw]){ alert('Det finns redan en användare med det lösenordet. Välj ett annat.'); return; }
+
+      users[pw]={name, admin:false, hasAccess:acc};
+      ensureProfileDefaults(name);
+      saveUserData();
+      initUserSelect();
+      alert(name+' har lagts till.');
+      saveUsers();
+      document.getElementById('newUserName').value = '';
+document.getElementById('newUserPass').value = '';
+document.getElementById('newUserAccessCheckbox').checked = false;
+    }
+
+    if(t.id==='removeUserBtn'){
+      e.preventDefault();
+      const name=(document.getElementById('newUserName')?.value||'').trim();
+      const pw=(document.getElementById('newUserPass')?.value||'').trim();
+      if(!name || !pw){ alert('Fyll i både namn och lösenord.'); return; }
+      const u=users[pw];
+      if(!u || u.name!==name){ alert('Fel namn eller lösenord.'); return; }
+      if(u.name==='Adam' || u.name==='Casper'){ alert('Casper och Adam kan inte tas bort.'); return; }
+
+      delete users[pw];
+      if(loggedInKey===pw) logout();
+      initUserSelect();
+      alert(name+' har tagits bort.');
+      saveUsers();
+      document.getElementById('newUserName').value = '';
+document.getElementById('newUserPass').value = '';
+document.getElementById('newUserAccessCheckbox').checked = false;
+    }
+  });
+
+  root._boundUserMgmt=true;
+})();
+
+/* =========================
+   VÄLKOMSTSIDA: bg/logo/text
+========================= */
+function setWelcomeBg(dataUrl){
+  const v=dataUrl?`url("${dataUrl}")`:'none';
+  document.documentElement.style.setProperty('--welcome-bg-url', v);
+
+  const prev=document.getElementById('welcomeBgPreview');
+  if(prev){
+    if(dataUrl){ prev.src=dataUrl; prev.style.display='block'; }
+    else { prev.removeAttribute('src'); prev.style.display='none'; }
+  }
+}
+function loadWelcomeBg(){
+  try{ setWelcomeBg(localStorage.getItem(WELCOME_BG_KEY)); }catch(_e){}
+}
+
+function setWelcomeLogo(dataUrl){
+  const img=document.getElementById('welcomeLogo');
+  const wrap=document.getElementById('welcomeLogoWrap');
+  const prev=document.getElementById('welcomeLogoPreview');
+  if(dataUrl){
+    if(img){ img.src=dataUrl; img.style.display='block'; }
+    if(wrap) wrap.style.display='flex';
+    if(prev){ prev.src=dataUrl; prev.style.display='block'; }
+  }else{
+    if(img){ img.removeAttribute('src'); img.style.display='none'; }
+    if(wrap) wrap.style.display='none';
+    if(prev){ prev.removeAttribute('src'); prev.style.display='none'; }
+  }
+}
+function loadWelcomeLogo(){
+  try{ setWelcomeLogo(localStorage.getItem(WELCOME_LOGO_KEY)); }catch(_e){}
+}
+
+function setWelcomeText(txt){
+  const el=document.getElementById('welcomeInfoText');
+  const t=(txt||'').trim();
+  if(!el) return;
+  if(t){
+    el.style.display='block';
+    el.innerHTML = escapeHtml(t).replace(/\n/g,'<br>');
+  }else{
+    el.style.display='none';
+    el.innerHTML='';
+  }
+}
+function loadWelcomeText(){
+  const txt = dbGet(WELCOME_TEXT_KEY, '');
+  setWelcomeText(txt || '');
+}
+
+function loadWelcomeFAQ(){
+  const txt = dbGet(WELCOME_FAQ_KEY, '');
+  setWelcomeFAQText(txt || '');
+}
+
+function syncWelcomeEditor(){
+  const inp=document.getElementById('welcomeTextInput');
+  if(inp) inp.value = dbGet(WELCOME_TEXT_KEY, '');
+
+  // bilder lokalt som tidigare
+  loadWelcomeBg();
+  loadWelcomeLogo();
+
+  loadWelcomeText();
+
+  const faqInp=document.getElementById('welcomeFaqInput');
+  if(faqInp) faqInp.value = dbGet(WELCOME_FAQ_KEY, '');
+  loadWelcomeFAQ();
+}
+
+function bindWelcomeControls(){
+  document.getElementById('saveWelcomeTextBtn')?.addEventListener('click', ()=>{
+  const v=(document.getElementById('welcomeTextInput')?.value||'');
+  dbSet(WELCOME_TEXT_KEY, v).catch(()=>{});
+  setWelcomeText(v);
+  alert('Sparat.');
+});
+
+document.getElementById('clearWelcomeTextBtn')?.addEventListener('click', ()=>{
+  dbSet(WELCOME_TEXT_KEY, '').catch(()=>{});
+  setWelcomeText('');
+  const inp=document.getElementById('welcomeTextInput'); if(inp) inp.value='';
+  alert('Borttaget.');
+});
+
+  const bg=document.getElementById('welcomeBgFile');
+  if(bg && !bg._bound){
+    bg.addEventListener('change', (e)=>{
+      const f=e.target.files && e.target.files[0]; if(!f) return;
+      const r=new FileReader();
+      r.onload=()=>{
+        try{
+          localStorage.setItem(WELCOME_BG_KEY, r.result);
+          setWelcomeBg(r.result);
+          document.body.classList.add('welcome-bg-on');
+        }catch(err){ alert('Kunde inte spara bilden (för stor?).'); }
+      };
+      r.readAsDataURL(f);
+    });
+    bg._bound=true;
+  }
+  document.getElementById('clearWelcomeBg')?.addEventListener('click', ()=>{
+    localStorage.removeItem(WELCOME_BG_KEY);
+    setWelcomeBg(null);
+    document.body.classList.remove('welcome-bg-on');
+  });
+
+  const lg=document.getElementById('welcomeLogoFile');
+  if(lg && !lg._bound){
+    lg.addEventListener('change', (e)=>{
+      const f=e.target.files && e.target.files[0]; if(!f) return;
+      const r=new FileReader();
+      r.onload=()=>{
+        try{
+          localStorage.setItem(WELCOME_LOGO_KEY, r.result);
+          setWelcomeLogo(r.result);
+        }catch(err){ alert('Kunde inte spara loggan (för stor?).'); }
+      };
+      r.readAsDataURL(f);
+    });
+    lg._bound=true;
+  }
+  document.getElementById('clearWelcomeLogo')?.addEventListener('click', ()=>{
+    localStorage.removeItem(WELCOME_LOGO_KEY);
+    setWelcomeLogo(null);
+  });
+  document.getElementById('saveWelcomeFaqBtn')?.addEventListener('click', ()=>{
+  const v=(document.getElementById('welcomeFaqInput')?.value||'');
+  dbSet(WELCOME_FAQ_KEY, v).catch(()=>{});
+  setWelcomeFAQText(v);
+  alert('FAQ sparad.');
+});
+
+document.getElementById('clearWelcomeFaqBtn')?.addEventListener('click', ()=>{
+  dbSet(WELCOME_FAQ_KEY, '').catch(()=>{});
+  setWelcomeFAQText('');
+  const inp=document.getElementById('welcomeFaqInput'); if(inp) inp.value='';
+  alert('FAQ borttagen.');
+});
+}
+
+/* =========================
+   NAV / MENYVAL
+========================= */
+function selectMenu(menu){
+  hideDropdown();
+  hideAll();
+
+  switch(menu){
+    case 'kassa': {
+      if(!loggedInUser){ alert('Logga in först.'); return selectMenu('profile'); }
+      if(!currentHasAccess && !isAdmin){ alert('Du har inte access till kassan.'); return selectMenu('profile'); }
+      document.getElementById('kassaContainer').style.display='block';
+      renderProductButtons();
+
+      const closed = (openingHours==='Stängt' && !isAdmin);
+      document.getElementById('closedMessage').style.display = closed ? 'block' : 'none';
+      document.querySelector('.products').style.display = closed ? 'none' : 'flex';
+      document.querySelector('.cart-table').style.display = closed ? 'none' : 'table';
+      document.getElementById('checkout').style.display = closed ? 'none' : 'block';
+      document.getElementById('discountBtn').style.display = closed ? 'none' : 'block';
+      document.getElementById('total').style.display = closed ? 'none' : 'block';
+      break;
+    }
+
+    case 'profile': {
+      if(!loggedInUser){
+        document.getElementById('welcomeMessage').style.display='block';
+        if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');
+        return;
+      }
+      document.getElementById('profileContainer').style.display='block';
+      if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');
+      loadProfile();
+      break;
+    }
+
+    case 'admin': {
+      if(!isAdmin){ alert('Endast admin.'); return selectMenu('profile'); }
+      document.getElementById('adminSettings').style.display='block';
+      if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');
+      initUserSelect();
+      break;
+    }
+
+    case 'stats': {
+  if(!loggedInUser){ alert('Logga in först.'); return selectMenu('profile'); }
+  document.getElementById('statsContainer').style.display='block';
+  if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');
+
+  loadDailyStats();
+  openingHours = loadOpeningHours();
+  queueTime = loadQueue();
+  loadDailyCosts();
+  loadDailyForecast();
+
+  renderCockpit();
+  renderStats();
+  break;
+}
+
+    case 'logout': logout(); return;
+
+    default: {
+      document.getElementById('welcomeMessage').style.display='block';
+      document.body.classList.add('welcome-bg-on');
+    }
+  }
+}
+
+/* =========================
+   DROPDOWN + KLICK UTANFÖR
+========================= */
+document.getElementById('logoutBtn')?.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  const dd=document.getElementById('userDropdown');
+  if(dd) dd.style.display = (dd.style.display==='block'?'none':'block');
+});
+
+document.addEventListener('click', (e)=>{
+  const pay=document.getElementById('payModal');
+  if(pay && pay.style.display==='flex') return;
+
+  const dd=document.getElementById('userDropdown');
+  const logoutBtn=document.getElementById('logoutBtn');
+  if(dd && dd.style.display==='block' && !dd.contains(e.target) && !(logoutBtn && logoutBtn.contains(e.target))) hideDropdown();
+
+  const hm=document.getElementById('hoursMenu');
+  const openHours=document.getElementById('openHoursText');
+  if(hm && hm.style.display==='block' && !hm.contains(e.target) && !(openHours && openHours.contains(e.target))) hm.style.display='none';
+
+  const qm=document.getElementById('queueMenu');
+  const queueTop=document.getElementById('queueTopbar');
+  if(qm && qm.style.display==='block' && !qm.contains(e.target) && !(queueTop && queueTop.contains(e.target))) qm.style.display='none';
+});
+
+/* =========================
+   PAY MODAL bind
+========================= */
+(function bindCheckout(){
+  const chk=document.getElementById('checkout');
+  if(chk && !chk._bound){
+    chk.addEventListener('click', ()=>{
+      if(chk.disabled) return;
+      openPayModal();
+    });
+    chk._bound=true;
+  }
+
+  document.addEventListener('click', (e)=>{
+  const t = e.target;
+  if(!(t instanceof HTMLElement)) return;
+
+  if(t.id==='payCancel'){
+    e.stopPropagation();
+    closePayModal();
+    return;
+  }
+
+  if(t.id==='payConfirm'){
+    e.stopPropagation();
+
+    const choice = getModalPayChoice();
+    _lastPayChoice = choice;
+
+    _pendingPayChoice = choice;
+    _pendingPaySumText = `Summa: ${cartFinalSum()} kr • Betalning: ${choice}`;
+
+    closePayModal();
+    openApproveModal();
+    return;
+  }
+
+  if(t.id==='approveNo'){
+    e.stopPropagation();
+    _pendingPayChoice = null;
+    _pendingPaySumText = '';
+    closeApproveModal();
+    return;
+  }
+
+  if(t.id==='approveYes'){
+    e.stopPropagation();
+    const choice = _pendingPayChoice || getModalPayChoice() || 'Swish';
+
+    _pendingPayChoice = null;
+    _pendingPaySumText = '';
+    closeApproveModal();
+
+    performCheckout(choice);
+    return;
+  }
+});
+})();
+
+/* =========================
+   INIT
+========================= */
+async function boot(){
+  const lo=document.getElementById('logoutBtn');
+  const li=document.getElementById('loginBtn');
+  if(lo) lo.style.display='none';
+  if(li) li.style.display='inline-block';
+
+  // Bilder lokalt (snabbt)
+  loadWelcomeBg();
+  loadWelcomeLogo();
+
+  // 🔥 Keys vi vill ha "instant" via cache (senast kända läget)
+  const BOOT_KEYS = [
+    { key: OPENING_KEY, fallback: 'Stängt' },
+    { key: QUEUE_KEY, fallback: '' },
+
+    { key: STORAGE_KEY, fallback: {} },
+    { key: USERS_KEY, fallback: defaultUsers() },
+
+    { key: DAILY_KEY, fallback: defaultDailyStats() },
+    { key: SALESHISTORY_KEY, fallback: defaultSalesHistory() },
+    { key: PRODUCTS_KEY, fallback: defaultProducts() },
+    { key: SKILL_CATALOG_KEY, fallback: defaultSkillCatalog() },
+    { key: TASK_CATALOG_KEY, fallback: defaultTaskCatalog() },
+
+    { key: OPEN_TICKETS_KEY, fallback: defaultOpenTickets() },
+    { key: REENTRY_KEY, fallback: defaultReEntry() },
+    { key: ADMIT_KEY, fallback: defaultAdmissions() },
+
+    { key: WELCOME_TEXT_KEY, fallback: '' },
+    { key: WELCOME_FAQ_KEY, fallback: '' },
+
+    { key: DAILY_COSTS_KEY, fallback: defaultDailyCosts() },
+    { key: DAILY_FORECAST_KEY, fallback: defaultDailyForecast() },
+  ];
+
+  // ✅ 0) Hydrate cache DIREKT (ingen nätväntan)
+  persistCacheHydrate(BOOT_KEYS);
+
+  // ✅ 1) Rendera UI direkt med cached data
+  openingHours = loadOpeningHours();
+  queueTime = loadQueue();
+  if(openingHours === 'Stängt') queueTime = 'Stängt';
+
+  loadDailyStats();
+  loadDailyCosts();
+  loadDailyForecast();
+
+  // Users + userData från cache
+  userData = dbGet(STORAGE_KEY, {}) || {};
+  users = dbGet(USERS_KEY, defaultUsers()) || defaultUsers();
+  users = dbGet(USERS_KEY, defaultUsers()) || defaultUsers();
+  try{
+  const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+  const pw = s?.pw;
+  const u = pw ? users[pw] : null;
+
+  if(u){
+    loggedInKey = pw;
+    loggedInUser = u.name;
+    isAdmin = (pw === 'spök123') ? true : !!u.admin;
+    currentHasAccess = !!u.hasAccess || u.name==='Adam' || u.name==='Casper';
+  }
+}catch(_e){}
+enforceCoreUsers();
+  // safety
+  users['spök123'] = {name:'Casper',admin:true,hasAccess:true};
+  users['7997']   = {name:'Adam',admin:false,hasAccess:true};
+
+  // Välkomsttext/FAQ direkt
+  loadWelcomeText();
+  loadWelcomeFAQ();
+  bindWelcomeControls();
+
+  // Visa välkomst direkt (ingen “vänta”-känsla)
+  hideAll();
+if(loggedInUser){
+  selectMenu(isAdmin ? 'admin' : 'profile');
+}else{
+  document.getElementById('welcomeMessage').style.display='block';
+  if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');
+}
+
+  updateTopbar();
+  renderCart();
+
+  // Live-status loop (läser från cache först)
+  setupLiveStatus();
+
+  // ✅ 2) I bakgrunden: hämta färsk data från servern och uppdatera UI när den kommer
+  (async ()=>{
+    try{
+      await dbRefreshMany(BOOT_KEYS);
+
+      // Uppdatera runtime-state från server
+      await loadUserDataFromServer();
+      await loadUsersFromServer();
+
+      openingHours = loadOpeningHours();
+      queueTime = loadQueue();
+      if(openingHours === 'Stängt') queueTime = 'Stängt';
+
+      loadDailyStats();
+      loadDailyCosts();
+      loadDailyForecast();
+
+      loadWelcomeText();
+      loadWelcomeFAQ();
+
+      // Om man står på stats/profil/kassa: rita om
+      updateTopbar();
+      refreshCockpitIfOpen();
+      if(document.getElementById('kassaContainer')?.style.display==='block'){
+        renderProductButtons();
+        renderCart();
+      }
+      if(document.getElementById('profileContainer')?.style.display==='block'){
+        loadProfile();
+      }
+    }catch(e){
+      console.warn('Bakgrundsrefresh misslyckades:', e);
+    }
+  })();
+
+  // ✅ 3) Fortsatt poll (som du redan har) – men nu känns allt instant
+  setInterval(async ()=>{
+    try{
+      await dbRefreshMany(BOOT_KEYS);
+      await loadUsersFromServer();
+      userData = dbGet(STORAGE_KEY, {}) || {};
+
+      // om stats öppet: uppdatera
+      refreshCockpitIfOpen();
+      if(document.getElementById('profileContainer')?.style.display==='block' && loggedInUser){
+        loadProfile();
+      }
+    }catch(e){}
+  }, 4000);
+}
+
+boot();
+</script>
+</body>
+</html>
