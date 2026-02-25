@@ -2027,6 +2027,108 @@ function incItem(name){
   }
 }
 
+/* =========================
+   SNABBKNAPPAR (tangentbord)
+   1 = Vuxenbiljett
+   2 = Barnbiljett
+   3 = Spel
+   4 = Re-entry-pass
+   + = rabatt toggle
+   Enter = öppna betalningsmodal (om något finns i korgen)
+========================= */
+function isAnyModalOpen(){
+  const pay = document.getElementById('payModal');
+  const appr = document.getElementById('approveModal');
+  return (pay && pay.style.display === 'flex') || (appr && appr.style.display === 'flex');
+}
+
+function isTypingContext(){
+  const a = document.activeElement;
+  if(!a) return false;
+  const tag = (a.tagName || '').toLowerCase();
+  return tag === 'input' || tag === 'textarea' || a.isContentEditable;
+}
+
+function addProductByNameMatch(regex){
+  const prods = loadProducts();
+  const p = prods.find(x => regex.test(String(x.name || '').toLowerCase()));
+  if(!p) return false;
+
+  // bara om kassan är öppen och inte stängd för icke-admin
+  const kassaOpen = document.getElementById('kassaContainer')?.style.display === 'block';
+  const closed = (openingHours === 'Stängt' && !isAdmin);
+  if(!kassaOpen || closed) return false;
+
+  addItem(p.name, p.price);
+  return true;
+}
+
+document.addEventListener('keydown', (e)=>{
+  // Ignorera om vi skriver i ett fält eller om en modal är öppen
+  if(isTypingContext()) return;
+  if(isAnyModalOpen()) return;
+
+  // Ignorera om inte inloggad eller saknar access
+  if(!loggedInUser) return;
+  if(!currentHasAccess && !isAdmin) return;
+
+  // Snabbknappar
+  if(e.key === '1'){
+    if(addProductByNameMatch(/vuxen/)) e.preventDefault();
+  }
+  else if(e.key === '2'){
+    if(addProductByNameMatch(/barn/)) e.preventDefault();
+  }
+  else if(e.key === '3'){
+    if(addProductByNameMatch(/spel/)) e.preventDefault();
+  }
+  else if(e.key === '4'){
+    if(addProductByNameMatch(/re|re-entry|åter/)) e.preventDefault();
+  }
+  else if(e.key === '+' || e.key === '='){
+    // toggle rabatt (om du vill)
+    const b = document.getElementById('discountBtn');
+    if(b && b.style.display !== 'none'){
+      b.click();
+      e.preventDefault();
+    }
+  }
+  else if(e.key === 'Backspace'){
+  // Ignorera om vi skriver i input/textarea
+  if(isTypingContext()) return;
+
+  // Bara om kassan är öppen
+  const kassaOpen = document.getElementById('kassaContainer')?.style.display === 'block';
+  if(!kassaOpen) return;
+
+  // Förhindra att webbläsaren går bakåt
+  e.preventDefault();
+
+  if(Object.keys(cart).length === 0) return;
+
+  const ok = confirm('Töm hela kassan?');
+  if(!ok) return;
+
+  cart = {};
+  discountApplied = false;
+
+  const db = document.getElementById('discountBtn');
+  if(db){
+    db.classList.remove('applied');
+    db.textContent = '50% rabatt (1 gång)';
+  }
+
+  renderCart();
+}
+  else if(e.key === 'Enter'){
+    // Enter = öppna betalning om det finns något i korgen
+    const chk = document.getElementById('checkout');
+    if(chk && !chk.disabled && chk.style.display !== 'none'){
+      openPayModal();
+      e.preventDefault();
+    }
+  }
+});
 function decItem(name){
   if(cart[name]){
     cart[name].qty -= 1;
@@ -3774,7 +3876,71 @@ document.addEventListener('click', (e)=>{
   }
 });
 })();
+/* =========================
+   TANGENTBORD – MODALSTYRNING
+========================= */
 
+function isPayModalOpen(){
+  const el = document.getElementById('payModal');
+  return el && el.style.display === 'flex';
+}
+
+function isApproveModalOpen(){
+  const el = document.getElementById('approveModal');
+  return el && el.style.display === 'flex';
+}
+
+function setPayChoice(choice){
+  const input = document.querySelector(`input[name="payModal"][value="${choice}"]`);
+  if(input) input.checked = true;
+}
+
+document.addEventListener('keydown', (e)=>{
+
+  // ===== BETALNINGSMODAL =====
+  if(isPayModalOpen()){
+    const labelInput = document.getElementById('ticketLabelInput');
+
+    if(e.key === '1'){ setPayChoice('Swish'); e.preventDefault(); return; }
+    if(e.key === '2'){ setPayChoice('Kort'); e.preventDefault(); return; }
+    if(e.key === '3'){ setPayChoice('Kontant'); e.preventDefault(); return; }
+
+    if(e.key === 'Enter'){
+      e.preventDefault();
+
+      if(document.activeElement !== labelInput){
+        labelInput?.focus();
+        return;
+      }
+
+      document.getElementById('payConfirm')?.click();
+      return;
+    }
+
+    if(e.key === 'Escape'){
+      e.preventDefault();
+      document.getElementById('payCancel')?.click();
+      return;
+    }
+
+    return;
+  }
+
+  // ===== BEKRÄFTELSEMODAL =====
+  if(isApproveModalOpen()){
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      document.getElementById('approveYes')?.click();
+      return;
+    }
+    if(e.key === 'Escape'){
+      e.preventDefault();
+      document.getElementById('approveNo')?.click();
+      return;
+    }
+    return;
+  }
+});
 /* =========================
    INIT
 ========================= */
