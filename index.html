@@ -423,7 +423,7 @@
 
  <div class="status" id="openBlock">
   <span class="open-label">Öppet idag:</span>
-  <span id="openHoursText" class="open-time clickable" onclick="maybeEditHours(event)">Stängt</span>
+  <span id="openHoursText" class="open-time clickable" onclick="maybeEditHours(event)">Ingen info</span>
 </div>
 
   <!-- HÖGER: USER -->
@@ -471,9 +471,10 @@
   <div id="hoursMenu">
     <label>Öppettid:</label>
     <select id="preset" onchange="presetSelected(this.value)">
+      <option value="Stängt">-- Välj --</option>
       <option value="Stängt">Stängt</option>
       <option value="10:00–22:00">10:00–22:00</option>
-      <option value="10:00–18:00">10:00–18:00</option>
+      <option value="10:00–18:00">10:00–17:00</option>
       <option value="18:00–21:00">18:00–21:00</option>
       <option value="custom">Ange själv...</option>
     </select>
