@@ -474,7 +474,7 @@
       <option value="Stängt">-- Välj --</option>
       <option value="Stängt">Stängt</option>
       <option value="10:00–22:00">10:00–22:00</option>
-      <option value="10:00–18:00">10:00–17:00</option>
+      <option value="10:00–17:00">10:00–17:00</option>
       <option value="18:00–21:00">18:00–21:00</option>
       <option value="custom">Ange själv...</option>
     </select>
@@ -967,7 +967,7 @@ try{
   userData={};
   localStorage.removeItem(STORAGE_KEY);
 }
-
+let _statsDirty = true;
 function defaultUsers(){
   return {
     'spök123':{name:'Casper',admin:true,hasAccess:true},
@@ -1321,7 +1321,7 @@ function refreshCockpitIfOpen(){
   loadDailyForecast();
 
   renderCockpit();
-  if(isAdmin) renderStats();
+  if(isAdmin) renderStats();_statsDirty = true;
 }
 /* =========================
    DAGLIG STAT
@@ -1570,6 +1570,7 @@ function recordSale({ time, items, sum, adult, child, seller, payType, ticketUid
     reEntryIds: Array.isArray(reEntryIds) ? reEntryIds : [],
   });
   saveSalesHistory(hist);
+  _statsDirty = true;
 }
 function markSaleTicketUsed(ticketUid, date=todayStr()){
   if(!ticketUid) return;
@@ -1577,7 +1578,7 @@ function markSaleTicketUsed(ticketUid, date=todayStr()){
   const day=hist[date];
   if(!day||!Array.isArray(day.entries)) return;
   const e=day.entries.find(x=>x.ticketUid===ticketUid);
-  if(e){ e.used=true; saveSalesHistory(hist); }
+  if(e){ e.used=true; saveSalesHistory(hist);_statsDirty = true; }
 }
 
 /* NYTT: radera en hel dag ur statistiken */
@@ -1609,6 +1610,7 @@ function deleteStatsDay(date){
   const hist = loadSalesHistory();
   if(hist[date]) delete hist[date];
   saveSalesHistory(hist);
+  _statsDirty = true;
 
   // 2) Om man raderar IDAG: nollställ även "operativt" (kassa, biljetter, insläpp, re-entry)
   if(date === todayStr()){
