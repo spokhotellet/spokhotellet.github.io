@@ -1109,6 +1109,7 @@ function rememberStatsDayOpen(date, isOpen){
 
   saveOpenStatsDays(next);
 }
+
 /* =========================
    VÄLKOMSTSIDA FAQ
 ========================= */
@@ -1310,18 +1311,20 @@ function applyQueuePreset(v){
 function refreshCockpitIfOpen(){
   const sc = document.getElementById('statsContainer');
   if(!sc) return;
-
   const isVisible = getComputedStyle(sc).display !== 'none';
   if(!isVisible) return;
 
-  // synka state
   openingHours = loadOpeningHours();
   queueTime = loadQueue();
   loadDailyCosts();
   loadDailyForecast();
 
   renderCockpit();
-  if(isAdmin) renderStats();_statsDirty = true;
+
+  if(isAdmin && _statsDirty){
+    renderStats();
+    _statsDirty = false;
+  }
 }
 /* =========================
    DAGLIG STAT
