@@ -377,16 +377,6 @@
 .welcome-faq.open .content{
   display:block;
 }
-#welcomeFaqContent strong{
-  color: #f5d28a;
-  font-weight: 600;
-}
-
-#welcomeFaqContent em{
-  color: #b38cff;
-  font-style: normal;
-}
-
 #welcomeFaqContent br + br{
   display:block;
   margin-top: 10px;
@@ -1947,10 +1937,7 @@ function openRecentTicketsFull(){
 function loadProducts(){
   const arr = dbGet(PRODUCTS_KEY, null);
   if(Array.isArray(arr) && arr.length) return arr;
-
-  const seed = defaultProducts();
-  dbSet(PRODUCTS_KEY, seed).catch(()=>{});
-  return seed;
+  return defaultProducts();
 }
 function saveProducts(arr){
   dbSet(PRODUCTS_KEY, Array.isArray(arr) ? arr : []).catch(()=>{});
@@ -3306,10 +3293,7 @@ function loadProfile(){
 function loadSkillCatalog(){
   const arr = dbGet(SKILL_CATALOG_KEY, null);
   if(Array.isArray(arr) && arr.length) return arr;
-
-  const seed = defaultSkillCatalog();
-  dbSet(SKILL_CATALOG_KEY, seed).catch(()=>{});
-  return seed;
+  return defaultSkillCatalog();
 }
 function saveSkillCatalog(list){
   dbSet(SKILL_CATALOG_KEY, (list||[]).filter(Boolean)).catch(()=>{});
@@ -3318,10 +3302,7 @@ function saveSkillCatalog(list){
 function loadTaskCatalog(){
   const arr = dbGet(TASK_CATALOG_KEY, null);
   if(Array.isArray(arr) && arr.length) return arr;
-
-  const seed = defaultTaskCatalog();
-  dbSet(TASK_CATALOG_KEY, seed).catch(()=>{});
-  return seed;
+  return defaultTaskCatalog();
 }
 function saveTaskCatalog(list){
   dbSet(TASK_CATALOG_KEY, (list||[]).filter(Boolean)).catch(()=>{});
@@ -3487,7 +3468,6 @@ if(pwEl){
     const a=document.getElementById('accessCheckbox');
     const n=document.getElementById('adamNote');
     if(a) a.checked=!!u.hasAccess;
-saveUsers();
     if(u.name==='Adam' || u.name==='Casper'){
       if(a) a.disabled=true;
       if(n){ n.textContent=`${u.name} har alltid access och kan inte stängas av.`; n.style.display='block'; }
