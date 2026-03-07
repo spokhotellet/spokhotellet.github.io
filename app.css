@@ -1,388 +1,511 @@
-/* ====== BAS ====== */
-html, body { min-height: 100vh; }
-body { font-family: Arial, sans-serif; background:#111; color:#fff; margin:0; }
-/* Topbar som grid (som vi redan satt) */
-.topbar{
-  background:#222;
-  padding:10px 20px;
-  border-bottom:2px solid #333;
+:root {
+      --ink: #0a0a0a;
+      --paper: #f0ebe2;
+      --blood: #8b1a1a;
+      --blood-bright: #c0392b;
+      --ember: #d4872a;
+      --fog: rgba(240,235,226,0.06);
+      --border: rgba(240,235,226,0.12);
+      --green-dark: #1a3d2a;
+      --green-bright: #28a745;
+    }
 
-  display:grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items:center;
-  gap:12px;
-}
+    /* ====== RESET + BAS ====== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    html, body { min-height: 100vh; }
 
-/* MITTENBLOCK */
-#openBlock{
-  text-align:center;
-  white-space:nowrap;     /* 1 rad som standard */
-  line-height:1.2;
-}
+    body {
+      font-family: 'IM Fell English', Georgia, serif;
+      background: #0d0b0a;
+      color: #e8e0d0;
+      background-image:
+        radial-gradient(ellipse 100% 70% at 50% 0%,   rgba(60,15,10,0.55) 0%, transparent 60%),
+        radial-gradient(ellipse 80%  50% at 50% 100%, rgba(20,5,5,0.4)    0%, transparent 55%);
+    }
 
-/* "Öppet idag:" ska vara inline */
-.open-label{
-  display:inline;
-  font-size:16px;
-}
+    /* Kornkorn-overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      background-size: 200px;
+    }
 
-/* tiderna: får hoppa ner vid behov */
-.open-time{
-  display:inline;
-  font-size:16px;
-  opacity:0.9;
-}
+    /* ====== TOPBAR ====== */
+    .topbar {
+      background: linear-gradient(180deg, rgba(10,10,10,0.97), rgba(15,10,8,0.95));
+      padding: 0 20px;
+      border-bottom: 1px solid rgba(139,26,26,0.35);
+      box-shadow: 0 1px 0 rgba(212,135,42,0.08), 0 4px 20px rgba(0,0,0,0.6);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+      gap: 12px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 500;
+    }
 
-/* När det blir trångt: låt just tiderna hoppa ner */
-@media (max-width: 520px){
-  #openBlock{
-    white-space:normal;   /* tillåt brytning */
-  }
-  .open-time{
-    display:block;        /* tiderna går ner */
-    font-size:14px;
-    margin-top:2px;
-  }
-}
-.user-menu{
-  justify-self:end;     /* ← VIKTIG */
-  position:relative;
-}
-.topbar .status { font-size:16px; white-space:nowrap; }
-.clickable { cursor:pointer; }
-#openBlock{ white-space:nowrap; }          /* default */
-@media (max-width:520px){ #openBlock{ white-space:normal; } }
-.user-menu { position:relative; }
-.user-menu button {
-  background:#444; color:#fff; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;
-  display:flex; flex-direction:column; align-items:center;
-}
-.user-menu .dropdown{
-  display:none; position:absolute; right:0; background:#1a1a1a; min-width:180px;
-  box-shadow:0 8px 16px rgba(0,0,0,.5); border-radius:5px; overflow:hidden; z-index:100;
-}
-.user-menu .dropdown a { display:block; padding:10px; color:#fff; text-decoration:none; }
-.user-menu .dropdown a:hover { background:#333; }
+    .topbar::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(212,135,42,0.4), transparent);
+    }
 
-.section{
-  background:#161616; border:1px solid #333; border-radius:10px;
-  padding:12px; margin:10px 0; text-align:left;
-}
-.section h4 { margin:0 0 8px; font-size:16px; }
-.row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.muted { color:#bbb; font-size:12px; }
-.tag{
-  display:inline-block; padding:4px 10px; border-radius:999px;
-  background:#333; margin:4px 6px 0 0; font-size:12px;
-}
+    #openBlock {
+      text-align: center;
+      white-space: nowrap;
+      line-height: 1.2;
+    }
+    .open-label {
+      display: inline;
+      font-size: 13px;
+      color: rgba(232,224,208,0.55);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-family: 'IM Fell English SC', serif;
+    }
+    .open-time {
+      display: inline;
+      font-size: 15px;
+      color: #e8e0d0;
+      margin-left: 6px;
+    }
+    @media (max-width: 520px) {
+      #openBlock { white-space: normal; }
+      .open-time { display: block; font-size: 13px; margin-top: 2px; }
+    }
 
-.disclosure{
-  display:flex; justify-content:space-between; align-items:center;
-  background:#2a2a2a; border:none; border-radius:8px;
-  padding:10px 12px; color:#fff; cursor:pointer; width:100%;
-}
-.disclosure + .content{ display:none; padding:10px 0 0; }
+    .user-menu { justify-self: end; position: relative; }
 
-.input{ background:#1a1a1a; color:#fff; border:1px solid #333; border-radius:8px; padding:8px; }
-.btn{ background:#444; color:#fff; border:none; border-radius:8px; padding:8px 12px; cursor:pointer; }
-.btn:hover{ filter:brightness(1.1); }
-.btn-danger{ background:#c0392b; }
-.btn-primary{ background:#2d6cdf; }
-.btn-green{ background:#28a745; }
-.pill{
-  display:inline-block; padding:6px 10px; border-radius:999px;
-  background:#2a2a2a; color:#fff; font-size:12px; border:1px solid #444;
-}
-.tiny{ font-size:11px; color:#aaa; }
+    #loginBtn {
+      background: transparent;
+      color: #e8e0d0;
+      border: 1px solid rgba(139,26,26,0.6);
+      padding: 6px 16px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: 'IM Fell English SC', serif;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    #loginBtn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(139,26,26,0.3), transparent);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    #loginBtn:hover { border-color: rgba(139,26,26,0.9); color: #fff; box-shadow: 0 0 12px rgba(139,26,26,0.3), inset 0 0 12px rgba(139,26,26,0.1); }
+    #loginBtn:hover::before { opacity: 1; }
 
-/* ====== MENYER ====== */
-#hoursMenu, #queueMenu, #adminSettings{
-  display:none; background:#1a1a1a; padding:15px; text-align:center;
-  border-bottom:2px solid #333; max-width:820px; margin:20px auto; border-radius:10px;
-}
-#hoursMenu select, #hoursMenu input, #hoursMenu button,
-#queueMenu select, #queueMenu button,
-#adminSettings input, #adminSettings select, #adminSettings button, #adminSettings textarea{
-  font-size:16px; margin:6px 0; padding:8px;
-}
-#userSelect{ font-family:monospace; }
-.admin-password{
-  margin:6px 0 10px;
-  font-size:12px;
-  color:#aaa;
-}
+    #logoutBtn {
+      background: transparent;
+      color: #e8e0d0;
+      border: 1px solid var(--border);
+      padding: 5px 12px;
+      border-radius: 3px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'IM Fell English SC', serif;
+      transition: border-color 0.2s;
+    }
+    #logoutBtn:hover { border-color: rgba(232,224,208,0.3); }
 
-.admin-password .label{
-  margin-right:6px;
-  opacity:.8;
-}
+    .status {
+      font-family: 'IM Fell English SC', serif;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+      color: rgba(232,224,208,0.7);
+    }
+    .status .clickable { cursor: pointer; transition: color 0.15s; }
+    .status .clickable:hover { color: #e8e0d0; }
 
-.admin-password .value{
-  font-family:monospace;
-  color:#ccc;
-}
-/* ====== VÄLKOMSTSIDA ====== */
-body {
-  background-image:
-    linear-gradient(180deg, rgba(0,0,0,.6), rgba(0,0,0,.6)),
-    url("../bg.webp");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-.welcome-message{ display:none; text-align:center; margin:12px 20px 40px; color:#ccc; }
+    .user-menu .dropdown {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      background: rgba(12,8,6,0.97);
+      min-width: 200px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(139,26,26,0.25);
+      border-radius: 4px;
+      overflow: hidden;
+      z-index: 100;
+      border: 1px solid rgba(139,26,26,0.2);
+    }
+    .user-menu .dropdown a {
+      display: block;
+      padding: 11px 16px;
+      color: rgba(232,224,208,0.8);
+      text-decoration: none;
+      font-family: 'IM Fell English SC', serif;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.15s, color 0.15s, padding-left 0.15s;
+    }
+    .user-menu .dropdown a:last-child { border-bottom: none; }
+    .user-menu .dropdown a:hover { background: rgba(139,26,26,0.2); color: #fff; padding-left: 20px; }
 
-#welcomeMessage{
-  border-radius:0; padding:16px 20px; max-width:900px; margin:12px auto 40px;
-  color:#eee; background:transparent; box-shadow:none;
-}
-#welcomeLogoWrap{
-  position:relative; display:none; justify-content:center; align-items:center;
-  margin:8px auto 12px; width:100%;
-}
-#welcomeLogoWrap::before{
-  content:""; position:absolute; width:min(480px, 86vw); height:calc(min(480px, 86vw) * 0.58);
-  background: radial-gradient(60% 70% at 50% 50%, rgba(255,255,255,.32) 0%, rgba(255,255,255,.18) 45%, rgba(255,255,255,0) 100%);
-  filter: blur(12px); opacity:.9; z-index:0;
-}
-#welcomeLogo{
-  position:relative; z-index:1; display:none; max-width:280px; width:60%; height:auto; margin:0 auto 12px;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,.25)) drop-shadow(0 0 12px rgba(255,255,255,.18));
-}
-#welcomeMessage h1{
-  font-family: "IM Fell English SC", system-ui, serif; letter-spacing:.5px;
-  text-shadow:0 2px 10px rgba(0,0,0,.55); font-weight:400;
-}
-#welcomeInfoText{
-  display:none; max-width:900px; margin:10px auto 0; padding:0; background:none; border:none; border-radius:0;
-  color:#f5f5f5; text-align:center; line-height:1.55; font-family: 'Courier New', Courier, monospace; font-size:1.1em;
-}
+    /* ====== LOGIN MODAL ====== */
+    #loginModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20000;
+      backdrop-filter: blur(4px);
+      animation: fadeInOverlay 0.3s ease;
+    }
+    #loginModal.active { display: flex; }
+    @keyframes fadeInOverlay { from { opacity: 0; } to { opacity: 1; } }
 
-/* ====== PROFIL ("Min sida") ====== */
-#profileContainer{
-  display:none; max-width:820px; margin:60px auto; background:#222; padding:20px;
-  border-radius:16px; color:#fff; text-align:left;
-  box-shadow:0 8px 24px rgba(0,0,0,.35); border:1px solid #333;
-}
-#profileContainer h2{ text-align:center; margin-top:0; }
-#profileContainer.theme-default{ background:#222; }
-#profileContainer.theme-forest{ background: linear-gradient(180deg, #1e2a22, #18221c); }
-#profileContainer.theme-royal{ background: linear-gradient(180deg, #241a36, #1a1226); }
+    .login-box {
+      background: linear-gradient(160deg, #110a08, #0d0907);
+      border: 1px solid rgba(139,26,26,0.4);
+      border-radius: 6px;
+      padding: 40px 36px 32px;
+      width: min(420px, 92vw);
+      box-shadow: 0 0 0 1px rgba(212,135,42,0.06), 0 24px 80px rgba(0,0,0,0.9), inset 0 1px 0 rgba(212,135,42,0.08);
+      animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .login-box::before { content: ''; position: absolute; top: 0; left: 0; width: 80px; height: 80px; background: radial-gradient(circle at top left, rgba(139,26,26,0.18), transparent 70%); pointer-events: none; }
+    .login-box::after { content: ''; position: absolute; bottom: 0; right: 0; width: 120px; height: 60px; background: radial-gradient(circle at bottom right, rgba(139,26,26,0.1), transparent 70%); pointer-events: none; }
+    @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-.theme-dots{ display:flex; gap:10px; align-items:center; }
-.theme-dot{
-  width:28px; height:28px; border-radius:999px; border:2px solid #555;
-  cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.35);
-}
-.theme-dot:focus{ outline:2px solid #999; outline-offset:2px; }
-.theme-dot[data-theme="default"]{ background:#2a2a2a; }
-.theme-dot[data-theme="forest"]{ background: linear-gradient(180deg, #2c3b32, #213127); }
-.theme-dot[data-theme="royal"]{ background: linear-gradient(180deg, #33254a, #261a38); }
-.theme-dot.active{ border-color:#fff; box-shadow:0 0 0 3px rgba(255,255,255,.18); }
+    .login-logo { text-align: center; margin-bottom: 28px; }
+    .login-logo-img { max-width: 160px; width: 70%; height: auto; opacity: 0.9; filter: drop-shadow(0 0 16px rgba(139,26,26,0.5)); }
+    .login-title { font-family: 'IM Fell English SC', serif; font-size: 22px; color: #e8e0d0; text-align: center; letter-spacing: 0.5px; margin-bottom: 6px; text-shadow: 0 0 20px rgba(139,26,26,0.4); }
+    .login-subtitle { font-family: 'IM Fell English', serif; font-size: 13px; font-style: italic; color: rgba(232,224,208,0.4); text-align: center; margin-bottom: 28px; letter-spacing: 0.3px; }
+    .login-field { margin-bottom: 16px; }
+    .login-label { display: block; font-family: 'IM Fell English SC', serif; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,224,208,0.45); margin-bottom: 8px; }
+    .login-input { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(232,224,208,0.12); border-radius: 3px; padding: 12px 14px; color: #e8e0d0; font-family: 'IM Fell English', serif; font-size: 18px; letter-spacing: 4px; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; -webkit-text-security: disc; appearance: none; }
+    .login-input:focus { outline: none; border-color: rgba(139,26,26,0.6); background: rgba(255,255,255,0.06); box-shadow: 0 0 0 3px rgba(139,26,26,0.12), 0 0 16px rgba(139,26,26,0.1); }
+    .login-input::placeholder { color: rgba(232,224,208,0.2); letter-spacing: 2px; font-size: 14px; }
+    #loginNameInput { -webkit-text-security: none; letter-spacing: 0.5px; font-size: 16px; }
+    #loginNameInput::placeholder { letter-spacing: 0.5px; font-size: 15px; }
+    .login-input.shake { animation: shake 0.35s ease; border-color: rgba(192,57,43,0.8); }
+    @keyframes shake { 0%,100%{transform:translateX(0);} 20%{transform:translateX(-6px);} 40%{transform:translateX(6px);} 60%{transform:translateX(-4px);} 80%{transform:translateX(4px);} }
+    .login-error { font-family: 'IM Fell English', serif; font-style: italic; font-size: 13px; color: #c0392b; text-align: center; min-height: 18px; margin-bottom: 14px; transition: opacity 0.2s; }
+    .login-submit { width: 100%; background: linear-gradient(160deg, #6b1414, #8b1a1a); color: #f0ebe2; border: 1px solid rgba(192,57,43,0.5); border-radius: 3px; padding: 13px; font-family: 'IM Fell English SC', serif; font-size: 16px; letter-spacing: 1.5px; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
+    .login-submit::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent); transition: left 0.4s; }
+    .login-submit:hover { background: linear-gradient(160deg, #7a1818, #9e1f1f); box-shadow: 0 0 20px rgba(139,26,26,0.4); }
+    .login-submit:hover::before { left: 100%; }
+    .login-submit:active { transform: scale(0.99); }
+    .login-close { position: absolute; top: 14px; right: 16px; background: none; border: none; color: rgba(232,224,208,0.3); font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 3px; transition: color 0.15s; line-height: 1; }
+    .login-close:hover { color: rgba(232,224,208,0.7); }
+    .login-hint { text-align: center; margin-top: 16px; font-family: 'IM Fell English', serif; font-style: italic; font-size: 12px; color: rgba(232,224,208,0.22); letter-spacing: 0.3px; }
 
-/* ====== KASSA ====== */
-#kassaContainer{ display:none; }
-#kassaContainer h1{ text-align:center; margin:24px 0 16px; }
-#closedMessage{
-  display:none; color:#ff4444; text-align:center; font-size:24px; font-weight:700; margin:16px 0;
-}
+    /* ====== SEKTIONER ====== */
+    .section { background: rgba(10,8,6,0.75); border: 1px solid rgba(232,224,208,0.08); border-radius: 6px; padding: 14px; margin: 10px 0; text-align: left; backdrop-filter: blur(4px); }
+    .section h4 { margin: 0 0 8px; font-size: 15px; font-family: 'IM Fell English SC', serif; }
+    .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .muted { color: rgba(232,224,208,0.45); font-size: 12px; font-style: italic; }
+    .tag { display: inline-block; padding: 4px 10px; border-radius: 2px; background: rgba(255,255,255,0.06); margin: 4px 6px 0 0; font-size: 12px; border: 1px solid rgba(255,255,255,0.08); }
 
-.products{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-bottom:12px; }
-.products button{
-  background:#222;
-  color:#fff;
-  padding:22px 26px;     /* större knapp */
-  font-size:20px;        /* större text */
-  border:none;
-  border-radius:14px;
-  cursor:pointer;
+    .disclosure { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 4px; padding: 10px 14px; color: rgba(232,224,208,0.85); cursor: pointer; width: 100%; font-family: 'IM Fell English SC', serif; font-size: 14px; letter-spacing: 0.3px; transition: background 0.15s, border-color 0.15s; }
+    .disclosure:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.12); }
+    .disclosure + .content { display: none; padding: 12px 0 0; }
 
-  min-width: 220px;      /* gör att de blir "kort" istället för små lappar */
-  min-height: 64px;      /* bra för touch */
-}
-.products .btn-adult{
-  background:#1f2a33;
-  border:1px solid #334a5e;
-}
+    .input { background: rgba(255,255,255,0.05); color: #e8e0d0; border: 1px solid rgba(232,224,208,0.12); border-radius: 4px; padding: 8px 10px; font-family: 'IM Fell English', serif; font-size: 15px; transition: border-color 0.15s; }
+    .input:focus { outline: none; border-color: rgba(139,26,26,0.5); }
 
-.products .btn-child{
-  background:#222b26;
-  border:1px solid #3c5a49;
-}
+    .btn { background: rgba(255,255,255,0.07); color: #e8e0d0; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 8px 14px; cursor: pointer; font-family: 'IM Fell English SC', serif; font-size: 13px; letter-spacing: 0.3px; transition: background 0.15s, border-color 0.15s; }
+    .btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.18); }
+    .btn-danger { background: rgba(139,26,26,0.25); border-color: rgba(139,26,26,0.4); }
+    .btn-danger:hover { background: rgba(139,26,26,0.4); border-color: rgba(192,57,43,0.6); }
+    .btn-primary { background: rgba(45,108,223,0.3); border-color: rgba(45,108,223,0.5); }
+    .btn-primary:hover { background: rgba(45,108,223,0.45); }
+    .btn-green { background: rgba(40,167,69,0.25); border-color: rgba(40,167,69,0.45); }
+    .btn-green:hover { background: rgba(40,167,69,0.4); border-color: rgba(40,167,69,0.65); }
 
-.products .btn-reentry{
-  background:#2a2236;
-  border:1px solid #5b4a7a;
-}
+    .pill { display: inline-block; padding: 5px 11px; border-radius: 2px; background: rgba(255,255,255,0.06); color: #e8e0d0; font-size: 12px; border: 1px solid rgba(255,255,255,0.1); font-family: 'IM Fell English SC', serif; }
+    .tiny { font-size: 11px; color: rgba(232,224,208,0.45); }
+    .clickable { cursor: pointer; }
 
-.products .btn-other{
-  background:#2a2622;
-  border:1px solid #5a4e3c;
-}
+    /* ====== MENUS ====== */
+    #hoursMenu, #queueMenu, #adminSettings {
+      display: none;
+      background: rgba(10,8,6,0.92);
+      padding: 18px;
+      text-align: center;
+      border-bottom: 1px solid rgba(139,26,26,0.2);
+      border-top: 1px solid rgba(139,26,26,0.1);
+      max-width: 820px;
+      margin: 16px auto;
+      border-radius: 6px;
+      border: 1px solid rgba(139,26,26,0.2);
+      backdrop-filter: blur(8px);
+    }
+    #hoursMenu select, #hoursMenu input, #hoursMenu button,
+    #queueMenu select, #queueMenu button,
+    #adminSettings input, #adminSettings select, #adminSettings button, #adminSettings textarea {
+      font-size: 15px; margin: 5px 0; padding: 8px;
+      font-family: 'IM Fell English', serif;
+    }
+    #userSelect { font-family: monospace; }
+    .admin-password { margin: 6px 0 10px; font-size: 12px; color: rgba(232,224,208,0.45); }
+    .admin-password .label { margin-right: 6px; opacity: .8; }
+    .admin-password .value { font-family: monospace; color: rgba(232,224,208,0.65); }
 
-.cart-table{ width:100%; max-width:820px; margin:0 auto 20px; border-collapse:collapse; background:#222; }
-.cart-table th, .cart-table td{ padding:10px; border-bottom:1px solid #333; text-align:left; color:#fff; }
-.cart-table th{ background:#333; }
-.remove-btn{ background:#ff4444; color:#fff; border:none; padding:5px 10px; cursor:pointer; border-radius:5px; }
+    /* ====== WELCOME ====== */
+    .welcome-message { display: none; }
 
-#discountBtn{ margin:0 auto 10px; display:block; padding:8px 14px; border-radius:8px; border:none; cursor:pointer; background:#444; color:#fff; }
-#discountBtn.applied{ background:#2b6; }
+    #welcomeMessage {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px 64px;
+      text-align: center;
+      position: relative;
+    }
+    #welcomeMessage::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent 0%, rgba(180,60,30,0.5) 35%, rgba(212,135,42,0.65) 50%, rgba(180,60,30,0.5) 65%, transparent 100%);
+      pointer-events: none;
+    }
 
-#total{ font-size:22px; text-align:center; margin:10px 0; }
-#checkout{ display:block; margin:10px auto 40px; padding:15px 30px; font-size:20px; background:#28a745; color:#fff; border:none; border-radius:10px; cursor:pointer; }
-#checkout:disabled{ opacity:.55; cursor:not-allowed; filter: grayscale(15%); }
-.qty-btn{
-  background:#2a2a2a;
-  color:#ddd;
-  border:1px solid #444;
-  border-radius:6px;
-  width:28px;
-  height:28px;
-  cursor:pointer;
-  font-size:16px;
-  line-height:1;
-}
+    /* Ember canvas */
+    #emberCanvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
 
-.qty-btn:hover{
-  background:#3a3a3a;
-}
+    .welcome-inner {
+      width: min(560px, 92vw);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      position: relative;
+      z-index: 2;
+    }
 
-.qty-btn:active{
-  transform: scale(0.95);
-}
+    .welcome-hero { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-bottom: 28px; animation: wFadeUp 0.7s ease both; }
+    #welcomeLogoWrap { display: none; }
+    #welcomeLogo     { display: none; }
+    #welcomeKorpenLogo { max-width: 280px; width: 70%; height: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6)) drop-shadow(0 0 20px rgba(139,26,26,0.28)); }
+    .welcome-hotel-name { font-family: 'IM Fell English SC', serif; font-size: clamp(1.4rem, 4.5vw, 2.2rem); letter-spacing: 4px; color: #f0ebe2; margin: 0; text-shadow: 0 2px 16px rgba(139,26,26,0.35); line-height: 1.2; }
+    #welcomeMessage h1 { font-family: 'IM Fell English', serif; font-style: italic; font-weight: 400; font-size: clamp(0.95rem, 2.2vw, 1.15rem); line-height: 1.6; color: rgba(232,224,208,0.52); letter-spacing: 0.2px; margin: 0; }
 
-/* ====== MODAL ====== */
-.modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; z-index:10000; }
-.modal{
-  background:#1b1b1b; border:1px solid #333; border-radius:12px; padding:18px;
-  width:min(420px, 92vw); color:#fff; box-shadow:0 10px 30px rgba(0,0,0,.5);
-}
-.modal h3{ margin:6px 0 10px; font-size:18px; }
-.modal .actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:14px; }
+    .welcome-status-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; animation: wFadeUp 0.7s ease 0.15s both; }
+    .welcome-status-card { background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.1); border-radius: 40px; padding: 8px 18px; display: flex; align-items: center; gap: 9px; }
+    .welcome-status-label { font-family: 'IM Fell English SC', serif; font-size: 10px; letter-spacing: 1.6px; color: rgba(232,224,208,0.35); white-space: nowrap; }
+    .welcome-status-value { font-family: 'IM Fell English SC', serif; font-size: 14px; letter-spacing: 0.3px; color: #e8e0d0; white-space: nowrap; }
+    .welcome-status-value.is-closed { color: rgba(210,80,60,0.9); }
+    .welcome-status-value.is-open   { color: rgba(150,210,130,0.9); }
+    .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: middle; position: relative; top: -1px; flex-shrink: 0; }
+    .status-dot.live { background: #5cb85c; animation: pulse-dot 2.2s ease-out infinite; }
+    .status-dot.dead { background: rgba(200,70,50,0.55); }
+    @keyframes pulse-dot { 0%{box-shadow:0 0 0 0 rgba(92,184,92,0.5);} 70%{box-shadow:0 0 0 6px rgba(92,184,92,0);} 100%{box-shadow:0 0 0 0 rgba(92,184,92,0);} }
 
-/* ====== KVITTENSER ====== */
-.log-section{ max-width:820px; margin:0 auto 60px; background:#1a1a1a; padding:20px; border-radius:10px; color:#fff; }
-.log-section h2{ font-size:20px; margin-bottom:10px; }
-.log-entry{ border-top:1px solid #333; padding:5px 0; }
-.summary{ font-weight:bold; margin-bottom:10px; }
+    #welcomeAdminBar { margin: -16px 0 20px; display: none; }
+    #welcomeAdminBar span { cursor: pointer; font-size: 11px; color: rgba(232,224,208,0.22); font-style: italic; font-family: 'IM Fell English', serif; margin: 0 8px; transition: color 0.15s; }
+    #welcomeAdminBar span:hover { color: rgba(232,224,208,0.5); }
 
-/* ====== DISPLAY-LÄGE (spooky) ====== */
-.display-view{ position: fixed; inset: 0; background: #000; color: #fff; display:flex; align-items:center; justify-content:center; z-index: 9999; cursor:pointer; overflow:hidden; }
-.display-view::before{ content:""; position:absolute; inset:-10%; pointer-events:none; box-shadow: inset 0 0 300px rgba(0,0,0,0.9), inset 0 0 120px rgba(0,0,0,0.9); }
-.display-view::after{ content:""; position:absolute; inset:-20%; background: radial-gradient(120% 80% at 50% 10%, rgba(255,255,255,0.06), transparent 60%), radial-gradient(100% 60% at 20% 70%, rgba(255,255,255,0.04), transparent 60%), radial-gradient(100% 60% at 80% 60%, rgba(255,255,255,0.05), transparent 60%); opacity:.5; filter:blur(30px); animation: fog-drift 50s linear infinite; }
-#displayQueue{ font-family:"IM Fell English SC", system-ui, serif; font-weight:400; font-size: clamp(6rem, 16vw, 20rem); letter-spacing:.5px; line-height:1; text-align:center; padding:0 4vw; animation: flicker 6s infinite steps(60, end), glow 3.5s ease-in-out infinite; will-change:text-shadow, opacity; }
-.display-view.state-open #displayQueue{ color:#eaffea; text-shadow: 0 0 1px #0a0, 0 0 12px rgba(0,255,140,.55), 0 0 26px rgba(0,180,100,.35), 2px 2px 0 rgba(0,0,0,.7); }
-.display-view.state-closed #displayQueue{ color:#ffeaea; text-shadow: 0 0 1px #900, 0 0 12px rgba(255,60,60,.55), 0 0 26px rgba(180,0,0,.35), 2px 2px 0 rgba(0,0,0,.8); }
-.display-view .scanlines{ position:absolute; inset:0; background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 2px, transparent 4px); mix-blend-mode: overlay; pointer-events:none; animation: scan 12s linear infinite; opacity:.25; }
-#displayLabel{ font-family:"IM Fell English SC", system-ui, serif; font-size: clamp(1.5rem, 4vw, 3rem); letter-spacing:.5px; text-shadow:0 2px 10px rgba(0,0,0,.55); margin-bottom:.6em; color:#ccc; animation:flickerLabel 6s infinite steps(60, end); }
-@keyframes flicker { 0%,97%,100%{opacity:1;} 98%{opacity:.92;} 99%{opacity:.85;} }
-@keyframes glow { 0%,100%{filter:drop-shadow(0 0 0 rgba(0,0,0,0));} 50%{filter:drop-shadow(0 0 6px rgba(0,0,0,.35));} }
-@keyframes fog-drift { 0%{transform:translate3d(-5%,-2%,0) scale(1.05);} 50%{transform:translate3d(6%,3%,0) scale(1.1);} 100%{transform:translate3d(-5%,-2%,0) scale(1.05);} }
-@keyframes scan { 0%{background-position-y:0;} 100%{background-position-y:200px;} }
-@keyframes flickerLabel { 0%,97%,100%{opacity:1;} 98%{opacity:.96;} 99%{opacity:.92;} }
-#displayHours{
-  margin-top: 0.6em;
-  font-family:"IM Fell English SC", system-ui, serif;
-  font-size: clamp(1.2rem, 3vw, 2.2rem);
-  letter-spacing:.4px;
-  color:#ccc;
-  text-shadow:0 2px 10px rgba(0,0,0,.55);
-}
-/* ====== FÄLTLÄGE (Senaste biljetter) ====== */
-.field-view{ position: fixed; inset:0; z-index:10000; background:#000 radial-gradient(120% 80% at 50% 10%, rgba(255,255,255,.06), transparent 60%); color:#fff; display:flex; flex-direction:column; overflow:hidden; }
-.field-view::after{ content:""; position:absolute; inset:-20%; background: radial-gradient(120% 80% at 50% 10%, rgba(255,255,255,0.06), transparent 60%), radial-gradient(100% 60% at 20% 70%, rgba(255,255,255,0.04), transparent 60%), radial-gradient(100% 60% at 80% 60%, rgba(255,255,255,0.05), transparent 60%); opacity:.5; filter:blur(30px); pointer-events:none; }
-.field-header{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid #333; background:#111; position:relative; z-index:1; }
-.field-title{ font-family:"IM Fell English SC", system-ui, serif; font-size:28px; letter-spacing:.4px; color:#e53935; text-shadow:0 0 12px rgba(229,57,53,.45), 2px 2px 0 rgba(0,0,0,.7); }
-.field-content{ flex:1; overflow:auto; padding:20px 16px 32px; position:relative; z-index:1; }
-.ticket-list{ max-width:820px; margin:0 auto; }
-.ticket-row{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px; margin:12px 0; background:#141414; border:1px solid #2a2a2a; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,.35); transition: transform .18s ease, box-shadow .28s ease, border-color .28s ease, opacity .28s ease; }
-.ticket-row:hover{ transform:translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.45); border-color:#333; }
-.ticket-row .meta{ font-size:13px; color:#bbb; }
-.ticket-row .who{ font-family:"IM Fell English SC", system-ui, serif; font-size:22px; letter-spacing:.3px; line-height:1.2; word-break:break-word; color:#f1eaea; text-shadow:0 0 8px rgba(255,255,255,.06); }
-.ticket-row .nums{ margin-top:4px; white-space:nowrap; font-size:14px; color:#ddd; }
-.ticket-row .nums .pill{ margin-left:6px; }
-.ticket-row.flash-green{ background:rgba(60,180,100,.08); border-color: rgba(60,180,100,.35); box-shadow: 0 0 10px rgba(60,180,100,.25); animation: fieldPulse 6s ease-out 1; }
-@keyframes fieldPulse { 0%{box-shadow:0 0 0 12px rgba(60,180,100,0);} 12%{box-shadow:0 0 0 0 rgba(60,180,100,.25);} 100%{box-shadow:0 0 0 0 rgba(60,180,100,0);} }
-.ticket-row.slide-out{ transform: translateY(20px); opacity:0; }
-.reentry-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 12px; margin:8px auto; max-width:820px; background:#131313; border:1px solid #2a2a2a; border-radius:10px; }
-.reentry-row .label{ font-family:"IM Fell English SC", system-ui, serif; letter-spacing:.3px; font-size:18px; }
+    #welcomeInfoText { display: none; font-family: 'IM Fell English', serif; font-style: italic; font-size: 0.93em; color: rgba(232,224,208,0.55); line-height: 1.7; margin: 0 0 24px; text-align: center; }
 
-/* ====== VÄLKOMST FAQ ====== */
-.welcome-faq{
-  max-width: 500px;
-  margin: 20px auto 0;
-}
+    .welcome-faq { width: 100%; max-width: 380px; margin: 0 auto; animation: wFadeUp 0.7s ease 0.45s both; }
+    .welcome-faq .disclosure { background: transparent; border: 1px solid rgba(232,224,208,0.1); border-radius: 4px; font-family: "IM Fell English SC", serif; letter-spacing: .4px; font-size: 13px; color: rgba(232,224,208,0.4); width: 100%; text-align: center; transition: border-color 0.2s, color 0.2s; position: relative; }
+    .welcome-faq .disclosure:hover { border-color: rgba(232,224,208,0.22); color: rgba(232,224,208,0.65); }
+    .welcome-faq .disclosure::after { content: "▾"; opacity:.4; transition: transform .3s; position: absolute; right: 14px; }
+    .welcome-faq.open .disclosure::after { transform: rotate(180deg); }
+    .welcome-faq.open .content { display: block; }
+    #welcomeFaqContent { background: rgba(8,5,3,0.6); border: 1px solid rgba(232,224,208,0.07); border-top: none; border-radius: 0 0 4px 4px; padding: 14px 18px 18px; font-family: "IM Fell English", serif; font-size: 13px; line-height: 1.65; color: rgba(232,224,208,0.68); text-align: center; }
+    #welcomeFaqContent strong { color: #d4a854; }
 
-/* Själva knappen */
-.welcome-faq .disclosure{
-  background: linear-gradient(180deg, #1a1a1a, #0f0f0f);
-  border: 1px solid #3a3a3a;
-  box-shadow:
-    inset 0 0 12px rgba(0,0,0,.8),
-    0 0 18px rgba(0,0,0,.6);
-  font-family: "IM Fell English SC", serif;
-  letter-spacing: .4px;
-  font-size: 18px;
-}
+    .welcome-staff-btn { margin-top: 28px; background: transparent; border: none; color: rgba(232,224,208,0.16); font-family: 'IM Fell English', serif; font-style: italic; font-size: 12px; cursor: pointer; letter-spacing: 0.3px; padding: 6px 12px; transition: color 0.2s; animation: wFadeUp 0.7s ease 0.55s both; }
+    .welcome-staff-btn:hover { color: rgba(232,224,208,0.42); }
 
-/* Pil/indikator */
-.welcome-faq .disclosure::after{
-  content: "▾";
-  opacity: .6;
-  transition: transform .3s ease;
-}
+    @keyframes wFadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
-/* När öppen */
-.welcome-faq.open .disclosure::after{
-  transform: rotate(180deg);
-}
+    /* ====== MIN SIDA ====== */
+    #profileContainer {
+      display: none;
+      max-width: 820px;
+      margin: 40px auto;
+      background: rgba(20,15,12,0.85);
+      padding: 24px;
+      border-radius: 10px;
+      color: #e8e0d0;
+      text-align: left;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      border: 1px solid rgba(232,224,208,0.08);
+      backdrop-filter: blur(8px);
+    }
+    #profileContainer h2 { text-align: center; margin-top: 0; font-family: 'IM Fell English SC', serif; letter-spacing: 0.5px; font-size: 24px; }
+    #profileContainer.theme-default { background: rgba(20,15,12,0.85); }
+    #profileContainer.theme-forest { background: linear-gradient(180deg, rgba(15,30,18,0.9), rgba(10,22,14,0.9)); border-color: rgba(50,120,60,0.2); }
+    #profileContainer.theme-royal  { background: linear-gradient(180deg, rgba(25,15,40,0.9), rgba(18,10,30,0.9)); border-color: rgba(100,60,160,0.2); }
 
-/* Innehållet */
-#welcomeFaqContent{
-  background: radial-gradient(
-    circle at top,
-    rgba(255,255,255,.06),
-    rgba(0,0,0,.9) 70%
-  );
-  border: 1px solid #2f2f2f;
-  border-top: none;
-  border-radius: 0 0 14px 14px;
-  padding: 18px 20px 22px;
+    .theme-dots { display: flex; gap: 10px; align-items: center; }
+    .theme-dot { width: 28px; height: 28px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.35); transition: border-color 0.2s, box-shadow 0.2s; }
+    .theme-dot:focus { outline: 2px solid #999; outline-offset: 2px; }
+    .theme-dot[data-theme="default"] { background: rgba(30,22,18,0.9); }
+    .theme-dot[data-theme="forest"]  { background: linear-gradient(180deg, rgba(25,45,28,0.9), rgba(18,34,20,0.9)); }
+    .theme-dot[data-theme="royal"]   { background: linear-gradient(180deg, rgba(40,25,60,0.9), rgba(28,15,45,0.9)); }
+    .theme-dot.active { border-color: #e8e0d0; box-shadow: 0 0 0 3px rgba(232,224,208,0.18); }
 
-  box-shadow:
-    inset 0 0 25px rgba(0,0,0,.85),
-    0 10px 30px rgba(0,0,0,.7);
+    /* ====== KASSA ====== */
+    #kassaContainer {
+      display: none;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 0 16px 60px;
+    }
+    #kassaContainer h1 {
+      text-align: center;
+      margin: 24px 0 16px;
+      font-family: 'IM Fell English SC', serif;
+      letter-spacing: 1px;
+      font-size: 28px;
+      color: #f0ebe2;
+      text-shadow: 0 2px 12px rgba(139,26,26,0.3);
+    }
+    #closedMessage {
+      display: none;
+      color: #ff4444;
+      text-align: center;
+      font-size: 24px;
+      font-weight: 700;
+      margin: 16px 0;
+      font-family: 'IM Fell English SC', serif;
+    }
 
-  font-family: "Courier New", Courier, monospace;
-  font-size: 15px;
-  line-height: 1.6;
-  color: #e0e0e0;
-}
+    .products {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .products button {
+      background: rgba(255,255,255,0.06);
+      color: #e8e0d0;
+      padding: 22px 26px;
+      font-size: 18px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      min-width: 200px;
+      min-height: 64px;
+      font-family: 'IM Fell English SC', serif;
+      letter-spacing: 0.3px;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    }
+    .products button:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); transform: translateY(-1px); }
+    .products button:active { transform: scale(0.98); }
+    .products .btn-adult  { background: rgba(20,35,50,0.7); border-color: rgba(51,74,94,0.6); }
+    .products .btn-adult:hover { background: rgba(25,45,65,0.8); }
+    .products .btn-child  { background: rgba(20,40,28,0.7); border-color: rgba(50,80,60,0.6); }
+    .products .btn-child:hover { background: rgba(25,50,35,0.8); }
+    .products .btn-reentry{ background: rgba(35,25,50,0.7); border-color: rgba(85,60,110,0.6); }
+    .products .btn-reentry:hover { background: rgba(45,30,65,0.8); }
+    .products .btn-other  { background: rgba(40,35,25,0.7); border-color: rgba(80,70,50,0.6); }
+    .products .btn-other:hover { background: rgba(50,44,30,0.8); }
 
-.welcome-faq.open .content{
-  display:block;
-}
-#welcomeFaqContent br + br{
-  display:block;
-  margin-top: 10px;
-}
-/* Centrera "Bra att veta (FAQ)" */
-.welcome-faq .disclosure{
-  justify-content: center;   /* centrerar texten */
-  text-align: center;
-  position: relative;
-}
+    .cart-table { width: 100%; max-width: 820px; margin: 0 auto 20px; border-collapse: collapse; background: rgba(10,8,6,0.7); border: 1px solid rgba(255,255,255,0.07); border-radius: 6px; overflow: hidden; }
+    .cart-table th, .cart-table td { padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); text-align: left; color: #e8e0d0; font-family: 'IM Fell English', serif; }
+    .cart-table th { background: rgba(139,26,26,0.15); font-family: 'IM Fell English SC', serif; font-size: 13px; letter-spacing: 0.3px; border-bottom: 1px solid rgba(139,26,26,0.25); }
+    .cart-table tbody tr:last-child td { border-bottom: none; }
+    .remove-btn { background: rgba(192,57,43,0.3); color: #e8e0d0; border: 1px solid rgba(192,57,43,0.4); padding: 5px 10px; cursor: pointer; border-radius: 4px; font-family: 'IM Fell English SC', serif; font-size: 12px; transition: background 0.15s; }
+    .remove-btn:hover { background: rgba(192,57,43,0.55); }
 
-/* Flytta pilen till höger utan att påverka centreringen */
-.welcome-faq .disclosure::after{
-  position: absolute;
-  right: 14px;
-}
-.welcome-faq:not(.open) .disclosure{
-  padding: 8px 12px;      /* mindre höjd */
-  font-size: 16px;        /* lite mindre text */
-}
+    .qty-btn { background: rgba(255,255,255,0.06); color: #ddd; border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; line-height: 1; transition: background 0.15s; }
+    .qty-btn:hover { background: rgba(255,255,255,0.12); }
+    .qty-btn:active { transform: scale(0.95); }
 
-.welcome-faq:not(.open){
-  max-width: 200px;       /* lite smalare när stängd */
-}
+    #discountBtn { margin: 0 auto 10px; display: block; padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); cursor: pointer; background: rgba(255,255,255,0.06); color: #e8e0d0; font-family: 'IM Fell English SC', serif; font-size: 13px; letter-spacing: 0.3px; transition: background 0.15s; }
+    #discountBtn:hover { background: rgba(255,255,255,0.1); }
+    #discountBtn.applied { background: rgba(40,167,69,0.25); border-color: rgba(40,167,69,0.45); }
+
+    #total { font-size: 22px; text-align: center; margin: 10px 0; font-family: 'IM Fell English SC', serif; letter-spacing: 0.3px; }
+    #checkout { display: block; margin: 10px auto 20px; padding: 14px 30px; font-size: 18px; background: rgba(40,167,69,0.3); color: #e8e0d0; border: 1px solid rgba(40,167,69,0.5); border-radius: 8px; cursor: pointer; font-family: 'IM Fell English SC', serif; letter-spacing: 0.5px; transition: background 0.15s, box-shadow 0.15s; }
+    #checkout:hover { background: rgba(40,167,69,0.45); box-shadow: 0 0 16px rgba(40,167,69,0.2); }
+    #checkout:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(20%); }
+
+    /* ====== LOG ENTRIES ====== */
+    #logEntries { max-width: 820px; margin: 0 auto; }
+    .log-entry { border-top: 1px solid rgba(255,255,255,0.06); padding: 8px 0; font-family: 'IM Fell English', serif; font-size: 14px; color: rgba(232,224,208,0.75); }
+
+    /* ====== MODAL ====== */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: none; align-items: center; justify-content: center; z-index: 10000; backdrop-filter: blur(3px); }
+    .modal { background: linear-gradient(160deg, #110a08, #0d0907); border: 1px solid rgba(139,26,26,0.35); border-radius: 8px; padding: 20px; width: min(420px, 92vw); color: #e8e0d0; box-shadow: 0 12px 40px rgba(0,0,0,0.8); }
+    .modal h3 { margin: 6px 0 12px; font-size: 18px; font-family: 'IM Fell English SC', serif; letter-spacing: 0.3px; }
+    .modal .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+
+    /* ====== STATS ====== */
+    #statsContainer { display: none; max-width: 820px; margin: 40px auto; }
+
+    /* ====== LOG SUMMARY ====== */
+    #logSummary { text-align: center; color: rgba(232,224,208,0.45); font-size: 13px; font-style: italic; margin: 8px 0; font-family: 'IM Fell English', serif; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+    ::-webkit-scrollbar-thumb { background: rgba(139,26,26,0.4); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(139,26,26,0.6); }
+
+    /* ====== FIELD VIEW ====== */
+    .field-view { position: fixed; inset: 0; z-index: 10000; background: #000 radial-gradient(120% 80% at 50% 10%, rgba(255,255,255,.06), transparent 60%); color: #fff; display: flex; flex-direction: column; overflow: hidden; }
+    .field-view::after { content: ""; position: absolute; inset: -20%; background: radial-gradient(120% 80% at 50% 10%, rgba(255,255,255,0.06), transparent 60%), radial-gradient(100% 60% at 20% 70%, rgba(255,255,255,0.04), transparent 60%), radial-gradient(100% 60% at 80% 60%, rgba(255,255,255,0.05), transparent 60%); opacity: .5; filter: blur(30px); pointer-events: none; }
+    .field-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #333; background: #111; position: relative; z-index: 1; }
+    .field-title { font-family: "IM Fell English SC", serif; font-size: 28px; letter-spacing: .4px; color: #e53935; text-shadow: 0 0 12px rgba(229,57,53,.45), 2px 2px 0 rgba(0,0,0,.7); }
+    .field-content { flex: 1; overflow: auto; padding: 20px 16px 32px; position: relative; z-index: 1; }
+    .ticket-list { max-width: 820px; margin: 0 auto; }
+    .ticket-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; margin: 12px 0; background: #141414; border: 1px solid #2a2a2a; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.35); transition: transform .18s ease, box-shadow .28s ease, border-color .28s ease, opacity .28s ease; }
+    .ticket-row:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,.45); border-color: #333; }
+    .ticket-row .meta { font-size: 13px; color: #bbb; }
+    .ticket-row .who { font-family: "IM Fell English SC", serif; font-size: 22px; letter-spacing: .3px; line-height: 1.2; word-break: break-word; color: #f1eaea; text-shadow: 0 0 8px rgba(255,255,255,.06); }
+    .ticket-row .nums { margin-top: 4px; white-space: nowrap; font-size: 14px; color: #ddd; }
+    .ticket-row .nums .pill { margin-left: 6px; }
+    .ticket-row.flash-green { background: rgba(60,180,100,.08); border-color: rgba(60,180,100,.35); box-shadow: 0 0 10px rgba(60,180,100,.25); animation: fieldPulse 6s ease-out 1; }
+    @keyframes fieldPulse { 0%{box-shadow:0 0 0 12px rgba(60,180,100,0);} 12%{box-shadow:0 0 0 0 rgba(60,180,100,.25);} 100%{box-shadow:0 0 0 0 rgba(60,180,100,0);} }
+    .ticket-row.slide-out { transform: translateY(20px); opacity: 0; }
+    .reentry-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; margin: 8px auto; max-width: 820px; background: #131313; border: 1px solid #2a2a2a; border-radius: 8px; }
+    .reentry-row .label { font-family: "IM Fell English SC", serif; letter-spacing: .3px; font-size: 18px; }
+
+    /* ====== DISPLAY MODE ====== */
+    .display-view { position: fixed; inset: 0; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; z-index: 9999; cursor: pointer; overflow: hidden; }
+    .display-view > div:first-child { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .display-view::after { content: ""; position: absolute; inset: -20%; background: radial-gradient(120% 80% at 50% 10%, rgba(255,255,255,0.06), transparent 60%), radial-gradient(100% 60% at 20% 70%, rgba(255,255,255,0.04), transparent 60%), radial-gradient(100% 60% at 80% 60%, rgba(255,255,255,0.05), transparent 60%); opacity: .5; filter: blur(30px); animation: fog-drift 50s linear infinite; pointer-events: none; }
+    @keyframes fog-drift { 0%{transform:translate3d(-5%,-2%,0) scale(1.05);} 50%{transform:translate3d(6%,3%,0) scale(1.1);} 100%{transform:translate3d(-5%,-2%,0) scale(1.05);} }
+    #displayQueue { font-family: "IM Fell English SC", serif; font-size: clamp(6rem, 16vw, 20rem); letter-spacing: .5px; line-height: 1; text-align: center; padding: 0 4vw; animation: flicker 6s infinite steps(60, end), glow 3.5s ease-in-out infinite; }
+    .display-view.state-open #displayQueue { color: #eaffea; text-shadow: 0 0 1px #0a0, 0 0 12px rgba(0,255,140,.55), 0 0 26px rgba(0,180,100,.35), 2px 2px 0 rgba(0,0,0,.7); }
+    .display-view.state-closed #displayQueue { color: #ffeaea; text-shadow: 0 0 1px #900, 0 0 12px rgba(255,60,60,.55), 0 0 26px rgba(180,0,0,.35), 2px 2px 0 rgba(0,0,0,.8); }
+    .scanlines { position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 2px, transparent 4px); mix-blend-mode: overlay; pointer-events: none; animation: scan 12s linear infinite; opacity: .25; }
+    #displayLabel { font-family: "IM Fell English SC", serif; font-size: clamp(1.5rem, 4vw, 3rem); letter-spacing: .5px; text-shadow: 0 2px 10px rgba(0,0,0,.55); margin-bottom: .6em; color: #ccc; animation: flickerLabel 6s infinite steps(60, end); }
+    #displayHours { margin-top: 0.6em; font-family: "IM Fell English SC", serif; font-size: clamp(1.2rem, 3vw, 2.2rem); letter-spacing: .4px; color: #ccc; text-shadow: 0 2px 10px rgba(0,0,0,.55); }
+    @keyframes flicker      { 0%,97%,100%{opacity:1;} 98%{opacity:.92;} 99%{opacity:.85;} }
+    @keyframes glow         { 0%,100%{filter:drop-shadow(0 0 0 rgba(0,0,0,0));} 50%{filter:drop-shadow(0 0 6px rgba(0,0,0,.35));} }
+    @keyframes scan         { 0%{background-position-y:0;} 100%{background-position-y:200px;} }
+    @keyframes flickerLabel { 0%,97%,100%{opacity:1;} 98%{opacity:.96;} 99%{opacity:.92;} }
+
+    /* page fade in */
+    @keyframes pageFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    #welcomeMessage, #profileContainer, #kassaContainer, #adminSettings, #statsContainer { animation: pageFade 0.4s ease both; }
