@@ -86,9 +86,9 @@
     <div class="welcome-inner">
       <div class="welcome-hero">
         <img id="welcomeKorpenLogo" src="korpen.png" alt="Spökhotellet Korpen" onerror="this.style.display='none'">
-        <p class="welcome-hotel-name" id="welcomeHotelName">Spökhotellet Korpen</p>
-        <h1 id="welcomeHeadline">En oförglömlig upplevelse väntar — välkommen!</h1>
-        <p class="welcome-tagline" id="welcomeTagline">Kliv in i mörkret och upplev Korpens hemligheter.</p>
+        <p class="welcome-hotel-name" id="welcomeHotelName"></p>
+        <h1 id="welcomeHeadline">Välkommen</h1>
+        <p class="welcome-tagline" id="welcomeTagline"></p>
       </div>
 
       <div class="welcome-status-row" id="welcomeStatusRow">
@@ -945,11 +945,17 @@
   function loadWelcomeBg(){ try{setWelcomeBg(localStorage.getItem(WELCOME_BG_KEY));}catch(_e){} }
   function setWelcomeLogo(dataUrl){ const img=document.getElementById('welcomeLogo');const wrap=document.getElementById('welcomeLogoWrap');const prev=document.getElementById('welcomeLogoPreview');if(dataUrl){if(img){img.src=dataUrl;img.style.display='block';}if(wrap) wrap.style.display='flex';if(prev){prev.src=dataUrl;prev.style.display='block';}}else{if(img){img.removeAttribute('src');img.style.display='none';}if(wrap) wrap.style.display='none';if(prev){prev.removeAttribute('src');prev.style.display='none';}} }
   function loadWelcomeLogo(){ try{setWelcomeLogo(localStorage.getItem(WELCOME_LOGO_KEY));}catch(_e){} }
-  const HERO_DEFAULTS = { name:'Spökhotellet Korpen', headline:'En oförglömlig upplevelse väntar — välkommen!', tagline:'Kliv in i mörkret och upplev Korpens hemligheter.' };
+  function _heroFadeSet(el, text){
+    if(!el) return;
+    if(el.textContent===text) return;
+    if(!el.textContent.trim()){ el.textContent=text; return; }
+    el.style.opacity='0';
+    setTimeout(()=>{ el.textContent=text; el.style.opacity=''; },380);
+  }
   function setWelcomeHeroTexts(name, headline, tagline){
-    const n=document.getElementById('welcomeHotelName'); if(n) n.textContent=(name||'').trim()||HERO_DEFAULTS.name;
-    const h=document.getElementById('welcomeHeadline'); if(h) h.textContent=(headline||'').trim()||HERO_DEFAULTS.headline;
-    const t=document.getElementById('welcomeTagline');  if(t) t.textContent=(tagline||'').trim()||HERO_DEFAULTS.tagline;
+    _heroFadeSet(document.getElementById('welcomeHotelName'), (name||'').trim());
+    _heroFadeSet(document.getElementById('welcomeHeadline'), (headline||'').trim()||'Välkommen');
+    _heroFadeSet(document.getElementById('welcomeTagline'),  (tagline||'').trim());
   }
   function loadWelcomeHeroTexts(){ setWelcomeHeroTexts(dbGet(WELCOME_HOTEL_NAME_KEY,''),dbGet(WELCOME_HEADLINE_KEY,''),dbGet(WELCOME_TAGLINE_KEY,'')); }
 
