@@ -344,8 +344,14 @@
     #welcomeFaqContent strong { color: #d4a854; font-style: normal; }
     #welcomeFaqContent br + br { display: block; content: ""; margin-top: 6px; }
 
-    .welcome-staff-btn { margin-top: 28px; background: transparent; border: none; color: rgba(232,224,208,0.28); font-family: 'IM Fell English', serif; font-style: italic; font-size: 13px; cursor: pointer; letter-spacing: 0.3px; padding: 6px 12px; transition: color 0.2s; animation: wFadeUp 0.7s ease 0.55s both; }
-    .welcome-staff-btn:hover { color: rgba(232,224,208,0.55); }
+    .welcome-social { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 28px; animation: wFadeUp 0.7s ease 0.45s both; }
+    .social-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 20px; border-radius: 24px; border: 1px solid rgba(232,224,208,0.13); background: rgba(255,255,255,0.04); color: rgba(232,224,208,0.55); font-family: 'IM Fell English SC', serif; font-size: 13px; letter-spacing: 0.4px; text-decoration: none; transition: background 0.2s, border-color 0.2s, color 0.2s; }
+    .social-btn:hover { background: rgba(255,255,255,0.09); border-color: rgba(232,224,208,0.28); color: rgba(232,224,208,0.88); }
+    .social-btn svg { flex-shrink: 0; opacity: 0.7; transition: opacity 0.2s; }
+    .social-btn:hover svg { opacity: 1; }
+
+    .welcome-staff-btn { margin-top: 20px; background: transparent; border: none; color: rgba(232,224,208,0.22); font-family: 'IM Fell English', serif; font-style: italic; font-size: 13px; cursor: pointer; letter-spacing: 0.3px; padding: 6px 12px; transition: color 0.2s; animation: wFadeUp 0.7s ease 0.55s both; }
+    .welcome-staff-btn:hover { color: rgba(232,224,208,0.5); }
 
     @keyframes wFadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 

@@ -111,6 +111,17 @@
         <div id="welcomeFaqContent"></div>
       </div>
 
+      <div class="welcome-social" id="welcomeSocial">
+        <a id="socialIgBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+          Instagram
+        </a>
+        <a id="socialFbBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+          Facebook
+        </a>
+      </div>
+
       <button class="welcome-staff-btn" onclick="openLoginModal()">
         — Personalinloggning —
       </button>
@@ -247,6 +258,21 @@
         <div class="row" style="justify-content:flex-end; margin-top:8px;">
           <button id="saveWelcomeFaqBtn" class="btn btn-green">Spara FAQ</button>
           <button id="clearWelcomeFaqBtn" class="btn btn-danger">Ta bort FAQ</button>
+        </div>
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06); margin:14px 0;">
+        <h4>Sociala medier</h4>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+          <label style="display:flex; align-items:center; gap:10px; font-family:'IM Fell English SC',serif; font-size:13px; color:rgba(232,224,208,0.6);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+            <input id="socialIgInput" class="input" placeholder="https://instagram.com/ert_konto" style="flex:1;">
+          </label>
+          <label style="display:flex; align-items:center; gap:10px; font-family:'IM Fell English SC',serif; font-size:13px; color:rgba(232,224,208,0.6);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            <input id="socialFbInput" class="input" placeholder="https://facebook.com/er_sida" style="flex:1;">
+          </label>
+        </div>
+        <div class="row" style="justify-content:flex-end; margin-top:8px;">
+          <button id="saveSocialBtn" class="btn btn-green">Spara sociala länkar</button>
         </div>
         <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06); margin:14px 0;">
       </div>
@@ -396,7 +422,7 @@
   async function apiGet(key){ const r = await fetch(`${API_URL}?key=${encodeURIComponent(key)}&_=${Date.now()}`, { cache: 'no-store' }); const j = await r.json(); return j.value; }
   async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
-  const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1';
+  const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1';
 
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
   function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode === 'intake' ? 'intake' : 'guests'); }
@@ -882,7 +908,24 @@
   function setWelcomeText(txt){ const el=document.getElementById('welcomeInfoText');const t=(txt||'').trim();if(!el) return;if(t){el.style.display='block';el.innerHTML=escapeHtml(t).replace(/\n/g,'<br>');}else{el.style.display='none';el.innerHTML='';} }
   function loadWelcomeText(){ const txt=dbGet(WELCOME_TEXT_KEY,'');setWelcomeText(txt||''); }
   function loadWelcomeFAQ(){ const txt=dbGet(WELCOME_FAQ_KEY,'');setWelcomeFAQText(txt||''); }
-  function syncWelcomeEditor(){ const inp=document.getElementById('welcomeTextInput');if(inp) inp.value=dbGet(WELCOME_TEXT_KEY,'');loadWelcomeBg();loadWelcomeLogo();loadWelcomeText();const faqInp=document.getElementById('welcomeFaqInput');if(faqInp) faqInp.value=dbGet(WELCOME_FAQ_KEY,'');loadWelcomeFAQ(); }
+
+  function setSocialLinks(ig, fb){
+    const igBtn=document.getElementById('socialIgBtn'); const fbBtn=document.getElementById('socialFbBtn');
+    const igUrl=(ig||'').trim(); const fbUrl=(fb||'').trim();
+    if(igBtn){ igBtn.href=igUrl||'#'; igBtn.style.display=igUrl?'':'none'; }
+    if(fbBtn){ fbBtn.href=fbUrl||'#'; fbBtn.style.display=fbUrl?'':'none'; }
+  }
+  function loadSocialLinks(){ setSocialLinks(dbGet(SOCIAL_IG_KEY,''), dbGet(SOCIAL_FB_KEY,'')); }
+
+  function syncWelcomeEditor(){
+    const inp=document.getElementById('welcomeTextInput');if(inp) inp.value=dbGet(WELCOME_TEXT_KEY,'');
+    loadWelcomeBg();loadWelcomeLogo();loadWelcomeText();
+    const faqInp=document.getElementById('welcomeFaqInput');if(faqInp) faqInp.value=dbGet(WELCOME_FAQ_KEY,'');
+    loadWelcomeFAQ();
+    const igInp=document.getElementById('socialIgInput');if(igInp) igInp.value=dbGet(SOCIAL_IG_KEY,'');
+    const fbInp=document.getElementById('socialFbInput');if(fbInp) fbInp.value=dbGet(SOCIAL_FB_KEY,'');
+    loadSocialLinks();
+  }
 
   function bindWelcomeControls(){
     document.getElementById('saveWelcomeTextBtn')?.addEventListener('click',()=>{const v=(document.getElementById('welcomeTextInput')?.value||'');dbSet(WELCOME_TEXT_KEY,v).catch(()=>{});setWelcomeText(v);alert('Sparat.');});
@@ -893,6 +936,14 @@
     document.getElementById('clearWelcomeLogo')?.addEventListener('click',()=>{localStorage.removeItem(WELCOME_LOGO_KEY);setWelcomeLogo(null);});
     document.getElementById('saveWelcomeFaqBtn')?.addEventListener('click',()=>{const v=(document.getElementById('welcomeFaqInput')?.value||'');dbSet(WELCOME_FAQ_KEY,v).catch(()=>{});setWelcomeFAQText(v);alert('FAQ sparad.');});
     document.getElementById('clearWelcomeFaqBtn')?.addEventListener('click',()=>{dbSet(WELCOME_FAQ_KEY,'').catch(()=>{});setWelcomeFAQText('');const inp=document.getElementById('welcomeFaqInput');if(inp) inp.value='';alert('FAQ borttagen.');});
+    document.getElementById('saveSocialBtn')?.addEventListener('click',()=>{
+      const ig=(document.getElementById('socialIgInput')?.value||'').trim();
+      const fb=(document.getElementById('socialFbInput')?.value||'').trim();
+      dbSet(SOCIAL_IG_KEY,ig).catch(()=>{});
+      dbSet(SOCIAL_FB_KEY,fb).catch(()=>{});
+      setSocialLinks(ig,fb);
+      alert('Sociala länkar sparade.');
+    });
   }
 
   function selectMenu(menu){
@@ -975,7 +1026,7 @@
     if(lo) lo.style.display='none';if(li) li.style.display='inline-block';
     loadWelcomeBg();
 
-    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]}];
+    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''}];
 
     persistCacheHydrate(BOOT_KEYS);
     openingHours=loadOpeningHours();queueTime=loadQueue();
@@ -991,7 +1042,7 @@
     }catch(_e){}
 
     enforceCoreUsers();
-    loadWelcomeText();loadWelcomeFAQ();bindWelcomeControls();
+    loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();bindWelcomeControls();
     hideAll();
 
     if(loggedInUser){ selectMenu(isAdmin?'admin':'profile'); }
@@ -1016,7 +1067,7 @@
         openingHours=loadOpeningHours();queueTime=loadQueue();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
-        loadWelcomeText();loadWelcomeFAQ();
+        loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();
         updateTopbar();refreshCockpitIfOpen();
         if(document.getElementById('kassaContainer')?.style.display==='block'){renderProductButtons();renderCart();}
         if(document.getElementById('profileContainer')?.style.display==='block'){loadProfile();}
