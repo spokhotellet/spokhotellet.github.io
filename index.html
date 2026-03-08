@@ -4,13 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Spökhotellet Korpen</title>
+  <meta name="description" content="En skräckupplevelse du sent glömmer. Vågar du checka in på Spökhotellet Korpen?">
+  <meta property="og:title" content="Spökhotellet Korpen">
+  <meta property="og:description" content="En skräckupplevelse du sent glömmer. Vågar du checka in?">
+  <meta property="og:image" content="korpen.png">
+  <meta property="og:type" content="website">
   <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon.png">
-  <link rel="shortcut icon" href="/favicon.png">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon.png">
+  <link rel="shortcut icon" href="favicon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="theme-color" content="#0a0a0a">
-  
   <link rel="stylesheet" href="app.css">
 </head>
 
@@ -18,6 +22,9 @@
 
   <!-- Ember particle canvas (welcome page) -->
   <canvas id="emberCanvas" style="display:none;"></canvas>
+
+  <!-- Offline indicator -->
+  <div id="offlineBanner">Ingen serveranslutning — visar cachad data</div>
 
   <!-- ===== LOGIN MODAL ===== -->
   <div id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
@@ -74,7 +81,8 @@
       <div class="welcome-hero">
         <img id="welcomeKorpenLogo" src="korpen.png" alt="Spökhotellet Korpen" onerror="this.style.display='none'">
         <p class="welcome-hotel-name">Spökhotellet Korpen</p>
-        <h1>Vågar du checka in och ta reda på hotellets mörkaste hemligheter?</h1>
+        <h1>En oförglömlig upplevelse väntar — välkommen!</h1>
+        <p class="welcome-tagline">Kliv in i mörkret och upplev Korpens hemligheter.</p>
       </div>
 
       <div class="welcome-status-row" id="welcomeStatusRow">
@@ -97,11 +105,21 @@
 
       <div id="welcomeInfoText"></div>
 
-      <div class="welcome-faq">
-        <button class="disclosure" type="button" onclick="toggleWelcomeFAQ()">
-          Frågor &amp; Svar
-        </button>
-        <div class="content" id="welcomeFaqContent"></div>
+      <div class="welcome-divider"></div>
+
+      <div class="welcome-info-panel" id="welcomeInfoPanel" style="display:none;">
+        <div id="welcomeFaqContent"></div>
+      </div>
+
+      <div class="welcome-social" id="welcomeSocial">
+        <a id="socialIgBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+          Instagram
+        </a>
+        <a id="socialFbBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+          Facebook
+        </a>
       </div>
 
       <button class="welcome-staff-btn" onclick="openLoginModal()">
@@ -240,6 +258,21 @@
         <div class="row" style="justify-content:flex-end; margin-top:8px;">
           <button id="saveWelcomeFaqBtn" class="btn btn-green">Spara FAQ</button>
           <button id="clearWelcomeFaqBtn" class="btn btn-danger">Ta bort FAQ</button>
+        </div>
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06); margin:14px 0;">
+        <h4>Sociala medier</h4>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+          <label style="display:flex; align-items:center; gap:10px; font-family:'IM Fell English SC',serif; font-size:13px; color:rgba(232,224,208,0.6);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+            <input id="socialIgInput" class="input" placeholder="https://instagram.com/ert_konto" style="flex:1;">
+          </label>
+          <label style="display:flex; align-items:center; gap:10px; font-family:'IM Fell English SC',serif; font-size:13px; color:rgba(232,224,208,0.6);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            <input id="socialFbInput" class="input" placeholder="https://facebook.com/er_sida" style="flex:1;">
+          </label>
+        </div>
+        <div class="row" style="justify-content:flex-end; margin-top:8px;">
+          <button id="saveSocialBtn" class="btn btn-green">Spara sociala länkar</button>
         </div>
         <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06); margin:14px 0;">
       </div>
@@ -389,7 +422,7 @@
   async function apiGet(key){ const r = await fetch(`${API_URL}?key=${encodeURIComponent(key)}&_=${Date.now()}`, { cache: 'no-store' }); const j = await r.json(); return j.value; }
   async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
-  const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1';
+  const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1';
 
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
   function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode === 'intake' ? 'intake' : 'guests'); }
@@ -454,8 +487,7 @@
 
   function getTicketPricesFromProducts(){ const prods=loadProducts(); let adult=null,child=null; prods.forEach(p=>{ const n=String(p.name||'').toLowerCase(); if(adult===null&&n.includes('vuxen')) adult=Number(p.price||0); if(child===null&&n.includes('barn')) child=Number(p.price||0); }); return {adult:(adult===null?'—':adult),child:(child===null?'—':child)}; }
 
-  function setWelcomeFAQText(raw){ const box=document.getElementById('welcomeFaqContent'); const wrap=document.querySelector('.welcome-faq'); if(!box||!wrap) return; const txt=(raw||'').trim(); if(!txt){ box.innerHTML=''; wrap.style.display='none'; wrap.classList.remove('open'); return; } wrap.style.display='block'; wrap.classList.remove('open'); const prices=getTicketPricesFromProducts(); const qShown=(openingHours==='Stängt')?'Stängt':(queueTime||'Ingen info'); const rendered=txt.replaceAll('{{VUXEN}}',String(prices.adult)).replaceAll('{{BARN}}',String(prices.child)).replaceAll('{{QUEUE}}',String(qShown)); box.innerHTML=escapeHtml(rendered).replace(/\n/g,'<br>'); }
-  function toggleWelcomeFAQ(){ const wrap=document.querySelector('.welcome-faq'); if(!wrap) return; const isOpen=wrap.classList.contains('open'); if(isOpen){ wrap.classList.remove('open'); window.scrollTo({top:0,behavior:'smooth'}); }else{ wrap.classList.add('open'); setTimeout(()=>{ wrap.scrollIntoView({behavior:'smooth',block:'start'}); },50); } }
+  function setWelcomeFAQText(raw){ const box=document.getElementById('welcomeFaqContent'); const panel=document.getElementById('welcomeInfoPanel'); if(!box) return; const txt=(raw||'').trim(); if(!txt){ box.innerHTML=''; if(panel) panel.style.display='none'; return; } if(panel) panel.style.display='block'; const prices=getTicketPricesFromProducts(); const qShown=(openingHours==='Stängt')?'Stängt':(queueTime||'Ingen info'); const rendered=txt.replaceAll('{{VUXEN}}',String(prices.adult)).replaceAll('{{BARN}}',String(prices.child)).replaceAll('{{QUEUE}}',String(qShown)); box.innerHTML=escapeHtml(rendered).replace(/\n/g,'<br>'); }
 
   function saveOpeningHours(v){ return dbSet(OPENING_KEY, String(v||'Stängt')); }
   function loadOpenDates(){ const v=dbGet(OPEN_DATES_KEY,[]); return Array.isArray(v)?v:[]; }
@@ -750,6 +782,7 @@
       const dotCls=(shownQueue==='Stängt för kvällen'||shownQueue==='Tillfälligt Stängt')?'dead':'live';
       wQueueEl.innerHTML=`<span class="status-dot ${dotCls}"></span>${escapeHtml(shownQueue)}`;
       wQueueEl.className='welcome-status-value '+(dotCls==='live'?'is-open':'is-closed');
+      if(wQueueCard) wQueueCard.className='welcome-status-card '+(dotCls==='live'?'queue-live':'queue-dim');
     }
 
     if(wHoursEl){
@@ -875,7 +908,24 @@
   function setWelcomeText(txt){ const el=document.getElementById('welcomeInfoText');const t=(txt||'').trim();if(!el) return;if(t){el.style.display='block';el.innerHTML=escapeHtml(t).replace(/\n/g,'<br>');}else{el.style.display='none';el.innerHTML='';} }
   function loadWelcomeText(){ const txt=dbGet(WELCOME_TEXT_KEY,'');setWelcomeText(txt||''); }
   function loadWelcomeFAQ(){ const txt=dbGet(WELCOME_FAQ_KEY,'');setWelcomeFAQText(txt||''); }
-  function syncWelcomeEditor(){ const inp=document.getElementById('welcomeTextInput');if(inp) inp.value=dbGet(WELCOME_TEXT_KEY,'');loadWelcomeBg();loadWelcomeLogo();loadWelcomeText();const faqInp=document.getElementById('welcomeFaqInput');if(faqInp) faqInp.value=dbGet(WELCOME_FAQ_KEY,'');loadWelcomeFAQ(); }
+
+  function setSocialLinks(ig, fb){
+    const igBtn=document.getElementById('socialIgBtn'); const fbBtn=document.getElementById('socialFbBtn');
+    const igUrl=(ig||'').trim(); const fbUrl=(fb||'').trim();
+    if(igBtn){ igBtn.href=igUrl||'#'; igBtn.style.display=igUrl?'':'none'; }
+    if(fbBtn){ fbBtn.href=fbUrl||'#'; fbBtn.style.display=fbUrl?'':'none'; }
+  }
+  function loadSocialLinks(){ setSocialLinks(dbGet(SOCIAL_IG_KEY,''), dbGet(SOCIAL_FB_KEY,'')); }
+
+  function syncWelcomeEditor(){
+    const inp=document.getElementById('welcomeTextInput');if(inp) inp.value=dbGet(WELCOME_TEXT_KEY,'');
+    loadWelcomeBg();loadWelcomeLogo();loadWelcomeText();
+    const faqInp=document.getElementById('welcomeFaqInput');if(faqInp) faqInp.value=dbGet(WELCOME_FAQ_KEY,'');
+    loadWelcomeFAQ();
+    const igInp=document.getElementById('socialIgInput');if(igInp) igInp.value=dbGet(SOCIAL_IG_KEY,'');
+    const fbInp=document.getElementById('socialFbInput');if(fbInp) fbInp.value=dbGet(SOCIAL_FB_KEY,'');
+    loadSocialLinks();
+  }
 
   function bindWelcomeControls(){
     document.getElementById('saveWelcomeTextBtn')?.addEventListener('click',()=>{const v=(document.getElementById('welcomeTextInput')?.value||'');dbSet(WELCOME_TEXT_KEY,v).catch(()=>{});setWelcomeText(v);alert('Sparat.');});
@@ -886,6 +936,14 @@
     document.getElementById('clearWelcomeLogo')?.addEventListener('click',()=>{localStorage.removeItem(WELCOME_LOGO_KEY);setWelcomeLogo(null);});
     document.getElementById('saveWelcomeFaqBtn')?.addEventListener('click',()=>{const v=(document.getElementById('welcomeFaqInput')?.value||'');dbSet(WELCOME_FAQ_KEY,v).catch(()=>{});setWelcomeFAQText(v);alert('FAQ sparad.');});
     document.getElementById('clearWelcomeFaqBtn')?.addEventListener('click',()=>{dbSet(WELCOME_FAQ_KEY,'').catch(()=>{});setWelcomeFAQText('');const inp=document.getElementById('welcomeFaqInput');if(inp) inp.value='';alert('FAQ borttagen.');});
+    document.getElementById('saveSocialBtn')?.addEventListener('click',()=>{
+      const ig=(document.getElementById('socialIgInput')?.value||'').trim();
+      const fb=(document.getElementById('socialFbInput')?.value||'').trim();
+      dbSet(SOCIAL_IG_KEY,ig).catch(()=>{});
+      dbSet(SOCIAL_FB_KEY,fb).catch(()=>{});
+      setSocialLinks(ig,fb);
+      alert('Sociala länkar sparade.');
+    });
   }
 
   function selectMenu(menu){
@@ -968,7 +1026,7 @@
     if(lo) lo.style.display='none';if(li) li.style.display='inline-block';
     loadWelcomeBg();
 
-    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]}];
+    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''}];
 
     persistCacheHydrate(BOOT_KEYS);
     openingHours=loadOpeningHours();queueTime=loadQueue();
@@ -984,10 +1042,7 @@
     }catch(_e){}
 
     enforceCoreUsers();
-    users['spök123']={name:'Casper',admin:true,hasAccess:true};
-    users['7997']={name:'Adam',admin:false,hasAccess:true};
-
-    loadWelcomeText();loadWelcomeFAQ();bindWelcomeControls();
+    loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();bindWelcomeControls();
     hideAll();
 
     if(loggedInUser){ selectMenu(isAdmin?'admin':'profile'); }
@@ -1002,6 +1057,9 @@
     setupLiveStatus();
     initEmbers();
 
+    const _offlineBanner = document.getElementById('offlineBanner');
+    function _setOffline(on){ if(_offlineBanner) _offlineBanner.classList.toggle('visible', on); }
+
     (async()=>{
       try{
         await dbRefreshMany(BOOT_KEYS);
@@ -1009,11 +1067,12 @@
         openingHours=loadOpeningHours();queueTime=loadQueue();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
-        loadWelcomeText();loadWelcomeFAQ();
+        loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();
         updateTopbar();refreshCockpitIfOpen();
         if(document.getElementById('kassaContainer')?.style.display==='block'){renderProductButtons();renderCart();}
         if(document.getElementById('profileContainer')?.style.display==='block'){loadProfile();}
-      }catch(e){ console.warn('Bakgrundsrefresh misslyckades:',e); }
+        _setOffline(false);
+      }catch(e){ console.warn('Bakgrundsrefresh misslyckades:',e); _setOffline(true); }
     })();
 
     setInterval(async()=>{
@@ -1022,7 +1081,8 @@
         userData=dbGet(STORAGE_KEY,{})||{};
         refreshCockpitIfOpen();
         if(document.getElementById('profileContainer')?.style.display==='block'&&loggedInUser) loadProfile();
-      }catch(e){}
+        _setOffline(false);
+      }catch(e){ _setOffline(true); }
     },4000);
   }
 
