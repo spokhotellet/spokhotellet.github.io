@@ -74,7 +74,8 @@
       <div class="welcome-hero">
         <img id="welcomeKorpenLogo" src="korpen.png" alt="Spökhotellet Korpen" onerror="this.style.display='none'">
         <p class="welcome-hotel-name">Spökhotellet Korpen</p>
-        <h1>Vågar du checka in och ta reda på hotellets mörkaste hemligheter?</h1>
+        <h1>En oförglömlig upplevelse väntar — välkommen!</h1>
+        <p class="welcome-tagline">Kliv in i mörkret och upplev Korpens hemligheter.</p>
       </div>
 
       <div class="welcome-status-row" id="welcomeStatusRow">
@@ -97,11 +98,10 @@
 
       <div id="welcomeInfoText"></div>
 
-      <div class="welcome-faq">
-        <button class="disclosure" type="button" onclick="toggleWelcomeFAQ()">
-          Frågor &amp; Svar
-        </button>
-        <div class="content" id="welcomeFaqContent"></div>
+      <div class="welcome-divider"></div>
+
+      <div class="welcome-info-panel" id="welcomeInfoPanel" style="display:none;">
+        <div id="welcomeFaqContent"></div>
       </div>
 
       <button class="welcome-staff-btn" onclick="openLoginModal()">
@@ -454,8 +454,7 @@
 
   function getTicketPricesFromProducts(){ const prods=loadProducts(); let adult=null,child=null; prods.forEach(p=>{ const n=String(p.name||'').toLowerCase(); if(adult===null&&n.includes('vuxen')) adult=Number(p.price||0); if(child===null&&n.includes('barn')) child=Number(p.price||0); }); return {adult:(adult===null?'—':adult),child:(child===null?'—':child)}; }
 
-  function setWelcomeFAQText(raw){ const box=document.getElementById('welcomeFaqContent'); const wrap=document.querySelector('.welcome-faq'); if(!box||!wrap) return; const txt=(raw||'').trim(); if(!txt){ box.innerHTML=''; wrap.style.display='none'; wrap.classList.remove('open'); return; } wrap.style.display='block'; wrap.classList.remove('open'); const prices=getTicketPricesFromProducts(); const qShown=(openingHours==='Stängt')?'Stängt':(queueTime||'Ingen info'); const rendered=txt.replaceAll('{{VUXEN}}',String(prices.adult)).replaceAll('{{BARN}}',String(prices.child)).replaceAll('{{QUEUE}}',String(qShown)); box.innerHTML=escapeHtml(rendered).replace(/\n/g,'<br>'); }
-  function toggleWelcomeFAQ(){ const wrap=document.querySelector('.welcome-faq'); if(!wrap) return; const isOpen=wrap.classList.contains('open'); if(isOpen){ wrap.classList.remove('open'); window.scrollTo({top:0,behavior:'smooth'}); }else{ wrap.classList.add('open'); setTimeout(()=>{ wrap.scrollIntoView({behavior:'smooth',block:'start'}); },50); } }
+  function setWelcomeFAQText(raw){ const box=document.getElementById('welcomeFaqContent'); const panel=document.getElementById('welcomeInfoPanel'); if(!box) return; const txt=(raw||'').trim(); if(!txt){ box.innerHTML=''; if(panel) panel.style.display='none'; return; } if(panel) panel.style.display='block'; const prices=getTicketPricesFromProducts(); const qShown=(openingHours==='Stängt')?'Stängt':(queueTime||'Ingen info'); const rendered=txt.replaceAll('{{VUXEN}}',String(prices.adult)).replaceAll('{{BARN}}',String(prices.child)).replaceAll('{{QUEUE}}',String(qShown)); box.innerHTML=escapeHtml(rendered).replace(/\n/g,'<br>'); }
 
   function saveOpeningHours(v){ return dbSet(OPENING_KEY, String(v||'Stängt')); }
   function loadOpenDates(){ const v=dbGet(OPEN_DATES_KEY,[]); return Array.isArray(v)?v:[]; }
