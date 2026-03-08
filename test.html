@@ -26,6 +26,12 @@
   <!-- Offline indicator -->
   <div id="offlineBanner">Ingen serveranslutning — visar cachad data</div>
 
+  <!-- Auto-logout warning -->
+  <div id="autoLogoutWarn">
+    <span id="autoLogoutMsg"></span>
+    <button onclick="resetAutoLogout()" style="margin-left:12px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:inherit;padding:3px 10px;cursor:pointer;font-family:'IM Fell English SC',serif;font-size:12px;">Fortsätt</button>
+  </div>
+
   <!-- ===== LOGIN MODAL ===== -->
   <div id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
     <div class="login-box">
@@ -80,9 +86,9 @@
     <div class="welcome-inner">
       <div class="welcome-hero">
         <img id="welcomeKorpenLogo" src="korpen.png" alt="Spökhotellet Korpen" onerror="this.style.display='none'">
-        <p class="welcome-hotel-name">Spökhotellet Korpen</p>
-        <h1>En oförglömlig upplevelse väntar — välkommen!</h1>
-        <p class="welcome-tagline">Kliv in i mörkret och upplev Korpens hemligheter.</p>
+        <p class="welcome-hotel-name" id="welcomeHotelName">Spökhotellet Korpen</p>
+        <h1 id="welcomeHeadline">En oförglömlig upplevelse väntar — välkommen!</h1>
+        <p class="welcome-tagline" id="welcomeTagline">Kliv in i mörkret och upplev Korpens hemligheter.</p>
       </div>
 
       <div class="welcome-status-row" id="welcomeStatusRow">
@@ -246,6 +252,23 @@
     <div class="section">
       <button class="disclosure" type="button" onclick="adminAccordion('welcomeEditContent', this)">Redigera välkomstsida</button>
       <div id="welcomeEditContent" class="content">
+        <h4>Rubriker</h4>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+          <label style="font-family:'IM Fell English SC',serif; font-size:12px; color:rgba(232,224,208,0.5); letter-spacing:0.5px;">RUBRIK
+            <input id="welcomeHotelNameInput" class="input" placeholder="Spökhotellet Korpen" style="display:block; width:100%; margin-top:5px;">
+          </label>
+          <label style="font-family:'IM Fell English SC',serif; font-size:12px; color:rgba(232,224,208,0.5); letter-spacing:0.5px;">UNDERRUBRIK
+            <input id="welcomeHeadlineInput" class="input" placeholder="En oförglömlig upplevelse väntar — välkommen!" style="display:block; width:100%; margin-top:5px;">
+          </label>
+          <label style="font-family:'IM Fell English SC',serif; font-size:12px; color:rgba(232,224,208,0.5); letter-spacing:0.5px;">UNDERTEXT
+            <input id="welcomeTaglineInput" class="input" placeholder="Kliv in i mörkret och upplev Korpens hemligheter." style="display:block; width:100%; margin-top:5px;">
+          </label>
+        </div>
+        <div class="row" style="justify-content:flex-end; margin-top:8px;">
+          <button id="saveWelcomeHeroBtn" class="btn btn-green">Spara rubriker</button>
+          <button id="resetWelcomeHeroBtn" class="btn btn-danger">Återställ standard</button>
+        </div>
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06); margin:14px 0;">
         <h4>Välkomsttext</h4>
         <textarea id="welcomeTextInput" rows="6" placeholder="Skriv informationstexten..." style="width:100%; box-sizing:border-box; padding:10px; background:rgba(255,255,255,0.04); color:#e8e0d0; border:1px solid rgba(255,255,255,0.1); border-radius:4px; font-family:'IM Fell English',serif; font-size:14px;"></textarea>
         <div class="row" style="justify-content:flex-end; margin-top:8px;">
@@ -422,7 +445,7 @@
   async function apiGet(key){ const r = await fetch(`${API_URL}?key=${encodeURIComponent(key)}&_=${Date.now()}`, { cache: 'no-store' }); const j = await r.json(); return j.value; }
   async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
-  const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1';
+  const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1';
 
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
   function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode === 'intake' ? 'intake' : 'guests'); }
@@ -905,6 +928,14 @@
   function loadWelcomeBg(){ try{setWelcomeBg(localStorage.getItem(WELCOME_BG_KEY));}catch(_e){} }
   function setWelcomeLogo(dataUrl){ const img=document.getElementById('welcomeLogo');const wrap=document.getElementById('welcomeLogoWrap');const prev=document.getElementById('welcomeLogoPreview');if(dataUrl){if(img){img.src=dataUrl;img.style.display='block';}if(wrap) wrap.style.display='flex';if(prev){prev.src=dataUrl;prev.style.display='block';}}else{if(img){img.removeAttribute('src');img.style.display='none';}if(wrap) wrap.style.display='none';if(prev){prev.removeAttribute('src');prev.style.display='none';}} }
   function loadWelcomeLogo(){ try{setWelcomeLogo(localStorage.getItem(WELCOME_LOGO_KEY));}catch(_e){} }
+  const HERO_DEFAULTS = { name:'Spökhotellet Korpen', headline:'En oförglömlig upplevelse väntar — välkommen!', tagline:'Kliv in i mörkret och upplev Korpens hemligheter.' };
+  function setWelcomeHeroTexts(name, headline, tagline){
+    const n=document.getElementById('welcomeHotelName'); if(n) n.textContent=(name||'').trim()||HERO_DEFAULTS.name;
+    const h=document.getElementById('welcomeHeadline'); if(h) h.textContent=(headline||'').trim()||HERO_DEFAULTS.headline;
+    const t=document.getElementById('welcomeTagline');  if(t) t.textContent=(tagline||'').trim()||HERO_DEFAULTS.tagline;
+  }
+  function loadWelcomeHeroTexts(){ setWelcomeHeroTexts(dbGet(WELCOME_HOTEL_NAME_KEY,''),dbGet(WELCOME_HEADLINE_KEY,''),dbGet(WELCOME_TAGLINE_KEY,'')); }
+
   function setWelcomeText(txt){ const el=document.getElementById('welcomeInfoText');const t=(txt||'').trim();if(!el) return;if(t){el.style.display='block';el.innerHTML=escapeHtml(t).replace(/\n/g,'<br>');}else{el.style.display='none';el.innerHTML='';} }
   function loadWelcomeText(){ const txt=dbGet(WELCOME_TEXT_KEY,'');setWelcomeText(txt||''); }
   function loadWelcomeFAQ(){ const txt=dbGet(WELCOME_FAQ_KEY,'');setWelcomeFAQText(txt||''); }
@@ -918,6 +949,9 @@
   function loadSocialLinks(){ setSocialLinks(dbGet(SOCIAL_IG_KEY,''), dbGet(SOCIAL_FB_KEY,'')); }
 
   function syncWelcomeEditor(){
+    const nameInp=document.getElementById('welcomeHotelNameInput'); if(nameInp) nameInp.value=dbGet(WELCOME_HOTEL_NAME_KEY,'');
+    const headInp=document.getElementById('welcomeHeadlineInput');  if(headInp) headInp.value=dbGet(WELCOME_HEADLINE_KEY,'');
+    const tagInp=document.getElementById('welcomeTaglineInput');    if(tagInp)  tagInp.value=dbGet(WELCOME_TAGLINE_KEY,'');
     const inp=document.getElementById('welcomeTextInput');if(inp) inp.value=dbGet(WELCOME_TEXT_KEY,'');
     loadWelcomeBg();loadWelcomeLogo();loadWelcomeText();
     const faqInp=document.getElementById('welcomeFaqInput');if(faqInp) faqInp.value=dbGet(WELCOME_FAQ_KEY,'');
@@ -936,6 +970,26 @@
     document.getElementById('clearWelcomeLogo')?.addEventListener('click',()=>{localStorage.removeItem(WELCOME_LOGO_KEY);setWelcomeLogo(null);});
     document.getElementById('saveWelcomeFaqBtn')?.addEventListener('click',()=>{const v=(document.getElementById('welcomeFaqInput')?.value||'');dbSet(WELCOME_FAQ_KEY,v).catch(()=>{});setWelcomeFAQText(v);alert('FAQ sparad.');});
     document.getElementById('clearWelcomeFaqBtn')?.addEventListener('click',()=>{dbSet(WELCOME_FAQ_KEY,'').catch(()=>{});setWelcomeFAQText('');const inp=document.getElementById('welcomeFaqInput');if(inp) inp.value='';alert('FAQ borttagen.');});
+    document.getElementById('saveWelcomeHeroBtn')?.addEventListener('click',()=>{
+      const name=(document.getElementById('welcomeHotelNameInput')?.value||'').trim();
+      const headline=(document.getElementById('welcomeHeadlineInput')?.value||'').trim();
+      const tagline=(document.getElementById('welcomeTaglineInput')?.value||'').trim();
+      dbSet(WELCOME_HOTEL_NAME_KEY,name).catch(()=>{});
+      dbSet(WELCOME_HEADLINE_KEY,headline).catch(()=>{});
+      dbSet(WELCOME_TAGLINE_KEY,tagline).catch(()=>{});
+      setWelcomeHeroTexts(name,headline,tagline);
+      alert('Herotext sparad.');
+    });
+    document.getElementById('resetWelcomeHeroBtn')?.addEventListener('click',()=>{
+      if(!confirm('Återställa all herotext till standardvärden?')) return;
+      dbSet(WELCOME_HOTEL_NAME_KEY,'').catch(()=>{});
+      dbSet(WELCOME_HEADLINE_KEY,'').catch(()=>{});
+      dbSet(WELCOME_TAGLINE_KEY,'').catch(()=>{});
+      setWelcomeHeroTexts('','','');
+      document.getElementById('welcomeHotelNameInput').value='';
+      document.getElementById('welcomeHeadlineInput').value='';
+      document.getElementById('welcomeTaglineInput').value='';
+    });
     document.getElementById('saveSocialBtn')?.addEventListener('click',()=>{
       const ig=(document.getElementById('socialIgInput')?.value||'').trim();
       const fb=(document.getElementById('socialFbInput')?.value||'').trim();
@@ -1026,7 +1080,7 @@
     if(lo) lo.style.display='none';if(li) li.style.display='inline-block';
     loadWelcomeBg();
 
-    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''}];
+    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''}];
 
     persistCacheHydrate(BOOT_KEYS);
     openingHours=loadOpeningHours();queueTime=loadQueue();
@@ -1042,7 +1096,7 @@
     }catch(_e){}
 
     enforceCoreUsers();
-    loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();bindWelcomeControls();
+    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();bindWelcomeControls();
     hideAll();
 
     if(loggedInUser){ selectMenu(isAdmin?'admin':'profile'); }
@@ -1067,7 +1121,7 @@
         openingHours=loadOpeningHours();queueTime=loadQueue();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
-        loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();
+        loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();
         updateTopbar();refreshCockpitIfOpen();
         if(document.getElementById('kassaContainer')?.style.display==='block'){renderProductButtons();renderCart();}
         if(document.getElementById('profileContainer')?.style.display==='block'){loadProfile();}
@@ -1085,6 +1139,36 @@
       }catch(e){ _setOffline(true); }
     },4000);
   }
+
+  /* ============================== AUTO-LOGOUT ============================== */
+  const AUTO_LOGOUT_MS   = 60 * 60 * 1000; // 60 minuter
+  const AUTO_LOGOUT_WARN = 2  * 60 * 1000; // varna 2 min innan
+  let _lastActivity = Date.now();
+  let _warnShown = false;
+
+  function resetAutoLogout(){
+    _lastActivity = Date.now();
+    _warnShown = false;
+    document.getElementById('autoLogoutWarn')?.classList.remove('visible');
+  }
+
+  ['mousemove','keydown','click','touchstart','scroll'].forEach(ev =>
+    document.addEventListener(ev, resetAutoLogout, { passive: true })
+  );
+
+  setInterval(() => {
+    if(!loggedInUser) return;
+    if(document.querySelector('.field-view')) return; // insläppsvyn = aktiv, hoppa över
+    const idle = Date.now() - _lastActivity;
+    if(idle >= AUTO_LOGOUT_MS){ logout(); return; }
+    if(idle >= AUTO_LOGOUT_MS - AUTO_LOGOUT_WARN && !_warnShown){
+      _warnShown = true;
+      const minsLeft = Math.ceil((AUTO_LOGOUT_MS - idle) / 60000);
+      const msg = document.getElementById('autoLogoutMsg');
+      if(msg) msg.textContent = `Du loggas ut om ${minsLeft} min — tryck Fortsätt för att stanna.`;
+      document.getElementById('autoLogoutWarn')?.classList.add('visible');
+    }
+  }, 15000);
 
   boot();
   </script>
