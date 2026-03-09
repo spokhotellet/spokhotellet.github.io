@@ -345,6 +345,9 @@
       </div>
       <div class="muted" style="margin-top:8px;">Välj en bakgrundsfärg för just din sida!</div>
     </div>
+
+    <!-- Meddelandesektion (längst ned) — fylls av JS beroende på roll -->
+    <div id="staffMsgSection"></div>
   </div>
 
   <!-- ===== KASSA ===== -->
@@ -469,12 +472,12 @@
   async function apiGet(key){ const r = await fetch(`${API_URL}?key=${encodeURIComponent(key)}&_=${Date.now()}`, { cache: 'no-store' }); const j = await r.json(); return j.value; }
   async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
-  const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1';
+  const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1';
 
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
   function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode === 'intake' ? 'intake' : 'guests'); }
 
-  const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY]);
+  const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY]);
 
   const _db = { cache: new Map(), loaded: new Set(), inflight: new Map() };
   const PERSIST_CACHE_PREFIX = 'dbcache_v1__';
@@ -985,7 +988,140 @@
 
   (function attachThemeDotHandlers(){ document.querySelectorAll('.theme-dot').forEach(dot=>{ dot.addEventListener('click',()=>{ if(!loggedInUser){alert('Logga in först.');return;}ensureProfileDefaults(loggedInUser);const theme=dot.dataset.theme;userData[loggedInUser]=Object.assign({},userData[loggedInUser],{theme});saveUserData();applyProfileTheme(theme);setThemeRadios(theme); }); }); })();
 
-  function loadProfile(){ if(!userData||typeof userData!=='object') userData={};const name=loggedInUser;ensureProfileDefaults(name);if(_lastProfileWelcomeFor!==name){setRandomWelcome(name);_lastProfileWelcomeFor=name;}document.getElementById('myHours').textContent=(userData[name].hours||'').trim()||'–';document.getElementById('myTask').textContent=(userData[name].task||'').trim()||'–';const sk=document.getElementById('skillsList');if(sk) sk.innerHTML=renderSkillsBadges(userData[name].skills);applyProfileTheme(userData[name].theme);setThemeRadios(userData[name].theme); }
+  let _staffMsgJustSent=false, _adminMsgJustSaved=false;
+
+  function loadStaffMsg(){ return String(dbGet(STAFF_MSG_KEY,'')||'').trim(); }
+  function loadStaffMessages(){
+    const r=dbGet(STAFF_REPLIES_KEY,[]);
+    if(!Array.isArray(r)) return [];
+    // Normalize old format {name,text,ts} → new thread format with replies:[]
+    return r.map(m=>({id:m.id||String(m.ts||Math.random()),name:m.name||'?',text:m.text||'',ts:m.ts||'',replies:Array.isArray(m.replies)?m.replies:[]}));
+  }
+  function saveStaffMsg(){
+    const txt=(document.getElementById('staffMsgInput')?.value||'').trim();
+    dbSet(STAFF_MSG_KEY,txt).catch(()=>{});
+    _adminMsgJustSaved=true;
+    renderStaffMsgSection();
+    setTimeout(()=>{ _adminMsgJustSaved=false; },2500);
+  }
+  function clearStaffMsg(){
+    if(!confirm('Ta bort meddelandet till personalen?')) return;
+    dbSet(STAFF_MSG_KEY,'').catch(()=>{});
+    const inp=document.getElementById('staffMsgInput'); if(inp) inp.value='';
+    renderStaffMsgSection();
+  }
+  function clearStaffMessages(){
+    if(!confirm('Rensa alla meddelanden från personal?')) return;
+    dbSet(STAFF_REPLIES_KEY,[]).catch(()=>{});
+    renderStaffMsgSection();
+  }
+  function submitStaffMessage(){
+    const inp=document.getElementById('staffNewMsgInput'); if(!inp) return;
+    const txt=inp.value.trim(); if(!txt) return;
+    const messages=loadStaffMessages();
+    messages.push({id:Date.now().toString(),name:loggedInUser||'?',text:txt,ts:new Date().toISOString(),replies:[]});
+    dbSet(STAFF_REPLIES_KEY,messages).catch(()=>{});
+    inp.value='';
+    _staffMsgJustSent=true;
+    renderStaffMsgSection();
+    setTimeout(()=>{ _staffMsgJustSent=false; },2500);
+  }
+  function submitAdminReply(msgId){
+    const inp=document.getElementById('adminReplyInput_'+msgId); if(!inp) return;
+    const txt=inp.value.trim(); if(!txt) return;
+    const messages=loadStaffMessages();
+    const m=messages.find(x=>x.id===msgId); if(!m) return;
+    m.replies.push({text:txt,ts:new Date().toISOString()});
+    dbSet(STAFF_REPLIES_KEY,messages).catch(()=>{});
+    inp.value='';
+    renderStaffMsgSection();
+  }
+  function toggleAdminReplyInput(msgId){
+    const row=document.getElementById('adminReplyRow_'+msgId); if(!row) return;
+    const visible=row.style.display!=='none';
+    row.style.display=visible?'none':'flex';
+    if(!visible) row.querySelector('input')?.focus();
+  }
+  function _fmtReplyTime(iso){ try{ const d=new Date(iso); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }catch(_e){ return ''; } }
+
+  function renderStaffMsgSection(){
+    const wrap=document.getElementById('staffMsgSection'); if(!wrap) return;
+    if(wrap.contains(document.activeElement)) return;
+    const broadcastMsg=loadStaffMsg();
+    const messages=loadStaffMessages();
+
+    if(isAdmin){
+      const msgsHtml = messages.length
+        ? messages.map(m=>{
+            const adminRepliesHtml=m.replies.map(r=>`<div style="padding-left:14px;margin-top:4px;border-left:2px solid rgba(212,135,42,0.3);"><span class="staff-reply-time">${_fmtReplyTime(r.ts)}</span> <span class="staff-reply-text" style="font-size:13px;">${escapeHtml(r.text)}</span></div>`).join('');
+            return `<div style="margin-bottom:8px;">
+              <div class="staff-reply-row" style="flex-wrap:wrap;gap:6px;">
+                <span class="staff-reply-name">${escapeHtml(m.name)}</span>
+                <span class="staff-reply-time">${_fmtReplyTime(m.ts)}</span>
+                <span class="staff-reply-text" style="flex:1;min-width:120px;">${escapeHtml(m.text)}</span>
+                <button class="btn" style="padding:3px 10px;font-size:12px;margin-left:auto;" onclick="toggleAdminReplyInput('${m.id}')">Svara</button>
+              </div>
+              ${adminRepliesHtml?`<div style="margin-top:4px;">${adminRepliesHtml}</div>`:''}
+              <div id="adminReplyRow_${m.id}" class="row" style="display:none;gap:8px;margin-top:6px;padding-left:14px;">
+                <input id="adminReplyInput_${m.id}" class="input" style="flex:1;" placeholder="Svar till ${escapeHtml(m.name)}…">
+                <button class="btn btn-green" onclick="submitAdminReply('${m.id}')">Skicka</button>
+              </div>
+            </div>`;
+          }).join('')
+        : `<div class="muted" style="font-style:italic;">Inga meddelanden ännu.</div>`;
+
+      wrap.innerHTML=`<div class="staff-msg-section-wrap">
+        <h4 class="staff-msg-section-title">Meddelande till personal</h4>
+        <p class="muted" style="margin-bottom:10px;font-size:12px;">Visas längst ned på Min sida för all inloggad personal.</p>
+        <textarea id="staffMsgInput" rows="3" placeholder="Skriv ett meddelande till personalen…" class="staff-msg-textarea">${escapeHtml(broadcastMsg)}</textarea>
+        <div class="row" style="justify-content:flex-end;align-items:center;gap:8px;margin-top:8px;">
+          ${_adminMsgJustSaved?`<span style="font-size:12px;color:#7ec97e;">Sparat!</span>`:''}
+          <button class="btn btn-danger" onclick="clearStaffMsg()">Ta bort</button>
+          <button class="btn btn-green" onclick="saveStaffMsg()">Spara</button>
+        </div>
+        <div style="margin-top:16px;">
+          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span class="staff-msg-section-title" style="margin:0;">Meddelanden från personal</span>
+            ${messages.length?`<button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="clearStaffMessages()">Rensa</button>`:''}
+          </div>
+          <div class="staff-replies-list">${msgsHtml}</div>
+        </div>
+      </div>`;
+    } else {
+      // Personal: alltid visa sändarrutan, plus eventuellt admins broadcast och trådar
+      const broadcastHtml = broadcastMsg
+        ? `<div class="staff-msg-banner" style="margin-bottom:12px;"><span class="staff-msg-label">Meddelande från admin</span><p class="staff-msg-text">${escapeHtml(broadcastMsg).replace(/\n/g,'<br>')}</p></div>`
+        : '';
+      const msgsHtml = messages.length
+        ? messages.map(m=>{
+            const adminRepliesHtml=m.replies.map(r=>`<div style="padding-left:14px;margin-top:4px;border-left:2px solid rgba(212,135,42,0.35);"><span class="staff-reply-name" style="font-size:11px;">Admin</span> <span class="staff-reply-time">${_fmtReplyTime(r.ts)}</span><div style="font-family:'IM Fell English',serif;font-size:13px;color:rgba(232,224,208,0.8);margin-top:2px;">${escapeHtml(r.text)}</div></div>`).join('');
+            return `<div class="staff-reply-row" style="flex-direction:column;align-items:flex-start;gap:0;">
+              <div class="row" style="gap:8px;width:100%;">
+                <span class="staff-reply-name">${escapeHtml(m.name)}</span>
+                <span class="staff-reply-time">${_fmtReplyTime(m.ts)}</span>
+                <span class="staff-reply-text">${escapeHtml(m.text)}</span>
+              </div>
+              ${adminRepliesHtml}
+            </div>`;
+          }).join('')
+        : '';
+
+      wrap.innerHTML=`<div class="staff-msg-section-wrap">
+        ${broadcastHtml}
+        ${msgsHtml?`<div class="staff-replies-list" style="margin-bottom:12px;">${msgsHtml}</div>`:''}
+        <div class="row" style="gap:8px;">
+          <input id="staffNewMsgInput" class="input" style="flex:1;" placeholder="Skriv ett meddelande till admin…">
+          <button class="btn btn-green" onclick="submitStaffMessage()">Skicka</button>
+        </div>
+        ${_staffMsgJustSent?`<div style="margin-top:6px;font-family:'IM Fell English',serif;font-size:13px;color:#7ec97e;">Meddelandet skickades!</div>`:''}
+      </div>`;
+
+      const ni=wrap.querySelector('#staffNewMsgInput');
+      if(ni&&!ni._bound){ ni.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submitStaffMessage();} }); ni._bound=true; }
+    }
+  }
+
+  function loadProfile(){ if(!userData||typeof userData!=='object') userData={};const name=loggedInUser;ensureProfileDefaults(name);if(_lastProfileWelcomeFor!==name){setRandomWelcome(name);_lastProfileWelcomeFor=name;}document.getElementById('myHours').textContent=(userData[name].hours||'').trim()||'–';document.getElementById('myTask').textContent=(userData[name].task||'').trim()||'–';const sk=document.getElementById('skillsList');if(sk) sk.innerHTML=renderSkillsBadges(userData[name].skills);applyProfileTheme(userData[name].theme);setThemeRadios(userData[name].theme);renderStaffMsgSection(); }
 
   function loadSkillCatalog(){ const arr=dbGet(SKILL_CATALOG_KEY,null);if(Array.isArray(arr)&&arr.length) return arr;const seed=defaultSkillCatalog();dbSet(SKILL_CATALOG_KEY,seed).catch(()=>{});return seed; }
   function saveSkillCatalog(list){ dbSet(SKILL_CATALOG_KEY,(list||[]).filter(Boolean)).catch(()=>{}); }
@@ -1232,7 +1368,7 @@
     if(lo) lo.style.display='none';if(li) li.style.display='inline-block';
     loadWelcomeBg();
 
-    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''}];
+    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]}];
 
     persistCacheHydrate(BOOT_KEYS);
     openingHours=loadOpeningHours();queueTime=loadQueue();
