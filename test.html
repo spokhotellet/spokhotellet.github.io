@@ -1138,7 +1138,33 @@
   }
 
   document.getElementById('logoutBtn')?.addEventListener('click',(e)=>{e.stopPropagation();const dd=document.getElementById('userDropdown');if(dd) dd.style.display=(dd.style.display==='block'?'none':'block');});
-  document.addEventListener('click',(e)=>{ const pay=document.getElementById('payModal');if(pay&&pay.style.display==='flex') return;const dd=document.getElementById('userDropdown');const logoutBtn=document.getElementById('logoutBtn');if(dd&&dd.style.display==='block'&&!dd.contains(e.target)&&!(logoutBtn&&logoutBtn.contains(e.target))) hideDropdown();const hm=document.getElementById('hoursMenu');const openHours=document.getElementById('openHoursText');if(hm&&hm.style.display==='block'&&!hm.contains(e.target)&&!(openHours&&openHours.contains(e.target))) hm.style.display='none';const qm=document.getElementById('queueMenu');const queueTop=document.getElementById('queueTopbar');if(qm&&qm.style.display==='block'&&!qm.contains(e.target)&&!(queueTop&&queueTop.contains(e.target))) qm.style.display='none'; });
+  document.addEventListener('click',(e)=>{
+    const pay=document.getElementById('payModal');if(pay&&pay.style.display==='flex') return;
+    const dd=document.getElementById('userDropdown');const logoutBtn=document.getElementById('logoutBtn');
+    if(dd&&dd.style.display==='block'&&!dd.contains(e.target)&&!(logoutBtn&&logoutBtn.contains(e.target))) hideDropdown();
+    const hm=document.getElementById('hoursMenu');const openHours=document.getElementById('openHoursText');
+    if(hm&&hm.style.display==='block'&&!hm.contains(e.target)&&!(openHours&&openHours.contains(e.target))) hm.style.display='none';
+    const qm=document.getElementById('queueMenu');const queueTop=document.getElementById('queueTopbar');
+    if(qm&&qm.style.display==='block'&&!qm.contains(e.target)&&!(queueTop&&queueTop.contains(e.target))) qm.style.display='none';
+    // Stäng öppen admin-accordion om man klickar utanför den sektionen
+    const adminEl=document.getElementById('adminSettings');
+    if(adminEl&&adminEl.style.display!=='none'){
+      const openSection=[...adminEl.querySelectorAll('.content')].find(c=>c.style.display==='block');
+      if(openSection){const wrap=openSection.closest('.section');if(wrap&&!wrap.contains(e.target)){openSection.style.display='none';const btn=wrap.querySelector('.disclosure');if(btn){const base=btn.textContent.replace(/^Visa |^Dölj /,'');btn.textContent='Visa '+base;}}}
+    }
+    // Stäng öppna dagsdetaljer i statistik om man klickar utanför
+    const statsEl=document.getElementById('statsList');
+    if(statsEl){
+      [...statsEl.querySelectorAll('.content')].filter(c=>c.style.display==='block').forEach(openContent=>{
+        const wrap=openContent.closest('.section');if(wrap&&!wrap.contains(e.target)){
+          const dateMatch=openContent.id.match(/statsDetail-(.+)/);
+          if(dateMatch) rememberStatsDayOpen(dateMatch[1],false);
+          openContent.style.display='none';
+          const btn=wrap.querySelector('.disclosure');if(btn){const base=btn.textContent.replace(/^Visa |^Dölj /,'');btn.textContent='Visa '+base;}
+        }
+      });
+    }
+  });
 
   (function bindCheckout(){
     const chk=document.getElementById('checkout');if(chk&&!chk._bound){chk.addEventListener('click',()=>{if(chk.disabled) return;openPayModal();});chk._bound=true;}
