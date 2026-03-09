@@ -472,6 +472,22 @@
     #logEntries { display: none; }
     .log-entry { border-top: 1px solid rgba(255,255,255,0.06); padding: 8px 0; font-family: 'IM Fell English', serif; font-size: 14px; color: rgba(232,224,208,0.75); }
 
+    /* ====== DAY SUMMARY MODAL ====== */
+    .day-summary-section { margin-bottom: 16px; }
+    .day-summary-section-title { font-family: 'IM Fell English SC', serif; font-size: 11px; letter-spacing: 1.6px; color: rgba(232,224,208,0.38); text-transform: uppercase; margin-bottom: 8px; }
+    .day-summary-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+    .day-summary-pill { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 8px 14px; font-family: 'IM Fell English SC', serif; font-size: 13px; color: rgba(232,224,208,0.7); display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 80px; }
+    .day-summary-pill strong { font-size: 20px; color: #e8e0d0; font-family: 'IM Fell English SC', serif; }
+    .day-summary-pill.highlight { border-color: rgba(212,135,42,0.4); background: rgba(212,135,42,0.07); }
+    .day-summary-pill.highlight strong { color: #d4a854; }
+    .day-summary-pill.positive { border-color: rgba(40,167,69,0.45); background: rgba(40,167,69,0.08); }
+    .day-summary-pill.positive strong { color: rgba(100,210,120,0.95); }
+    .day-summary-pill.negative { border-color: rgba(192,57,43,0.45); background: rgba(192,57,43,0.08); }
+    .day-summary-pill.negative strong { color: rgba(220,100,80,0.95); }
+    .day-summary-divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 14px 0; }
+    .day-summary-chart-wrap { overflow-x: auto; margin-top: 6px; color: rgba(212,135,42,0.75); }
+    .day-summary-chart-wrap + .day-summary-chart-wrap { margin-top: 14px; color: rgba(92,184,92,0.75); }
+
     /* ====== MODAL ====== */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: none; align-items: center; justify-content: center; z-index: 10000; backdrop-filter: blur(3px); }
     .modal { background: linear-gradient(160deg, #110a08, #0d0907); border: 1px solid rgba(139,26,26,0.35); border-radius: 8px; padding: 20px; width: min(420px, 92vw); color: #e8e0d0; box-shadow: 0 12px 40px rgba(0,0,0,0.8); }
