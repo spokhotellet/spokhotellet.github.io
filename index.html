@@ -747,9 +747,8 @@
     const costsForDay = (costsObj.date === dateStr) ? Number(costsObj.costs||0) : 0;
     const net = Number(s.intakeTotal||0) - Number(costsForDay||0);
 
-    let guestsPerHour = (dateStr === todayStr()) ? guestBucketsByHour() : guestBucketsByHourFromAdmissionsHistory(dateStr);
+    const guestsPerHour = (dateStr === todayStr()) ? guestBucketsByHour() : guestBucketsByHourFromAdmissionsHistory(dateStr);
     const hasAnyAdmission = guestsPerHour.some(v=>Number(v||0)>0);
-    if(!hasAnyAdmission) guestsPerHour = guestsByHourFromSales(dateStr);
     const intakePerHour = intakeBucketsByHour(dateStr);
     const maxG = Math.max(...guestsPerHour, 1);
     const maxI = Math.max(...intakePerHour, 1);
@@ -807,13 +806,15 @@
     // Diagram
     html += `<hr class="day-summary-divider">
     <div class="day-summary-section">
-      <div class="day-summary-section-title">Gäster per timme${!hasAnyAdmission?' (från köp)':''}</div>
-      <div class="day-summary-chart-wrap">${svgBars24(guestsPerHour,maxG,70,{id:'dsMGChart',unit:'gäster'})}</div>
+      <div class="day-summary-section-title">Gäster per timme (insläpp${!hasAnyAdmission?' — inga data':''})</div>
+      <div class="day-summary-chart-wrap">${hasAnyAdmission ? svgBars24(guestsPerHour,maxG,70,{id:'dsMGChart',unit:'gäster'}) : '<div class="muted" style="font-style:italic;padding:8px 0;">Inga insläppsdata för dagen.</div>'}</div>
+      ${hasAnyAdmission ? '<div id="dsMGChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div>' : ''}
     </div>`;
     if(isAdmin){
       html += `<div class="day-summary-section" style="margin-top:14px;">
         <div class="day-summary-section-title">Intäkt per timme</div>
         <div class="day-summary-chart-wrap" style="color:rgba(40,167,69,0.75);">${svgBars24(intakePerHour,maxI,70,{id:'dsMIChart',unit:'kr'})}</div>
+        <div id="dsMIChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div>
       </div>`;
     }
 
