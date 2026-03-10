@@ -451,6 +451,7 @@
         loggedInUser = displayName || u.name;
         isAdmin = (pw === 'spök123') ? true : !!u.admin;
         currentHasAccess = !!u.hasAccess || u.name==='Adam' || u.name==='Casper';
+        _lastNotifiedTs = Date.now();
         updateTopbar();
         closeLoginModal();
         selectMenu(isAdmin ? 'admin' : 'profile');
@@ -518,6 +519,7 @@
   const THEME_CLASSES=['theme-default','theme-forest','theme-royal'];
   let cart={}, totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0;
   let loggedInKey='', loggedInUser='', isAdmin=false, currentHasAccess=false;
+  let _lastNotifiedTs = 0;
   let discountApplied=false, _lastPayChoice='Swish';
   let _pendingPayChoice = null;
   let _pendingPaySumText = '';
@@ -1024,6 +1026,44 @@
     dot.style.display=hasNew?'inline-block':'none';
   }
 
+  // ---- Browser-notiser ----
+  function notifSupported(){ return 'Notification' in window; }
+  function notifGranted(){ return notifSupported() && Notification.permission === 'granted'; }
+  function requestNotifPermission(){
+    if(!notifSupported() || Notification.permission !== 'default') return;
+    Notification.requestPermission().then(()=>{ renderStaffMsgSection(); updateMsgBadge(); });
+  }
+  function _sendNotif(title, body, tag='spok'){
+    if(!notifGranted()) return;
+    try{ new Notification(title, {body, icon:'favicon.png', tag}); }catch(_e){}
+  }
+  function checkAndSendNotifs(){
+    if(!loggedInUser || !notifGranted() || !_lastNotifiedTs) return;
+    // Inte när Min sida är öppen — användaren ser det ändå
+    if(document.getElementById('profileContainer')?.style.display==='block') return;
+    const messages = loadStaffMessages();
+    const since = _lastNotifiedTs;
+    _lastNotifiedTs = Date.now();
+    if(isAdmin){
+      messages.filter(m=>new Date(m.ts).getTime()>since).forEach(m=>{
+        _sendNotif(`Nytt meddelande från ${m.name}`, m.text.slice(0,100), `spok-msg-${m.id}`);
+      });
+    } else {
+      messages.forEach(m=>{
+        m.replies.filter(r=>new Date(r.ts).getTime()>since).forEach(r=>{
+          _sendNotif('Admin har svarat', r.text.slice(0,100), `spok-reply-${m.id}`);
+        });
+      });
+      const bMsg=loadStaffMsg();
+      if(bMsg){
+        const seen=getMsgSeen();
+        if(_strHash(bMsg)!==seen.bHash){
+          _sendNotif('Nytt meddelande från admin', bMsg.slice(0,100), 'spok-broadcast');
+        }
+      }
+    }
+  }
+
   // ---- Spara/rensa admin-broadcast ----
   async function saveStaffMsg(){
     const txt=(document.getElementById('staffMsgInput')?.value||'').trim();
@@ -1121,6 +1161,14 @@
           }).join('')
         : `<div class="muted" style="font-style:italic;">Inga meddelanden ännu.</div>`;
 
+      const adminNotifBtnHtml = notifSupported() && Notification.permission==='default'
+        ? `<div style="margin-top:10px;display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(212,135,42,0.06);border:1px solid rgba(212,135,42,0.18);border-radius:5px;">
+            <span style="font-size:18px;">🔔</span>
+            <span class="muted" style="font-size:12px;flex:1;">Aktivera notiser för att få ping när personal skriver</span>
+            <button class="btn" style="padding:4px 12px;font-size:12px;" onclick="requestNotifPermission()">Aktivera</button>
+           </div>`
+        : '';
+
       wrap.innerHTML=`<div class="staff-msg-section-wrap">
         <h4 class="staff-msg-section-title">Meddelande till personal</h4>
         <p class="muted" style="margin-bottom:10px;font-size:12px;">Visas längst ned på Min sida för all inloggad personal.</p>
@@ -1130,6 +1178,7 @@
           <button class="btn btn-danger" onclick="clearStaffMsg()">Ta bort</button>
           <button class="btn btn-green" onclick="saveStaffMsg()">Spara</button>
         </div>
+        ${adminNotifBtnHtml}
         <div style="margin-top:16px;">
           <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
             <span class="staff-msg-section-title" style="margin:0;">Meddelanden från personal</span>
@@ -1157,6 +1206,14 @@
           }).join('')
         : '';
 
+      const notifBtnHtml = notifSupported() && Notification.permission==='default'
+        ? `<div style="margin-top:10px;display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(212,135,42,0.06);border:1px solid rgba(212,135,42,0.18);border-radius:5px;">
+            <span style="font-size:18px;">🔔</span>
+            <span class="muted" style="font-size:12px;flex:1;">Aktivera notiser för att få ping när admin svarar</span>
+            <button class="btn" style="padding:4px 12px;font-size:12px;" onclick="requestNotifPermission()">Aktivera</button>
+           </div>`
+        : '';
+
       wrap.innerHTML=`<div class="staff-msg-section-wrap">
         ${broadcastHtml}
         ${msgsHtml?`<div class="staff-replies-list" style="margin-bottom:12px;">${msgsHtml}</div>`:''}
@@ -1165,6 +1222,7 @@
           <button class="btn btn-green" onclick="submitStaffMessage()">Skicka</button>
         </div>
         ${_staffMsgJustSent?`<div style="margin-top:6px;font-family:'IM Fell English',serif;font-size:13px;color:#7ec97e;">Meddelandet skickades!</div>`:''}
+        ${notifBtnHtml}
       </div>`;
 
       const ni=wrap.querySelector('#staffNewMsgInput');
@@ -1476,6 +1534,7 @@
         refreshCockpitIfOpen();
         if(document.getElementById('profileContainer')?.style.display==='block'&&loggedInUser) loadProfile();
         updateMsgBadge();
+        checkAndSendNotifs();
         _setOffline(false);
       }catch(e){ _setOffline(true); }
     },4000);
