@@ -560,3 +560,20 @@
     /* ====== NOTISBADGE ====== */
     .msg-badge-dot { display:inline-block; width:7px; height:7px; background:#d4872a; border-radius:50%; margin-left:5px; vertical-align:middle; box-shadow:0 0 0 2px rgba(212,135,42,0.22); animation:badge-pulse 2.2s ease-in-out infinite; position:relative; top:-1px; }
     @keyframes badge-pulse { 0%,100%{opacity:1;box-shadow:0 0 0 2px rgba(212,135,42,0.22);} 50%{opacity:0.65;box-shadow:0 0 0 4px rgba(212,135,42,0.08);} }
+
+    /* ====== RECENSION ====== */
+    .review-view { position:fixed; inset:0; background:#0a0a0a; display:flex; align-items:center; justify-content:center; z-index:9999; padding:24px; animation:pageFade 0.5s ease both; }
+    .review-inner { max-width:420px; width:100%; text-align:center; }
+    .review-logo { width:72px; height:72px; object-fit:contain; margin-bottom:18px; opacity:0.85; }
+    .review-title { font-family:'IM Fell English SC',serif; font-size:26px; color:#e8e0d0; margin:0 0 4px; letter-spacing:0.3px; }
+    .review-subtitle { font-family:'IM Fell English',serif; font-size:14px; color:rgba(232,224,208,0.38); margin:0 0 28px; font-style:italic; }
+    .review-stars { display:flex; justify-content:center; gap:8px; margin-bottom:8px; }
+    .star-btn { background:none; border:none; font-size:48px; cursor:pointer; color:rgba(232,224,208,0.12); transition:color 0.1s, transform 0.08s; line-height:1; padding:4px 6px; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+    .star-btn.active { color:#d4872a; }
+    .star-btn:active { transform:scale(0.9); }
+    .review-rating-label { font-family:'IM Fell English',serif; font-size:17px; color:rgba(212,135,42,0.8); min-height:26px; margin-bottom:22px; font-style:italic; letter-spacing:0.3px; }
+    .review-textarea { width:100%; box-sizing:border-box; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:6px; color:#e8e0d0; font-family:'IM Fell English',serif; font-size:15px; padding:12px; resize:vertical; margin-bottom:16px; min-height:72px; }
+    .review-textarea:focus { outline:none; border-color:rgba(212,135,42,0.3); }
+    .review-submit { width:100%; padding:15px; font-size:16px; letter-spacing:0.5px; }
+    .review-submit:disabled { opacity:0.28; cursor:not-allowed; pointer-events:none; }
+    .review-thanks-star { font-size:62px; color:#d4872a; display:block; margin-bottom:14px; animation:badge-pulse 2.2s ease-in-out infinite; }
