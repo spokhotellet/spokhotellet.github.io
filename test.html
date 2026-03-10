@@ -114,6 +114,8 @@
 
       <div class="welcome-divider"></div>
 
+      <div id="welcomeReviews" style="display:none;"></div>
+
       <div class="welcome-info-panel" id="welcomeInfoPanel" style="display:none;">
         <div id="welcomeFaqContent"></div>
       </div>
@@ -1028,11 +1030,31 @@
       reviews.push({rating:_reviewRating,comment,ts:new Date().toISOString(),date:todayStr()});
       await dbSet(REVIEWS_KEY,reviews);
     }catch(_e){}
-    // Visa tack-skärm
+    // Visa tack-skärm, sedan redirect till välkomstsidan
     const inner=document.querySelector('.review-inner'); if(!inner) return;
     inner.innerHTML=`<span class="review-thanks-star">★</span>
       <h2 class="review-title">Tack!</h2>
       <p class="review-subtitle" style="margin-bottom:0;">Din recension hjälper oss att bli bättre.</p>`;
+    setTimeout(()=>{ window.location.href=window.location.origin+window.location.pathname; }, 3000);
+  }
+
+  function loadWelcomeReviews(){ renderWelcomeReviews(); }
+
+  function renderWelcomeReviews(){
+    const el=document.getElementById('welcomeReviews'); if(!el) return;
+    const reviews=dbGet(REVIEWS_KEY,[])||[];
+    if(!reviews.length){ el.style.display='none'; return; }
+    const avg=reviews.reduce((s,r)=>s+Number(r.rating||0),0)/reviews.length;
+    const rounded=Math.round(avg);
+    const starsHtml=[1,2,3,4,5].map(i=>`<span style="color:${i<=rounded?'#d4872a':'rgba(232,224,208,0.18)'};">★</span>`).join('');
+    const withComment=[...reviews].reverse().filter(r=>(r.comment||'').trim()).slice(0,2);
+    const quotesHtml=withComment.map(r=>`<div class="welcome-review-quote">"${escapeHtml(r.comment.trim())}"</div>`).join('');
+    el.innerHTML=`<div class="welcome-reviews-wrap">
+      <div class="welcome-reviews-stars">${starsHtml} <span class="welcome-reviews-avg">${avg.toFixed(1)}</span></div>
+      <div class="welcome-reviews-count">${reviews.length} omdöme${reviews.length!==1?'n':''}</div>
+      ${quotesHtml}
+    </div>`;
+    el.style.display='block';
   }
 
   function renderReviewsAdmin(){
@@ -1524,7 +1546,7 @@
     }catch(_e){}
 
     enforceCoreUsers();
-    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();bindWelcomeControls();
+    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();bindWelcomeControls();
     hideAll();
 
     if(loggedInUser){ selectMenu(isAdmin?'admin':'profile'); }
@@ -1549,7 +1571,7 @@
         openingHours=loadOpeningHours();queueTime=loadQueue();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
-        loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();
+        loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();
         updateTopbar();refreshCockpitIfOpen();
         if(document.getElementById('kassaContainer')?.style.display==='block'){renderProductButtons();renderCart();}
         if(document.getElementById('profileContainer')?.style.display==='block'){loadProfile();}
