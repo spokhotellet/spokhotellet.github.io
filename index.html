@@ -66,7 +66,8 @@
     </div>
     <div class="user-menu">
       <button id="loginBtn" onclick="openLoginModal()" style="display:inline-block;">Logga in</button>
-      <button id="logoutBtn" style="display:none;">
+      <button id="logoutBtn" style="display:none;position:relative;">
+        <span id="msgBadgeDot" class="msg-badge-dot" style="display:none;position:absolute;top:5px;right:5px;margin:0;"></span>
         <div id="logoutName">Namn</div>
         <div style="font-size:11px;color:rgba(232,224,208,0.5);font-family:'IM Fell English',serif;font-style:italic;">Meny</div>
       </button>
@@ -450,6 +451,7 @@
         loggedInUser = displayName || u.name;
         isAdmin = (pw === 'spök123') ? true : !!u.admin;
         currentHasAccess = !!u.hasAccess || u.name==='Adam' || u.name==='Casper';
+        _lastNotifiedTs = Date.now();
         updateTopbar();
         closeLoginModal();
         selectMenu(isAdmin ? 'admin' : 'profile');
@@ -517,6 +519,7 @@
   const THEME_CLASSES=['theme-default','theme-forest','theme-royal'];
   let cart={}, totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0;
   let loggedInKey='', loggedInUser='', isAdmin=false, currentHasAccess=false;
+  let _lastNotifiedTs = 0;
   let discountApplied=false, _lastPayChoice='Swish';
   let _pendingPayChoice = null;
   let _pendingPaySumText = '';
@@ -994,48 +997,136 @@
   function loadStaffMessages(){
     const r=dbGet(STAFF_REPLIES_KEY,[]);
     if(!Array.isArray(r)) return [];
-    // Normalize old format {name,text,ts} → new thread format with replies:[]
     return r.map(m=>({id:m.id||String(m.ts||Math.random()),name:m.name||'?',text:m.text||'',ts:m.ts||'',replies:Array.isArray(m.replies)?m.replies:[]}));
   }
-  function saveStaffMsg(){
+
+  // ---- Notisbadge ----
+  function _msgSeenKey(){ return 'msgSeen_'+(loggedInUser||'_'); }
+  function _strHash(str){ let h=0; for(let i=0;i<str.length;i++){h=(Math.imul(31,h)+str.charCodeAt(i))|0;} return h.toString(36); }
+  function getMsgSeen(){ try{ const raw=localStorage.getItem(_msgSeenKey()); return raw?JSON.parse(raw):{ts:0,bHash:''}; }catch(_e){ return {ts:0,bHash:''}; } }
+  function setMsgSeen(data){ try{ localStorage.setItem(_msgSeenKey(),JSON.stringify(data)); }catch(_e){} }
+  function markMsgSeen(){
+    if(!loggedInUser) return;
+    setMsgSeen({ts:Date.now(), bHash:_strHash(loadStaffMsg())});
+    updateMsgBadge();
+  }
+  function updateMsgBadge(){
+    const dot=document.getElementById('msgBadgeDot'); if(!dot) return;
+    if(!loggedInUser){ dot.style.display='none'; return; }
+    const seen=getMsgSeen();
+    const messages=loadStaffMessages();
+    let hasNew=false;
+    if(isAdmin){
+      hasNew=messages.some(m=>new Date(m.ts).getTime()>seen.ts);
+    } else {
+      const bMsg=loadStaffMsg();
+      if(bMsg && _strHash(bMsg)!==seen.bHash) hasNew=true;
+      if(!hasNew) hasNew=messages.some(m=>m.replies.some(r=>new Date(r.ts).getTime()>seen.ts));
+    }
+    dot.style.display=hasNew?'inline-block':'none';
+  }
+
+  // ---- Browser-notiser ----
+  function notifSupported(){ return 'Notification' in window; }
+  function notifGranted(){ return notifSupported() && Notification.permission === 'granted'; }
+  function requestNotifPermission(){
+    if(!notifSupported() || Notification.permission !== 'default') return;
+    Notification.requestPermission().then(()=>{ renderStaffMsgSection(); updateMsgBadge(); });
+  }
+  function _sendNotif(title, body, tag='spok'){
+    if(!notifGranted()) return;
+    try{ new Notification(title, {body, icon:'favicon.png', tag}); }catch(_e){}
+  }
+  function checkAndSendNotifs(){
+    if(!loggedInUser || !notifGranted() || !_lastNotifiedTs) return;
+    // Inte när Min sida är öppen — användaren ser det ändå
+    if(document.getElementById('profileContainer')?.style.display==='block') return;
+    const messages = loadStaffMessages();
+    const since = _lastNotifiedTs;
+    _lastNotifiedTs = Date.now();
+    if(isAdmin){
+      messages.filter(m=>new Date(m.ts).getTime()>since).forEach(m=>{
+        _sendNotif(`Nytt meddelande från ${m.name}`, m.text.slice(0,100), `spok-msg-${m.id}`);
+      });
+    } else {
+      messages.forEach(m=>{
+        m.replies.filter(r=>new Date(r.ts).getTime()>since).forEach(r=>{
+          _sendNotif('Admin har svarat', r.text.slice(0,100), `spok-reply-${m.id}`);
+        });
+      });
+      const bMsg=loadStaffMsg();
+      if(bMsg){
+        const seen=getMsgSeen();
+        if(_strHash(bMsg)!==seen.bHash){
+          _sendNotif('Nytt meddelande från admin', bMsg.slice(0,100), 'spok-broadcast');
+        }
+      }
+    }
+  }
+
+  // ---- Spara/rensa admin-broadcast ----
+  async function saveStaffMsg(){
     const txt=(document.getElementById('staffMsgInput')?.value||'').trim();
-    dbSet(STAFF_MSG_KEY,txt).catch(()=>{});
-    _adminMsgJustSaved=true;
-    renderStaffMsgSection();
-    setTimeout(()=>{ _adminMsgJustSaved=false; },2500);
+    const btn=document.querySelector('[onclick="saveStaffMsg()"]');
+    if(btn) btn.disabled=true;
+    try{
+      await dbSet(STAFF_MSG_KEY,txt);
+      _adminMsgJustSaved=true;
+      renderStaffMsgSection();
+      updateMsgBadge();
+      setTimeout(()=>{ _adminMsgJustSaved=false; },2500);
+    }catch(e){ alert('Kunde inte spara meddelandet. Försök igen.'); }
+    finally{ if(btn) btn.disabled=false; }
   }
   function clearStaffMsg(){
     if(!confirm('Ta bort meddelandet till personalen?')) return;
     dbSet(STAFF_MSG_KEY,'').catch(()=>{});
     const inp=document.getElementById('staffMsgInput'); if(inp) inp.value='';
     renderStaffMsgSection();
+    updateMsgBadge();
   }
   function clearStaffMessages(){
     if(!confirm('Rensa alla meddelanden från personal?')) return;
     dbSet(STAFF_REPLIES_KEY,[]).catch(()=>{});
     renderStaffMsgSection();
+    updateMsgBadge();
   }
-  function submitStaffMessage(){
+
+  // ---- Skicka meddelande (personal → admin) ----
+  async function submitStaffMessage(){
     const inp=document.getElementById('staffNewMsgInput'); if(!inp) return;
     const txt=inp.value.trim(); if(!txt) return;
-    const messages=loadStaffMessages();
-    messages.push({id:Date.now().toString(),name:loggedInUser||'?',text:txt,ts:new Date().toISOString(),replies:[]});
-    dbSet(STAFF_REPLIES_KEY,messages).catch(()=>{});
-    inp.value='';
-    _staffMsgJustSent=true;
-    renderStaffMsgSection();
-    setTimeout(()=>{ _staffMsgJustSent=false; },2500);
+    const btn=document.querySelector('[onclick="submitStaffMessage()"]');
+    if(btn) btn.disabled=true;
+    try{
+      const messages=loadStaffMessages();
+      messages.push({id:Date.now().toString(),name:loggedInUser||'?',text:txt,ts:new Date().toISOString(),replies:[]});
+      await dbSet(STAFF_REPLIES_KEY,messages);
+      inp.value='';
+      _staffMsgJustSent=true;
+      renderStaffMsgSection();
+      updateMsgBadge();
+      setTimeout(()=>{ _staffMsgJustSent=false; },2500);
+    }catch(e){ alert('Kunde inte skicka meddelandet. Kontrollera anslutningen och försök igen.'); if(btn) btn.disabled=false; }
   }
-  function submitAdminReply(msgId){
+
+  // ---- Admin svarar på specifikt meddelande ----
+  async function submitAdminReply(msgId){
     const inp=document.getElementById('adminReplyInput_'+msgId); if(!inp) return;
     const txt=inp.value.trim(); if(!txt) return;
-    const messages=loadStaffMessages();
-    const m=messages.find(x=>x.id===msgId); if(!m) return;
-    m.replies.push({text:txt,ts:new Date().toISOString()});
-    dbSet(STAFF_REPLIES_KEY,messages).catch(()=>{});
-    inp.value='';
-    renderStaffMsgSection();
+    const btn=document.getElementById('adminReplyBtn_'+msgId);
+    if(btn) btn.disabled=true;
+    try{
+      const messages=loadStaffMessages();
+      const m=messages.find(x=>x.id===msgId);
+      if(!m){ if(btn) btn.disabled=false; return; }
+      m.replies.push({text:txt,ts:new Date().toISOString()});
+      await dbSet(STAFF_REPLIES_KEY,messages);
+      inp.value='';
+      renderStaffMsgSection();
+    }catch(e){ alert('Kunde inte skicka svar. Försök igen.'); if(btn) btn.disabled=false; }
   }
+
   function toggleAdminReplyInput(msgId){
     const row=document.getElementById('adminReplyRow_'+msgId); if(!row) return;
     const visible=row.style.display!=='none';
@@ -1064,11 +1155,19 @@
               ${adminRepliesHtml?`<div style="margin-top:4px;">${adminRepliesHtml}</div>`:''}
               <div id="adminReplyRow_${m.id}" class="row" style="display:none;gap:8px;margin-top:6px;padding-left:14px;">
                 <input id="adminReplyInput_${m.id}" class="input" style="flex:1;" placeholder="Svar till ${escapeHtml(m.name)}…">
-                <button class="btn btn-green" onclick="submitAdminReply('${m.id}')">Skicka</button>
+                <button id="adminReplyBtn_${m.id}" class="btn btn-green" onclick="submitAdminReply('${m.id}')">Skicka</button>
               </div>
             </div>`;
           }).join('')
         : `<div class="muted" style="font-style:italic;">Inga meddelanden ännu.</div>`;
+
+      const adminNotifBtnHtml = notifSupported() && Notification.permission==='default'
+        ? `<div style="margin-top:10px;display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(212,135,42,0.06);border:1px solid rgba(212,135,42,0.18);border-radius:5px;">
+            <span style="font-size:18px;">🔔</span>
+            <span class="muted" style="font-size:12px;flex:1;">Aktivera notiser för att få ping när personal skriver</span>
+            <button class="btn" style="padding:4px 12px;font-size:12px;" onclick="requestNotifPermission()">Aktivera</button>
+           </div>`
+        : '';
 
       wrap.innerHTML=`<div class="staff-msg-section-wrap">
         <h4 class="staff-msg-section-title">Meddelande till personal</h4>
@@ -1079,6 +1178,7 @@
           <button class="btn btn-danger" onclick="clearStaffMsg()">Ta bort</button>
           <button class="btn btn-green" onclick="saveStaffMsg()">Spara</button>
         </div>
+        ${adminNotifBtnHtml}
         <div style="margin-top:16px;">
           <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
             <span class="staff-msg-section-title" style="margin:0;">Meddelanden från personal</span>
@@ -1106,6 +1206,14 @@
           }).join('')
         : '';
 
+      const notifBtnHtml = notifSupported() && Notification.permission==='default'
+        ? `<div style="margin-top:10px;display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(212,135,42,0.06);border:1px solid rgba(212,135,42,0.18);border-radius:5px;">
+            <span style="font-size:18px;">🔔</span>
+            <span class="muted" style="font-size:12px;flex:1;">Aktivera notiser för att få ping när admin svarar</span>
+            <button class="btn" style="padding:4px 12px;font-size:12px;" onclick="requestNotifPermission()">Aktivera</button>
+           </div>`
+        : '';
+
       wrap.innerHTML=`<div class="staff-msg-section-wrap">
         ${broadcastHtml}
         ${msgsHtml?`<div class="staff-replies-list" style="margin-bottom:12px;">${msgsHtml}</div>`:''}
@@ -1114,11 +1222,13 @@
           <button class="btn btn-green" onclick="submitStaffMessage()">Skicka</button>
         </div>
         ${_staffMsgJustSent?`<div style="margin-top:6px;font-family:'IM Fell English',serif;font-size:13px;color:#7ec97e;">Meddelandet skickades!</div>`:''}
+        ${notifBtnHtml}
       </div>`;
 
       const ni=wrap.querySelector('#staffNewMsgInput');
       if(ni&&!ni._bound){ ni.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submitStaffMessage();} }); ni._bound=true; }
     }
+    updateMsgBadge();
   }
 
   function loadProfile(){ if(!userData||typeof userData!=='object') userData={};const name=loggedInUser;ensureProfileDefaults(name);if(_lastProfileWelcomeFor!==name){setRandomWelcome(name);_lastProfileWelcomeFor=name;}document.getElementById('myHours').textContent=(userData[name].hours||'').trim()||'–';document.getElementById('myTask').textContent=(userData[name].task||'').trim()||'–';const sk=document.getElementById('skillsList');if(sk) sk.innerHTML=renderSkillsBadges(userData[name].skills);applyProfileTheme(userData[name].theme);setThemeRadios(userData[name].theme);renderStaffMsgSection(); }
@@ -1266,7 +1376,7 @@
     hideDropdown();hideAll();
     switch(menu){
       case 'kassa':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}if(!currentHasAccess&&!isAdmin){alert('Du har inte access till kassan.');return selectMenu('profile');}const tbK=document.querySelector('.topbar');if(tbK)tbK.style.display='';document.getElementById('kassaContainer').style.display='block';renderProductButtons();const closed=(openingHours==='Stängt'&&!isAdmin);document.getElementById('closedMessage').style.display=closed?'block':'none';document.querySelector('.products').style.display=closed?'none':'flex';document.querySelector('.cart-table').style.display=closed?'none':'table';document.getElementById('checkout').style.display=closed?'none':'block';document.getElementById('discountBtn').style.display=closed?'none':'block';document.getElementById('total').style.display=closed?'none':'block';break;}
-      case 'profile':{ if(!loggedInUser){document.getElementById('welcomeMessage').style.display='flex';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');const tb=document.querySelector('.topbar');if(tb)tb.style.display='none';const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';return;}const tb2=document.querySelector('.topbar');if(tb2)tb2.style.display='';document.getElementById('profileContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadProfile();break;}
+      case 'profile':{ if(!loggedInUser){document.getElementById('welcomeMessage').style.display='flex';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');const tb=document.querySelector('.topbar');if(tb)tb.style.display='none';const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';return;}const tb2=document.querySelector('.topbar');if(tb2)tb2.style.display='';document.getElementById('profileContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadProfile();markMsgSeen();break;}
       case 'admin':{ if(!isAdmin){alert('Endast admin.');return selectMenu('profile');}const tbA=document.querySelector('.topbar');if(tbA)tbA.style.display='';document.getElementById('adminSettings').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');initUserSelect();break;}
       case 'stats':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}const tbS=document.querySelector('.topbar');if(tbS)tbS.style.display='';document.getElementById('statsContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadDailyStats();openingHours=loadOpeningHours();queueTime=loadQueue();loadDailyCosts();loadDailyForecast();renderCockpit();renderStats();break;}
       case 'logout': logout(); return;
@@ -1423,6 +1533,8 @@
         userData=dbGet(STORAGE_KEY,{})||{};
         refreshCockpitIfOpen();
         if(document.getElementById('profileContainer')?.style.display==='block'&&loggedInUser) loadProfile();
+        updateMsgBadge();
+        checkAndSendNotifs();
         _setOffline(false);
       }catch(e){ _setOffline(true); }
     },4000);
