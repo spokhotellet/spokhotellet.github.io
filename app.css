@@ -557,3 +557,6 @@
     /* page fade in */
     @keyframes pageFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
     #welcomeMessage, #profileContainer, #kassaContainer, #adminSettings, #statsContainer { animation: pageFade 0.4s ease both; }
+    /* ====== NOTISBADGE ====== */
+    .msg-badge-dot { display:inline-block; width:7px; height:7px; background:#d4872a; border-radius:50%; margin-left:5px; vertical-align:middle; box-shadow:0 0 0 2px rgba(212,135,42,0.22); animation:badge-pulse 2.2s ease-in-out infinite; position:relative; top:-1px; }
+    @keyframes badge-pulse { 0%,100%{opacity:1;box-shadow:0 0 0 2px rgba(212,135,42,0.22);} 50%{opacity:0.65;box-shadow:0 0 0 4px rgba(212,135,42,0.08);} }
