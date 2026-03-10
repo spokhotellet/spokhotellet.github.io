@@ -1026,10 +1026,12 @@
     const comment=(document.getElementById('reviewComment')?.value||'').trim();
     const btn=document.getElementById('reviewSubmitBtn'); if(btn) btn.disabled=true;
     try{
-      const reviews=dbGet(REVIEWS_KEY,[]); if(!Array.isArray(reviews)) return;
+      // Hämta alltid från servern för att inte skriva över andras recensioner
+      const existing=await dbFetch(REVIEWS_KEY,[]);
+      const reviews=Array.isArray(existing)?existing:[];
       reviews.push({rating:_reviewRating,comment,ts:new Date().toISOString(),date:todayStr()});
       await dbSet(REVIEWS_KEY,reviews);
-    }catch(_e){}
+    }catch(_e){ if(btn) btn.disabled=false; return; }
     // Visa tack-skärm, sedan redirect till välkomstsidan
     const inner=document.querySelector('.review-inner'); if(!inner) return;
     inner.innerHTML=`<span class="review-thanks-star">★</span>
