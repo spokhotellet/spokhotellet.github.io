@@ -564,7 +564,7 @@
     /* ====== RECENSION ====== */
     .review-view { position:fixed; inset:0; background:#0a0a0a; display:flex; align-items:center; justify-content:center; z-index:9999; padding:24px; animation:pageFade 0.5s ease both; }
     .review-inner { max-width:420px; width:100%; text-align:center; }
-    .review-logo { width:72px; height:72px; object-fit:contain; margin-bottom:18px; opacity:0.85; }
+    .review-logo { width:120px; height:120px; object-fit:contain; margin-bottom:18px; opacity:0.85; }
     .review-title { font-family:'IM Fell English SC',serif; font-size:26px; color:#e8e0d0; margin:0 0 4px; letter-spacing:0.3px; }
     .review-subtitle { font-family:'IM Fell English',serif; font-size:14px; color:rgba(232,224,208,0.38); margin:0 0 28px; font-style:italic; }
     .review-stars { display:flex; justify-content:center; gap:8px; margin-bottom:8px; }
