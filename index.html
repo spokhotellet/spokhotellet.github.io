@@ -114,6 +114,8 @@
 
       <div class="welcome-divider"></div>
 
+      <div id="welcomeReviews" style="display:none;"></div>
+
       <div class="welcome-info-panel" id="welcomeInfoPanel" style="display:none;">
         <div id="welcomeFaqContent"></div>
       </div>
@@ -327,6 +329,11 @@
         </div>
       </div>
     </div>
+
+    <div class="section">
+      <button class="disclosure" type="button" onclick="adminAccordion('reviewsContent', this)">Recensioner</button>
+      <div id="reviewsContent" class="content"></div>
+    </div>
   </div>
 
   <!-- ===== MIN SIDA ===== -->
@@ -473,12 +480,12 @@
   async function apiGet(key){ const r = await fetch(`${API_URL}?key=${encodeURIComponent(key)}&_=${Date.now()}`, { cache: 'no-store' }); const j = await r.json(); return j.value; }
   async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
-  const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1';
+  const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1';
 
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
   function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode === 'intake' ? 'intake' : 'guests'); }
 
-  const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY]);
+  const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY]);
 
   const _db = { cache: new Map(), loaded: new Set(), inflight: new Map() };
   const PERSIST_CACHE_PREFIX = 'dbcache_v1__';
@@ -978,7 +985,107 @@
   function showDisplay(){ const {text,isClosed}=computeDisplayTextAndState();const o=document.createElement('div');o.className='display-view '+(isClosed?'state-closed':'state-open');const inner=document.createElement('div');inner.style.cssText='display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;';const label=document.createElement('div');label.id='displayLabel';label.textContent='Beräknad kötid';const d=document.createElement('div');d.id='displayQueue';d.textContent=text;const hours=document.createElement('div');hours.id='displayHours';hours.textContent=(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${openingHours}`:`Stängt idag`;const scan=document.createElement('div');scan.className='scanlines';inner.appendChild(label);inner.appendChild(d);inner.appendChild(hours);o.appendChild(inner);o.appendChild(scan);const close=()=>o.remove();document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',esc);}});let taps=0,tapTimer=null;o.addEventListener('pointerdown',(e)=>{if(e.pointerType!=='touch') return;taps+=1;clearTimeout(tapTimer);tapTimer=setTimeout(()=>{taps=0;},1500);if(taps>=3) close();},{passive:true});document.body.appendChild(o); }
   function refreshDisplayOverlay(){ const root=document.querySelector('.display-view');if(!root) return;const lbl=root.querySelector('#displayQueue');const hrs=root.querySelector('#displayHours');const {text,isClosed}=computeDisplayTextAndState();if(lbl) lbl.textContent=text;if(hrs) hrs.textContent=(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${openingHours}`:`Stängt idag`;root.classList.toggle('state-closed',isClosed);root.classList.toggle('state-open',!isClosed); }
 
-  function adminAccordion(id,btn){ const el=document.getElementById(id);if(!el) return;const isOpen=el.style.display==='block';document.querySelectorAll('#adminSettings .content,#statsContainer .content').forEach(c=>c.style.display='none');document.querySelectorAll('#adminSettings .section > button.disclosure,#statsContainer .section > button.disclosure').forEach(b=>{const base=b.textContent.replace(/^Visa |^Dölj /,'');b.textContent='Visa '+base;});if(!isOpen){el.style.display='block';if(btn){const base=btn.textContent.replace(/^Visa |^Dölj /,'');btn.textContent='Dölj '+base;}if(id==='productsContent') renderProductsManager();if(id==='catalogContent') renderCatalogManager();if(id==='welcomeEditContent') syncWelcomeEditor();if(id==='personalContent') initUserSelect();} }
+  /* ============================== RECENSIONER ============================== */
+  let _reviewRating = 0;
+
+  function showReviewView(){
+    document.querySelector('.review-view')?.remove();
+    document.querySelector('.topbar')?.style && (document.querySelector('.topbar').style.display='none');
+    const root = document.createElement('div');
+    root.className = 'review-view';
+    root.innerHTML = `<div class="review-inner">
+      <img src="korpen.png" class="review-logo" onerror="this.style.display='none'" alt="">
+      <h2 class="review-title">Hur var upplevelsen?</h2>
+      <p class="review-subtitle">Spökhotellet Korpen</p>
+      <div class="review-stars" id="reviewStars">
+        ${[1,2,3,4,5].map(i=>`<button class="star-btn" data-val="${i}" aria-label="${i} stjärnor">★</button>`).join('')}
+      </div>
+      <div class="review-rating-label" id="reviewRatingLabel"> </div>
+      <textarea id="reviewComment" class="review-textarea" placeholder="Berätta mer om din upplevelse… (valfritt)" rows="3"></textarea>
+      <button class="btn btn-green review-submit" id="reviewSubmitBtn" onclick="submitReview()" disabled>Skicka betyg</button>
+    </div>`;
+    document.body.appendChild(root);
+    // Stjärn-hover på desktop
+    root.querySelectorAll('.star-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>setReviewRating(+btn.dataset.val));
+      btn.addEventListener('mouseenter',()=>{ root.querySelectorAll('.star-btn').forEach((b,i)=>b.classList.toggle('active',i<+btn.dataset.val)); });
+      btn.addEventListener('mouseleave',()=>{ root.querySelectorAll('.star-btn').forEach((b,i)=>b.classList.toggle('active',i<_reviewRating)); });
+    });
+  }
+
+  function setReviewRating(val){
+    _reviewRating = val;
+    document.querySelectorAll('#reviewStars .star-btn').forEach((b,i)=>b.classList.toggle('active',i<val));
+    const labels=['','Dålig','Under förväntan','Okej','Bra','Fantastisk!'];
+    const lbl=document.getElementById('reviewRatingLabel'); if(lbl) lbl.textContent=labels[val]||'';
+    const btn=document.getElementById('reviewSubmitBtn'); if(btn) btn.disabled=false;
+  }
+
+  async function submitReview(){
+    if(!_reviewRating) return;
+    const comment=(document.getElementById('reviewComment')?.value||'').trim();
+    const btn=document.getElementById('reviewSubmitBtn'); if(btn) btn.disabled=true;
+    try{
+      const reviews=dbGet(REVIEWS_KEY,[]); if(!Array.isArray(reviews)) return;
+      reviews.push({rating:_reviewRating,comment,ts:new Date().toISOString(),date:todayStr()});
+      await dbSet(REVIEWS_KEY,reviews);
+    }catch(_e){}
+    // Visa tack-skärm, sedan redirect till välkomstsidan
+    const inner=document.querySelector('.review-inner'); if(!inner) return;
+    inner.innerHTML=`<span class="review-thanks-star">★</span>
+      <h2 class="review-title">Tack!</h2>
+      <p class="review-subtitle" style="margin-bottom:0;">Din recension hjälper oss att bli bättre.</p>`;
+    setTimeout(()=>{ window.location.href=window.location.origin+window.location.pathname; }, 3000);
+  }
+
+  function loadWelcomeReviews(){ renderWelcomeReviews(); }
+
+  function renderWelcomeReviews(){
+    const el=document.getElementById('welcomeReviews'); if(!el) return;
+    const reviews=dbGet(REVIEWS_KEY,[])||[];
+    if(!reviews.length){ el.style.display='none'; return; }
+    const avg=reviews.reduce((s,r)=>s+Number(r.rating||0),0)/reviews.length;
+    const rounded=Math.round(avg);
+    const starsHtml=[1,2,3,4,5].map(i=>`<span style="color:${i<=rounded?'#d4872a':'rgba(232,224,208,0.18)'};">★</span>`).join('');
+    const withComment=[...reviews].reverse().filter(r=>(r.comment||'').trim()).slice(0,2);
+    const quotesHtml=withComment.map(r=>`<div class="welcome-review-quote">"${escapeHtml(r.comment.trim())}"</div>`).join('');
+    el.innerHTML=`<div class="welcome-reviews-wrap">
+      <div class="welcome-reviews-stars">${starsHtml} <span class="welcome-reviews-avg">${avg.toFixed(1)}</span></div>
+      <div class="welcome-reviews-count">${reviews.length} omdöme${reviews.length!==1?'n':''}</div>
+      ${quotesHtml}
+    </div>`;
+    el.style.display='block';
+  }
+
+  function renderReviewsAdmin(){
+    const el=document.getElementById('reviewsContent'); if(!el) return;
+    const reviews=dbGet(REVIEWS_KEY,[])||[];
+    const reviewUrl=window.location.origin+window.location.pathname+'?review';
+    const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(reviewUrl)}&size=160x160&color=e8e0d0&bgcolor=0a0a0a&margin=10`;
+    const avg=reviews.length?(reviews.reduce((s,r)=>s+Number(r.rating||0),0)/reviews.length):0;
+    const avgFixed=avg?avg.toFixed(1):'–';
+    const starsHtml=[1,2,3,4,5].map(i=>`<span style="color:${i<=Math.round(avg)?'#d4872a':'rgba(232,224,208,0.15)'};">★</span>`).join('');
+    const dist=[5,4,3,2,1].map(s=>{ const n=reviews.filter(r=>r.rating===s).length; const pct=reviews.length?Math.round(n/reviews.length*100):0; return `<div class="row" style="gap:6px;align-items:center;margin-bottom:3px;"><span style="font-size:12px;color:rgba(232,224,208,0.5);width:10px;">${s}</span><div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:#d4872a;border-radius:3px;"></div></div><span style="font-size:11px;color:rgba(232,224,208,0.4);width:26px;text-align:right;">${n}</span></div>`; }).join('');
+    const listHtml=reviews.length?[...reviews].reverse().map(r=>`<div class="staff-reply-row" style="flex-direction:column;align-items:flex-start;gap:3px;"><div class="row" style="gap:8px;"><span style="color:#d4872a;letter-spacing:1px;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span><span class="staff-reply-time">${r.date} ${_fmtReplyTime(r.ts)}</span></div>${r.comment?`<div class="staff-reply-text" style="font-size:13px;">${escapeHtml(r.comment)}</div>`:''}</div>`).join(''):'<div class="muted" style="font-style:italic;">Inga recensioner än.</div>';
+    el.innerHTML=`<div class="row" style="gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px;">
+      <div style="text-align:center;">
+        <img src="${qrSrc}" width="160" height="160" style="border-radius:8px;display:block;" alt="QR-kod">
+        <div class="muted" style="font-size:11px;margin-top:5px;">Scanna för att betygsätta</div>
+      </div>
+      <div style="flex:1;min-width:180px;">
+        <div style="font-size:32px;margin-bottom:2px;">${starsHtml} <strong style="font-family:'IM Fell English SC',serif;font-size:28px;color:#e8e0d0;">${avgFixed}</strong></div>
+        <div class="muted" style="font-size:13px;margin-bottom:10px;">${reviews.length} recension${reviews.length!==1?'er':''}</div>
+        <div style="margin-bottom:12px;">${dist}</div>
+        <div class="muted" style="font-size:11px;margin-bottom:4px;">Recensionslänk</div>
+        <input class="input" value="${escapeHtml(reviewUrl)}" readonly onclick="this.select()" style="font-size:11px;width:100%;box-sizing:border-box;">
+        ${reviews.length?`<button class="btn btn-danger" style="margin-top:8px;font-size:12px;padding:4px 10px;" onclick="if(confirm('Rensa alla recensioner?')){dbSet(REVIEWS_KEY,[]).catch(()=>{});renderReviewsAdmin();}">Rensa alla</button>`:''}
+      </div>
+    </div>
+    <div class="staff-msg-section-title" style="margin-bottom:8px;">Inkomna recensioner</div>
+    <div class="staff-replies-list">${listHtml}</div>`;
+  }
+
+  function adminAccordion(id,btn){ const el=document.getElementById(id);if(!el) return;const isOpen=el.style.display==='block';document.querySelectorAll('#adminSettings .content,#statsContainer .content').forEach(c=>c.style.display='none');document.querySelectorAll('#adminSettings .section > button.disclosure,#statsContainer .section > button.disclosure').forEach(b=>{const base=b.textContent.replace(/^Visa |^Dölj /,'');b.textContent='Visa '+base;});if(!isOpen){el.style.display='block';if(btn){const base=btn.textContent.replace(/^Visa |^Dölj /,'');btn.textContent='Dölj '+base;}if(id==='productsContent') renderProductsManager();if(id==='catalogContent') renderCatalogManager();if(id==='welcomeEditContent') syncWelcomeEditor();if(id==='personalContent') initUserSelect();if(id==='reviewsContent') renderReviewsAdmin();} }
 
   function ensureProfileDefaults(name){ if(!userData[name]) userData[name]={};if(!userData[name].theme) userData[name].theme='default';if(!Array.isArray(userData[name].skills)) userData[name].skills=[];if(typeof userData[name].hours!=='string') userData[name].hours='';if(typeof userData[name].task!=='string') userData[name].task=''; }
   function saveUserData(){ dbSet(STORAGE_KEY,userData||{}).catch(()=>{}); }
@@ -1416,11 +1523,14 @@
 
   /* ============================== BOOT ============================== */
   async function boot(){
+    // Recensionsvy om URL innehåller ?review
+    if(new URLSearchParams(window.location.search).has('review')){ showReviewView(); return; }
+
     const lo=document.getElementById('logoutBtn');const li=document.getElementById('loginBtn');
     if(lo) lo.style.display='none';if(li) li.style.display='inline-block';
     loadWelcomeBg();
 
-    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]}];
+    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:REVIEWS_KEY,fallback:[]}];
 
     persistCacheHydrate(BOOT_KEYS);
     openingHours=loadOpeningHours();queueTime=loadQueue();
@@ -1436,7 +1546,7 @@
     }catch(_e){}
 
     enforceCoreUsers();
-    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();bindWelcomeControls();
+    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();bindWelcomeControls();
     hideAll();
 
     if(loggedInUser){ selectMenu(isAdmin?'admin':'profile'); }
@@ -1461,7 +1571,7 @@
         openingHours=loadOpeningHours();queueTime=loadQueue();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
-        loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();
+        loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();
         updateTopbar();refreshCockpitIfOpen();
         if(document.getElementById('kassaContainer')?.style.display==='block'){renderProductButtons();renderCart();}
         if(document.getElementById('profileContainer')?.style.display==='block'){loadProfile();}
