@@ -1026,10 +1026,13 @@
     const comment=(document.getElementById('reviewComment')?.value||'').trim();
     const btn=document.getElementById('reviewSubmitBtn'); if(btn) btn.disabled=true;
     try{
-      const reviews=dbGet(REVIEWS_KEY,[]); if(!Array.isArray(reviews)) return;
+      // Garantera färsk data — rensa inflight så vi aldrig delar ett pågående anrop
+      if(_db.inflight.has(REVIEWS_KEY)){ try{ await _db.inflight.get(REVIEWS_KEY); }catch(_){} _db.inflight.delete(REVIEWS_KEY); }
+      const existing=await dbFetch(REVIEWS_KEY,[]);
+      const reviews=Array.isArray(existing)?existing:[];
       reviews.push({rating:_reviewRating,comment,ts:new Date().toISOString(),date:todayStr()});
       await dbSet(REVIEWS_KEY,reviews);
-    }catch(_e){}
+    }catch(_e){ if(btn) btn.disabled=false; alert('Kunde inte spara recensionen — kontrollera anslutningen och försök igen.'); return; }
     // Visa tack-skärm, sedan redirect till välkomstsidan
     const inner=document.querySelector('.review-inner'); if(!inner) return;
     inner.innerHTML=`<span class="review-thanks-star">★</span>
@@ -1057,8 +1060,10 @@
     el.style.display='block';
   }
 
-  function renderReviewsAdmin(){
+  async function renderReviewsAdmin(){
     const el=document.getElementById('reviewsContent'); if(!el) return;
+    el.innerHTML='<div class="muted" style="font-style:italic;padding:8px 0;">Laddar recensioner…</div>';
+    await dbFetch(REVIEWS_KEY,[]).catch(()=>{});
     const reviews=dbGet(REVIEWS_KEY,[])||[];
     const reviewUrl=window.location.origin+window.location.pathname+'?review';
     const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(reviewUrl)}&size=160x160&color=e8e0d0&bgcolor=0a0a0a&margin=10`;
