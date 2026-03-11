@@ -534,6 +534,7 @@
   let discountApplied=false, _lastPayChoice='Swish';
   let _pendingPayChoice = null;
   let _pendingPaySumText = '';
+  let _doRefresh = null;
 
   function todayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
   function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,(ch)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]); }
@@ -553,7 +554,7 @@
 
   function setWelcomeFAQText(raw){ const box=document.getElementById('welcomeFaqContent'); const panel=document.getElementById('welcomeInfoPanel'); if(!box) return; const txt=(raw||'').trim(); if(!txt){ box.innerHTML=''; if(panel) panel.style.display='none'; return; } if(panel) panel.style.display='block'; const prices=getTicketPricesFromProducts(); const qShown=(openingHours==='Stängt')?'Stängt':(queueTime||'Ingen info'); const rendered=txt.replaceAll('{{VUXEN}}',String(prices.adult)).replaceAll('{{BARN}}',String(prices.child)).replaceAll('{{QUEUE}}',String(qShown)); box.innerHTML=escapeHtml(rendered).replace(/\n/g,'<br>'); }
 
-  function saveOpeningHours(v){ const hrs=String(v||'Stängt'); const r=dbSet(OPENING_KEY,hrs); const hist=loadSalesHistory();const day=ensureHistDay(hist,todayStr());day.hours=hrs;saveSalesHistory(hist); return r; }
+  function saveOpeningHours(v){ const hrs=String(v||'Stängt'); const r=dbSet(OPENING_KEY,hrs); const hist=loadSalesHistory();const day=ensureHistDay(hist,todayStr());if(hrs!=='Stängt') day.hours=hrs;else if(!day.hours||day.hours==='Stängt') day.hours=hrs;saveSalesHistory(hist); return r; }
   function loadOpenDates(){ const v=dbGet(OPEN_DATES_KEY,[]); return Array.isArray(v)?v:[]; }
   function saveOpenDates(arr){ return dbSet(OPEN_DATES_KEY, arr); }
   function getNextOpenDate(){ const today=todayStr(); const dates=loadOpenDates().map(e=>typeof e==='string'?e:e.date).filter(d=>d>today).sort(); return dates[0]||null; }
@@ -856,7 +857,7 @@
     const title = document.getElementById('daySummaryTitle');
     if(title) title.textContent = `Sammanfattning — ${dateStr}`;
     const subtitle = document.getElementById('daySummarySubtitle');
-    if(subtitle){ const dayHours=(loadSalesHistory()[dateStr]||{}).hours; subtitle.textContent=dayHours&&dayHours!=='Stängt'?dayHours:''; }
+    if(subtitle){ const dayHours=(loadSalesHistory()[dateStr]||{}).hours; subtitle.textContent=dayHours&&dayHours!=='Stängt'?`Öppettider: ${dayHours}`:''; }
     const content = document.getElementById('daySummaryContent');
     if(content) content.innerHTML = html;
     const modal = document.getElementById('daySummaryModal');
@@ -1577,7 +1578,7 @@
     }
   }
 
-  document.getElementById('logoutBtn')?.addEventListener('click',(e)=>{e.stopPropagation();const dd=document.getElementById('userDropdown');if(dd) dd.style.display=(dd.style.display==='block'?'none':'block');});
+  document.getElementById('logoutBtn')?.addEventListener('click',(e)=>{e.stopPropagation();const dd=document.getElementById('userDropdown');if(dd) dd.style.display=(dd.style.display==='block'?'none':'block');_doRefresh?.();});
   document.addEventListener('click',(e)=>{
     const pay=document.getElementById('payModal');if(pay&&pay.style.display==='flex') return;
     const dd=document.getElementById('userDropdown');const logoutBtn=document.getElementById('logoutBtn');
@@ -1723,7 +1724,7 @@
       }catch(e){ console.warn('Bakgrundsrefresh misslyckades:',e); _setOffline(true); }
     })();
 
-    setInterval(async()=>{
+    _doRefresh = async ()=>{
       try{
         await dbRefreshMany(BOOT_KEYS);await loadUsersFromServer();
         userData=dbGet(STORAGE_KEY,{})||{};
@@ -1732,7 +1733,9 @@
         updateMsgBadge();
         _setOffline(false);
       }catch(e){ _setOffline(true); }
-    },4000);
+    };
+
+    setInterval(_doRefresh,4000);
   }
 
   /* ============================== AUTO-LOGOUT ============================== */
