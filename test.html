@@ -73,7 +73,7 @@
       </button>
       <div id="userDropdown" class="dropdown">
         <a href="#" onclick="selectMenu('kassa');return false;">Kassa</a>
-        <a href="#" onclick="selectMenu('profile');return false;">Min sida</a>
+        <a href="#" onclick="selectMenu('profile');return false;" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">Min sida<span class="msg-badge-dot" id="dropdownProfileBadge" style="display:none;position:static;margin:0;"></span></a>
         <a href="#" onclick="selectMenu('stats');return false;">Statistik</a>
         <a href="#" id="adminLink" onclick="selectMenu('admin');return false;">Hantera</a>
         <a href="#" id="ticketsLink" onclick="openRecentTicketsFull();hideDropdown();return false;">Insläpp</a>
@@ -618,7 +618,10 @@
     function saveReCooldown(m){ try{localStorage.setItem(REENTRY_COOLDOWN_KEY,JSON.stringify(m||{}));}catch(_e){} }
     function canClickRe(id){ const map=loadReCooldown(); const now=Date.now(); if(map[id]&&(now-map[id]<REENTRY_COOLDOWN_MS)) return false; map[id]=now; saveReCooldown(map); return true; }
     const root=document.createElement('div'); root.className='field-view';
-    root.innerHTML=`<div class="field-header"><div class="field-title">Aktiva biljetter</div><div class="field-ctrls"><button class="btn" id="fvClose">Stäng</button></div></div><div class="field-content"><div id="fvList" class="ticket-list"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #333;"><div style="max-width:820px;margin:0 auto;"><div class="field-title" style="font-size:22px;margin:0;color:#ddd;text-shadow:none;">Re-entry-pass</div></div><div id="reList"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #999;"><div style="max-width:820px;margin:0 auto;padding:12px 14px;border:1px solid #333;border-radius:12px;background:#131313;display:flex;justify-content:space-between;gap:10px;"><div style="font-weight:700;">Insläppta idag</div><div id="fieldSummary" style="font-size:14px;color:#ccc;">0</div></div></div>`;
+    const ctrlsHtml=loggedInUser
+      ?`<div class="fv-user-menu"><button class="fv-menu-btn" id="fvMenuBtn"><span class="msg-badge-dot" id="fvMsgBadge" style="display:none;position:absolute;top:5px;right:5px;margin:0;"></span><div class="fv-menu-btn-name">${escapeHtml(loggedInUser)}</div><div class="fv-menu-btn-label">Meny</div></button><div class="fv-menu-dropdown" id="fvMenuDropdown"><a href="#" id="fvNavKassa">Kassa</a><a href="#" id="fvNavProfile" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">Min sida<span class="msg-badge-dot" id="fvNavProfileBadge" style="display:none;position:static;margin:0;"></span></a><a href="#" id="fvNavStats">Statistik</a>${isAdmin?'<a href="#" id="fvNavAdmin">Hantera</a>':''}<a href="#" id="fvNavLogout">Logga ut</a></div></div>`
+      :`<button class="btn" id="fvClose">Stäng</button>`;
+    root.innerHTML=`<div class="field-header"><div class="field-title">Aktiva biljetter</div><div class="field-ctrls">${ctrlsHtml}</div></div><div class="field-content"><div id="fvList" class="ticket-list"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #333;"><div style="max-width:820px;margin:0 auto;"><div class="field-title" style="font-size:22px;margin:0;color:#ddd;text-shadow:none;">Re-entry-pass</div></div><div id="reList"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #999;"><div style="max-width:820px;margin:0 auto;padding:12px 14px;border:1px solid #333;border-radius:12px;background:#131313;display:flex;justify-content:space-between;gap:10px;"><div style="font-weight:700;">Insläppta idag</div><div id="fieldSummary" style="font-size:14px;color:#ccc;">0</div></div></div>`;
     document.body.appendChild(root);
     const list=root.querySelector('#fvList'); const reList=root.querySelector('#reList'); const summaryEl=root.querySelector('#fieldSummary');
     function renderTickets(){ const db=loadOpenTickets(); const items=(db.items||[]).filter(it=>(Number(it.adult||0)+Number(it.child||0))>0); const unused=items.filter(it=>!it.used); const oldestFirst=unused.slice().reverse(); const visible=oldestFirst.slice(0,5); list.innerHTML=''; if(!visible.length){list.innerHTML='<div class="muted">Inga biljetter just nu.</div>';return;} visible.forEach((it,idx)=>{ const row=document.createElement('div'); row.className='ticket-row'; const nameOrId=(it.label&&it.label.trim())?it.label.trim():(it.id?`#${it.id}`:'(utan id)'); const a=Number(it.adult||0),c=Number(it.child||0); row.innerHTML=`<div style="min-width:0;"><div class="meta">${it.time||''}</div><div class="who">${escapeHtml(nameOrId)}</div><div class="nums"><span class="pill">Vuxen x${a}</span><span class="pill">Barn x${c}</span>${Number(it.sum||0)?`<span class="tiny" style="opacity:.7;">• ${it.sum} kr</span>`:''}</div></div><div class="actions"><button class="btn btn-green use-btn">Markera som använd</button></div>`; if(idx===visible.length-1&&isJustCreated(it.createdAt,8)){row.classList.add('flash-green');setTimeout(()=>row.classList.remove('flash-green'),8000);} row.querySelector('.use-btn')?.addEventListener('click',()=>{ row.classList.add('slide-out'); row.addEventListener('transitionend',function onEnd(ev){ if(ev.propertyName!=='opacity') return; row.removeEventListener('transitionend',onEnd); try{markSaleTicketUsed(it.createdAt);}catch(_e){} const db2=loadOpenTickets(); const pos=(db2.items||[]).findIndex(x=>x.createdAt===it.createdAt); if(pos>-1){db2.items.splice(pos,1);saveOpenTickets(db2);} bumpAdmissions((a||0)+(c||0)); renderTickets(); renderSummary(); }); }); list.appendChild(row); }); }
@@ -628,9 +631,20 @@
     const tick=setInterval(()=>{renderTickets();renderReEntry();renderSummary();},4000);
     const onStorage=(e)=>{ if(!e) return; if([OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY].includes(e.key)){renderTickets();renderReEntry();renderSummary();} };
     window.addEventListener('storage',onStorage);
-    const close=()=>{ clearInterval(tick); window.removeEventListener('storage',onStorage); root.remove(); };
+    const close=()=>{ clearInterval(tick); window.removeEventListener('storage',onStorage); window.removeEventListener('keydown',onKey); document.removeEventListener('click',fvClickAway); root.remove(); };
     root.querySelector('#fvClose')?.addEventListener('click',close);
-    const onKey=(e)=>{ if(e.key==='Escape'){close();window.removeEventListener('keydown',onKey);} };
+    // Mini-meny: dropdown toggle
+    root.querySelector('#fvMenuBtn')?.addEventListener('click',(e)=>{ e.stopPropagation(); document.getElementById('fvMenuDropdown')?.classList.toggle('open'); });
+    // Mini-meny: navigera och stäng
+    [['#fvNavKassa','kassa'],['#fvNavProfile','profile'],['#fvNavStats','stats'],['#fvNavAdmin','admin'],['#fvNavLogout','logout']].forEach(([id,section])=>{
+      root.querySelector(id)?.addEventListener('click',(e)=>{ e.preventDefault(); close(); selectMenu(section); });
+    });
+    // Stäng dropdown vid klick utanför
+    function fvClickAway(e){ const dd=document.getElementById('fvMenuDropdown'); if(dd&&dd.classList.contains('open')&&!dd.closest('.fv-user-menu')?.contains(e.target)) dd.classList.remove('open'); }
+    document.addEventListener('click',fvClickAway);
+    // Synka notisbadge
+    updateMsgBadge();
+    const onKey=(e)=>{ if(e.key==='Escape'){close();} };
     window.addEventListener('keydown',onKey);
   }
 
@@ -1139,6 +1153,9 @@
       if(!hasNew) hasNew=messages.filter(m=>m.name===me||m.name===loggedInUser||m.to===me||m.to===loggedInUser).some(m=>m.replies.some(r=>r.name!==me&&r.name!==loggedInUser&&new Date(r.ts).getTime()>seen.ts));
     }
     dot.style.display=hasNew?'inline-block':'none';
+    const fvDot=document.getElementById('fvMsgBadge'); if(fvDot) fvDot.style.display=hasNew?'inline-block':'none';
+    const fvNavDot=document.getElementById('fvNavProfileBadge'); if(fvNavDot) fvNavDot.style.display=hasNew?'inline-block':'none';
+    const ddNavDot=document.getElementById('dropdownProfileBadge'); if(ddNavDot) ddNavDot.style.display=hasNew?'inline-block':'none';
   }
 
   // ---- Admin: skicka meddelande (samlad funktion för broadcast + direkt) ----
