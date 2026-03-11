@@ -1101,13 +1101,13 @@
 
   (function attachThemeDotHandlers(){ document.querySelectorAll('.theme-dot').forEach(dot=>{ dot.addEventListener('click',()=>{ if(!loggedInUser){alert('Logga in först.');return;}ensureProfileDefaults(loggedInUser);const theme=dot.dataset.theme;userData[loggedInUser]=Object.assign({},userData[loggedInUser],{theme});saveUserData();applyProfileTheme(theme);setThemeRadios(theme); }); }); })();
 
-  let _staffMsgJustSent=false, _adminMsgJustSaved=false;
+  let _staffMsgJustSent=false, _adminMsgJustSaved=false, _adminDirectMsgJustSent=false;
 
   function loadStaffMsg(){ return String(dbGet(STAFF_MSG_KEY,'')||'').trim(); }
   function loadStaffMessages(){
     const r=dbGet(STAFF_REPLIES_KEY,[]);
     if(!Array.isArray(r)) return [];
-    return r.map(m=>({id:m.id||String(m.ts||Math.random()),name:m.name||'?',text:m.text||'',ts:m.ts||'',replies:Array.isArray(m.replies)?m.replies:[]}));
+    return r.map(m=>({id:m.id||String(m.ts||Math.random()),name:m.name||'?',text:m.text||'',ts:m.ts||'',replies:Array.isArray(m.replies)?m.replies:[],to:m.to||null}));
   }
 
   // ---- Notisbadge ----
@@ -1120,59 +1120,102 @@
     setMsgSeen({ts:Date.now(), bHash:_strHash(loadStaffMsg())});
     updateMsgBadge();
   }
+  function _myCanonName(){ return (loggedInKey&&users[loggedInKey]?.name)||loggedInUser; }
   function updateMsgBadge(){
     const dot=document.getElementById('msgBadgeDot'); if(!dot) return;
     if(!loggedInUser){ dot.style.display='none'; return; }
     const seen=getMsgSeen();
     const messages=loadStaffMessages();
+    const me=_myCanonName();
     let hasNew=false;
     if(isAdmin){
-      hasNew=messages.some(m=>new Date(m.ts).getTime()>seen.ts);
+      // Badge bara för inkommande meddelanden (ej egna) och svar på egna
+      hasNew=messages.some(m=>m.name!==me&&m.name!==loggedInUser&&(m.to===null||m.to===me||m.to===loggedInUser)&&new Date(m.ts).getTime()>seen.ts);
+      if(!hasNew) hasNew=messages.filter(m=>m.name===me||m.name===loggedInUser).some(m=>m.replies.some(r=>r.name!==me&&r.name!==loggedInUser&&new Date(r.ts).getTime()>seen.ts));
     } else {
       const bMsg=loadStaffMsg();
       if(bMsg && _strHash(bMsg)!==seen.bHash) hasNew=true;
-      if(!hasNew) hasNew=messages.some(m=>m.replies.some(r=>new Date(r.ts).getTime()>seen.ts));
+      if(!hasNew) hasNew=messages.some(m=>(m.to===me||m.to===loggedInUser||m.to==='all')&&new Date(m.ts).getTime()>seen.ts);
+      if(!hasNew) hasNew=messages.filter(m=>m.name===me||m.name===loggedInUser||m.to===me||m.to===loggedInUser).some(m=>m.replies.some(r=>r.name!==me&&r.name!==loggedInUser&&new Date(r.ts).getTime()>seen.ts));
     }
     dot.style.display=hasNew?'inline-block':'none';
   }
 
-  // ---- Spara/rensa admin-broadcast ----
-  async function saveStaffMsg(){
-    const txt=(document.getElementById('staffMsgInput')?.value||'').trim();
-    const btn=document.querySelector('[onclick="saveStaffMsg()"]');
+  // ---- Admin: skicka meddelande (samlad funktion för broadcast + direkt) ----
+  async function sendAdminMsg(){
+    const toSel=document.getElementById('adminMsgTo');
+    const inp=document.getElementById('adminMsgInput');
+    if(!toSel||!inp) return;
+    const to=toSel.value; const txt=inp.value.trim();
+    if(!txt) return;
+    const btn=document.getElementById('adminMsgSendBtn');
     if(btn) btn.disabled=true;
     try{
-      await dbSet(STAFF_MSG_KEY,txt);
-      _adminMsgJustSaved=true;
+      if(to==='all'){
+        await dbSet(STAFF_MSG_KEY,txt);
+        _adminMsgJustSaved=true;
+      } else {
+        if(!to){ alert('Välj mottagare.'); return; }
+        const messages=loadStaffMessages();
+        messages.push({id:Date.now().toString(),name:loggedInUser||'Admin',text:txt,ts:new Date().toISOString(),replies:[],to});
+        await dbSet(STAFF_REPLIES_KEY,messages);
+        inp.value='';
+        _adminDirectMsgJustSent=true;
+      }
       renderStaffMsgSection();
       updateMsgBadge();
-      setTimeout(()=>{ _adminMsgJustSaved=false; },2500);
-    }catch(e){ alert('Kunde inte spara meddelandet. Försök igen.'); }
+      setTimeout(()=>{ _adminMsgJustSaved=false; _adminDirectMsgJustSent=false; },2500);
+    }catch(e){ alert('Kunde inte skicka. Försök igen.'); }
     finally{ if(btn) btn.disabled=false; }
   }
   function clearStaffMsg(){
-    if(!confirm('Ta bort meddelandet till personalen?')) return;
+    if(!confirm('Ta bort meddelandet till all personal?')) return;
     dbSet(STAFF_MSG_KEY,'').catch(()=>{});
-    const inp=document.getElementById('staffMsgInput'); if(inp) inp.value='';
     renderStaffMsgSection();
     updateMsgBadge();
   }
   function clearStaffMessages(){
-    if(!confirm('Rensa alla meddelanden från personal?')) return;
+    if(!confirm('Rensa alla meddelandetrådar?')) return;
     dbSet(STAFF_REPLIES_KEY,[]).catch(()=>{});
     renderStaffMsgSection();
     updateMsgBadge();
+  }
+  async function deleteStaffMessage(msgId){
+    if(!confirm('Ta bort den här tråden?')) return;
+    const messages=loadStaffMessages();
+    await dbSet(STAFF_REPLIES_KEY,messages.filter(m=>m.id!==msgId)).catch(()=>{});
+    renderStaffMsgSection();
+    updateMsgBadge();
+  }
+  function onAdminMsgToChange(){
+    const to=document.getElementById('adminMsgTo')?.value;
+    const inp=document.getElementById('adminMsgInput');
+    const btn=document.getElementById('adminMsgSendBtn');
+    const clearBtn=document.getElementById('adminMsgClearBtn');
+    if(!inp||!btn) return;
+    if(to==='all'){
+      inp.value=loadStaffMsg();
+      btn.textContent='Spara';
+      inp.placeholder='Skriv ett meddelande till all personal…';
+      if(clearBtn) clearBtn.style.display='';
+    } else {
+      inp.value='';
+      btn.textContent='Skicka';
+      inp.placeholder=`Direktmeddelande till ${to||'…'}`;
+      if(clearBtn) clearBtn.style.display='none';
+    }
   }
 
   // ---- Skicka meddelande (personal → admin) ----
   async function submitStaffMessage(){
     const inp=document.getElementById('staffNewMsgInput'); if(!inp) return;
     const txt=inp.value.trim(); if(!txt) return;
+    const adminName=Object.values(users).find(u=>u.admin)?.name||'Casper';
     const btn=document.querySelector('[onclick="submitStaffMessage()"]');
     if(btn) btn.disabled=true;
     try{
       const messages=loadStaffMessages();
-      messages.push({id:Date.now().toString(),name:loggedInUser||'?',text:txt,ts:new Date().toISOString(),replies:[]});
+      messages.push({id:Date.now().toString(),name:loggedInUser||'?',text:txt,ts:new Date().toISOString(),replies:[],to:adminName});
       await dbSet(STAFF_REPLIES_KEY,messages);
       inp.value='';
       _staffMsgJustSent=true;
@@ -1182,7 +1225,7 @@
     }catch(e){ alert('Kunde inte skicka meddelandet. Kontrollera anslutningen och försök igen.'); if(btn) btn.disabled=false; }
   }
 
-  // ---- Admin svarar på specifikt meddelande ----
+  // ---- Admin svarar på meddelande ----
   async function submitAdminReply(msgId){
     const inp=document.getElementById('adminReplyInput_'+msgId); if(!inp) return;
     const txt=inp.value.trim(); if(!txt) return;
@@ -1192,19 +1235,43 @@
       const messages=loadStaffMessages();
       const m=messages.find(x=>x.id===msgId);
       if(!m){ if(btn) btn.disabled=false; return; }
-      m.replies.push({text:txt,ts:new Date().toISOString()});
+      m.replies.push({text:txt,ts:new Date().toISOString(),name:loggedInUser});
       await dbSet(STAFF_REPLIES_KEY,messages);
       inp.value='';
       renderStaffMsgSection();
     }catch(e){ alert('Kunde inte skicka svar. Försök igen.'); if(btn) btn.disabled=false; }
   }
-
   function toggleAdminReplyInput(msgId){
     const row=document.getElementById('adminReplyRow_'+msgId); if(!row) return;
     const visible=row.style.display!=='none';
     row.style.display=visible?'none':'flex';
     if(!visible) row.querySelector('input')?.focus();
   }
+
+  // ---- Personal svarar på direktmeddelande från admin ----
+  async function submitStaffReply(msgId){
+    const inp=document.getElementById('staffReplyInput_'+msgId); if(!inp) return;
+    const txt=inp.value.trim(); if(!txt) return;
+    const btn=document.getElementById('staffReplyBtn_'+msgId);
+    if(btn) btn.disabled=true;
+    try{
+      const messages=loadStaffMessages();
+      const m=messages.find(x=>x.id===msgId);
+      if(!m){ if(btn) btn.disabled=false; return; }
+      m.replies.push({text:txt,ts:new Date().toISOString(),name:loggedInUser});
+      await dbSet(STAFF_REPLIES_KEY,messages);
+      inp.value='';
+      renderStaffMsgSection();
+      updateMsgBadge();
+    }catch(e){ alert('Kunde inte skicka svar.'); if(btn) btn.disabled=false; }
+  }
+  function toggleStaffReplyInput(msgId){
+    const row=document.getElementById('staffReplyRow_'+msgId); if(!row) return;
+    const visible=row.style.display!=='none';
+    row.style.display=visible?'none':'flex';
+    if(!visible) row.querySelector('input')?.focus();
+  }
+
   function _fmtReplyTime(iso){ try{ const d=new Date(iso); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }catch(_e){ return ''; } }
 
   function renderStaffMsgSection(){
@@ -1214,17 +1281,27 @@
     const messages=loadStaffMessages();
 
     if(isAdmin){
-      const msgsHtml = messages.length
-        ? messages.map(m=>{
-            const adminRepliesHtml=m.replies.map(r=>`<div style="padding-left:14px;margin-top:4px;border-left:2px solid rgba(212,135,42,0.3);"><span class="staff-reply-time">${_fmtReplyTime(r.ts)}</span> <span class="staff-reply-text" style="font-size:13px;">${escapeHtml(r.text)}</span></div>`).join('');
+      const me=_myCanonName();
+      const adminMessages=messages.filter(m=>m.to===null||m.to===me||m.to===loggedInUser||m.to==='all'||m.name===me||m.name===loggedInUser);
+      const msgsHtml=adminMessages.length
+        ? adminMessages.map(m=>{
+            const toLabel=m.to&&m.to!==me&&m.to!==loggedInUser
+              ? `<span style="font-size:10px;color:rgba(212,135,42,0.55);margin-left:4px;">→ ${escapeHtml(m.to==='all'?'Alla':m.to)}</span>`
+              : '';
+            const repliesHtml=m.replies.map(r=>`<div style="padding-left:14px;margin-top:4px;border-left:2px solid rgba(212,135,42,0.3);">
+              <span class="staff-reply-name" style="font-size:11px;">${escapeHtml(r.name||'Admin')}</span>
+              <span class="staff-reply-time">${_fmtReplyTime(r.ts)}</span>
+              <span class="staff-reply-text" style="font-size:13px;">${escapeHtml(r.text)}</span>
+            </div>`).join('');
             return `<div style="margin-bottom:8px;">
               <div class="staff-reply-row" style="flex-wrap:wrap;gap:6px;">
-                <span class="staff-reply-name">${escapeHtml(m.name)}</span>
+                <span class="staff-reply-name">${escapeHtml(m.name)}${toLabel}</span>
                 <span class="staff-reply-time">${_fmtReplyTime(m.ts)}</span>
-                <span class="staff-reply-text" style="flex:1;min-width:120px;">${escapeHtml(m.text)}</span>
-                <button class="btn" style="padding:3px 10px;font-size:12px;margin-left:auto;" onclick="toggleAdminReplyInput('${m.id}')">Svara</button>
+                <span class="staff-reply-text" style="flex:1;min-width:100px;">${escapeHtml(m.text)}</span>
+                <button class="btn" style="padding:3px 10px;font-size:12px;" onclick="toggleAdminReplyInput('${m.id}')">Svara</button>
+                <button class="btn btn-danger" style="padding:3px 8px;font-size:12px;" onclick="deleteStaffMessage('${m.id}')" title="Ta bort tråd">✕</button>
               </div>
-              ${adminRepliesHtml?`<div style="margin-top:4px;">${adminRepliesHtml}</div>`:''}
+              ${repliesHtml?`<div style="margin-top:4px;">${repliesHtml}</div>`:''}
               <div id="adminReplyRow_${m.id}" class="row" style="display:none;gap:8px;margin-top:6px;padding-left:14px;">
                 <input id="adminReplyInput_${m.id}" class="input" style="flex:1;" placeholder="Svar till ${escapeHtml(m.name)}…">
                 <button id="adminReplyBtn_${m.id}" class="btn btn-green" onclick="submitAdminReply('${m.id}')">Skicka</button>
@@ -1233,38 +1310,66 @@
           }).join('')
         : `<div class="muted" style="font-style:italic;">Inga meddelanden ännu.</div>`;
 
+      const staffOptions=Object.values(users).filter(u=>u.name!==loggedInUser).map(u=>`<option value="${escapeHtml(u.name)}">${escapeHtml(u.name)}</option>`).join('');
+
       wrap.innerHTML=`<div class="staff-msg-section-wrap">
-        <h4 class="staff-msg-section-title">Meddelande till personal</h4>
-        <p class="muted" style="margin-bottom:10px;font-size:12px;">Visas längst ned på Min sida för all inloggad personal.</p>
-        <textarea id="staffMsgInput" rows="3" placeholder="Skriv ett meddelande till personalen…" class="staff-msg-textarea">${escapeHtml(broadcastMsg)}</textarea>
+        <h4 class="staff-msg-section-title" style="margin-bottom:8px;">Skicka meddelande</h4>
+        <div class="row" style="gap:8px;align-items:center;margin-bottom:8px;">
+          <span class="muted" style="font-size:12px;white-space:nowrap;">Till:</span>
+          <select id="adminMsgTo" class="input" style="min-width:110px;" onchange="onAdminMsgToChange()">
+            <option value="all">Alla</option>
+            ${staffOptions}
+          </select>
+        </div>
+        <textarea id="adminMsgInput" rows="3" class="staff-msg-textarea" placeholder="Skriv ett meddelande till all personal…">${escapeHtml(broadcastMsg)}</textarea>
         <div class="row" style="justify-content:flex-end;align-items:center;gap:8px;margin-top:8px;">
           ${_adminMsgJustSaved?`<span style="font-size:12px;color:#7ec97e;">Sparat!</span>`:''}
-          <button class="btn btn-danger" onclick="clearStaffMsg()">Ta bort</button>
-          <button class="btn btn-green" onclick="saveStaffMsg()">Spara</button>
+          ${_adminDirectMsgJustSent?`<span style="font-size:12px;color:#7ec97e;">Skickat!</span>`:''}
+          <button id="adminMsgClearBtn" class="btn btn-danger" onclick="clearStaffMsg()">Ta bort</button>
+          <button id="adminMsgSendBtn" class="btn btn-green" onclick="sendAdminMsg()">Spara</button>
         </div>
-        <div style="margin-top:16px;">
+        <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.07);padding-top:12px;">
           <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <span class="staff-msg-section-title" style="margin:0;">Meddelanden från personal</span>
-            ${messages.length?`<button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="clearStaffMessages()">Rensa</button>`:''}
+            <span class="staff-msg-section-title" style="margin:0;">Meddelanden</span>
+            ${adminMessages.length?`<button class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="clearStaffMessages()">Rensa alla</button>`:''}
           </div>
           <div class="staff-replies-list">${msgsHtml}</div>
         </div>
       </div>`;
     } else {
-      // Personal: alltid visa sändarrutan, plus eventuellt admins broadcast och trådar
-      const broadcastHtml = broadcastMsg
+      // Personal: visa broadcast + mina meddelanden (skickade till mig eller av mig)
+      const me=_myCanonName();
+      const myMessages=messages.filter(m=>m.to===me||m.to===loggedInUser||m.name===me||m.name===loggedInUser);
+      const broadcastHtml=broadcastMsg
         ? `<div class="staff-msg-banner" style="margin-bottom:12px;"><span class="staff-msg-label">Meddelande från admin</span><p class="staff-msg-text">${escapeHtml(broadcastMsg).replace(/\n/g,'<br>')}</p></div>`
         : '';
-      const msgsHtml = messages.length
-        ? messages.map(m=>{
-            const adminRepliesHtml=m.replies.map(r=>`<div style="padding-left:14px;margin-top:4px;border-left:2px solid rgba(212,135,42,0.35);"><span class="staff-reply-name" style="font-size:11px;">Admin</span> <span class="staff-reply-time">${_fmtReplyTime(r.ts)}</span><div style="font-family:'IM Fell English',serif;font-size:13px;color:rgba(232,224,208,0.8);margin-top:2px;">${escapeHtml(r.text)}</div></div>`).join('');
-            return `<div class="staff-reply-row" style="flex-direction:column;align-items:flex-start;gap:0;">
-              <div class="row" style="gap:8px;width:100%;">
-                <span class="staff-reply-name">${escapeHtml(m.name)}</span>
+      const msgsHtml=myMessages.length
+        ? myMessages.map(m=>{
+            const senderIsAdmin=!!(Object.values(users).find(u=>u.name===m.name)?.admin);
+            const fromDisplay=senderIsAdmin?'Admin':escapeHtml(m.name);
+            const isDirectToMe=m.to===me||m.to===loggedInUser;
+            const isFromMe=m.name===me||m.name===loggedInUser;
+            const toLabel=isFromMe&&m.to?`<span style="font-size:10px;color:rgba(232,224,208,0.35);">→ Admin</span>`:'';
+            const directBadge=isDirectToMe?`<span style="font-size:10px;background:rgba(212,135,42,0.15);border:1px solid rgba(212,135,42,0.3);border-radius:3px;padding:1px 6px;color:rgba(212,135,42,0.85);margin-left:2px;">Direkt till dig</span>`:'';
+            const repliesHtml=m.replies.map(r=>`<div style="padding-left:14px;margin-top:4px;border-left:2px solid rgba(212,135,42,0.35);">
+              <span class="staff-reply-name" style="font-size:11px;">${escapeHtml(r.name||'Admin')}</span>
+              <span class="staff-reply-time">${_fmtReplyTime(r.ts)}</span>
+              <div style="font-family:'IM Fell English',serif;font-size:13px;color:rgba(232,224,208,0.8);margin-top:2px;">${escapeHtml(r.text)}</div>
+            </div>`).join('');
+            const replyBtn=isDirectToMe?`<button class="btn" style="padding:3px 10px;font-size:12px;margin-left:auto;" onclick="toggleStaffReplyInput('${m.id}')">Svara</button>`:'';
+            const replyInput=isDirectToMe?`<div id="staffReplyRow_${m.id}" class="row" style="display:none;gap:8px;margin-top:6px;padding-left:14px;">
+              <input id="staffReplyInput_${m.id}" class="input" style="flex:1;" placeholder="Skriv ett svar…">
+              <button id="staffReplyBtn_${m.id}" class="btn btn-green" onclick="submitStaffReply('${m.id}')">Skicka</button>
+            </div>`:'';
+            return `<div class="staff-reply-row" style="flex-direction:column;align-items:flex-start;gap:0;${isDirectToMe?'border-color:rgba(212,135,42,0.28);background:rgba(212,135,42,0.04);':''}">
+              <div class="row" style="gap:6px;width:100%;flex-wrap:wrap;">
+                <span class="staff-reply-name">${fromDisplay}</span>${toLabel}${directBadge}
                 <span class="staff-reply-time">${_fmtReplyTime(m.ts)}</span>
-                <span class="staff-reply-text">${escapeHtml(m.text)}</span>
+                <span class="staff-reply-text" style="flex:1;min-width:80px;">${escapeHtml(m.text)}</span>
+                ${replyBtn}
               </div>
-              ${adminRepliesHtml}
+              ${repliesHtml}
+              ${replyInput}
             </div>`;
           }).join('')
         : '';
