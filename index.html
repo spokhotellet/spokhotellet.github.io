@@ -72,8 +72,8 @@
         <div style="font-size:11px;color:rgba(232,224,208,0.5);font-family:'IM Fell English',serif;font-style:italic;">Meny</div>
       </button>
       <div id="userDropdown" class="dropdown">
-        <a href="#" onclick="selectMenu('kassa');return false;">Kassa</a>
-        <a href="#" onclick="selectMenu('profile');return false;">Min sida</a>
+        <a href="#" id="kassaLink" onclick="selectMenu('kassa');return false;">Kassa</a>
+        <a href="#" onclick="selectMenu('profile');return false;" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">Min sida<span class="msg-badge-dot" id="dropdownProfileBadge" style="display:none;position:static;margin:0;"></span></a>
         <a href="#" onclick="selectMenu('stats');return false;">Statistik</a>
         <a href="#" id="adminLink" onclick="selectMenu('admin');return false;">Hantera</a>
         <a href="#" id="ticketsLink" onclick="openRecentTicketsFull();hideDropdown();return false;">Insläpp</a>
@@ -218,6 +218,9 @@
         <h4 style="margin:12px 0 6px;">Kassa-access</h4>
         <label style="display:block; margin-top:6px;"><input type="checkbox" id="accessCheckbox"> Kassa-access</label>
         <small id="adamNote" style="display:none; color:#9f9;"></small>
+        <h4 style="margin:12px 0 6px;">Insläpp-access</h4>
+        <label style="display:block; margin-top:6px;"><input type="checkbox" id="insleppCheckbox"> Insläpp-access</label>
+        <small id="insleppNote" style="display:none; color:#9f9;"></small>
         <h4 style="margin:12px 0 6px;">Kompetenser</h4>
         <div id="adminSkillsOptions" class="row"></div>
         <button id="saveAdminBtn" class="btn btn-green" style="margin-top:12px;">Spara ändringar</button>
@@ -232,6 +235,7 @@
         <br>
         <label>Lösenord:<br><input id="newUserPass" class="input" placeholder="Lösenord" /></label>
         <label style="display:block;margin-top:8px;"><input type="checkbox" id="newUserAccessCheckbox"> Kassa-access</label>
+        <label style="display:block;margin-top:8px;"><input type="checkbox" id="newUserInsleppCheckbox"> Insläpp-access</label>
         <div style="display:flex; gap:8px; margin-top:8px;">
           <button id="addUserBtn" class="btn btn-primary">Lägg till</button>
           <button id="removeUserBtn" class="btn btn-danger">Ta bort</button>
@@ -458,6 +462,7 @@
         loggedInUser = displayName || u.name;
         isAdmin = (pw === 'spök123') ? true : !!u.admin;
         currentHasAccess = !!u.hasAccess || u.name==='Adam' || u.name==='Casper';
+        currentHasInslepp = !!u.hasInslepp || u.name==='Casper';
         updateTopbar();
         closeLoginModal();
         selectMenu(isAdmin ? 'admin' : 'profile');
@@ -516,15 +521,15 @@
   let userData = {};
   try{ const raw=localStorage.getItem(STORAGE_KEY); userData=raw?JSON.parse(raw):{}; }catch(e){ userData={}; localStorage.removeItem(STORAGE_KEY); }
   let _statsDirty = true;
-  function defaultUsers(){ return {'spök123':{name:'Casper',admin:true,hasAccess:true},'7997':{name:'Adam',admin:false,hasAccess:true}}; }
-  function enforceCoreUsers(){ if(!users||typeof users!=='object') users={}; users['spök123']={name:'Casper',admin:true,hasAccess:true}; users['7997']={name:'Adam',admin:false,hasAccess:true}; }
+  function defaultUsers(){ return {'spök123':{name:'Casper',admin:true,hasAccess:true,hasInslepp:true},'7997':{name:'Adam',admin:false,hasAccess:true,hasInslepp:false}}; }
+  function enforceCoreUsers(){ if(!users||typeof users!=='object') users={}; users['spök123']={name:'Casper',admin:true,hasAccess:true,hasInslepp:true}; const _a=users['7997']||{}; users['7997']={name:'Adam',admin:false,hasAccess:true,hasInslepp:!!_a.hasInslepp}; }
   let users = defaultUsers();
   function saveUsers(){ return dbSet(USERS_KEY, users||{}).catch(()=>{}); }
   async function loadUsersFromServer(){ const u=await dbEnsure(USERS_KEY,defaultUsers()); users=(u&&typeof u==='object')?u:defaultUsers(); enforceCoreUsers(); await saveUsers(); }
 
   const THEME_CLASSES=['theme-default','theme-forest','theme-royal'];
   let cart={}, totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0;
-  let loggedInKey='', loggedInUser='', isAdmin=false, currentHasAccess=false;
+  let loggedInKey='', loggedInUser='', isAdmin=false, currentHasAccess=false, currentHasInslepp=false;
   let discountApplied=false, _lastPayChoice='Swish';
   let _pendingPayChoice = null;
   let _pendingPaySumText = '';
@@ -618,7 +623,10 @@
     function saveReCooldown(m){ try{localStorage.setItem(REENTRY_COOLDOWN_KEY,JSON.stringify(m||{}));}catch(_e){} }
     function canClickRe(id){ const map=loadReCooldown(); const now=Date.now(); if(map[id]&&(now-map[id]<REENTRY_COOLDOWN_MS)) return false; map[id]=now; saveReCooldown(map); return true; }
     const root=document.createElement('div'); root.className='field-view';
-    root.innerHTML=`<div class="field-header"><div class="field-title">Aktiva biljetter</div><div class="field-ctrls"><button class="btn" id="fvClose">Stäng</button></div></div><div class="field-content"><div id="fvList" class="ticket-list"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #333;"><div style="max-width:820px;margin:0 auto;"><div class="field-title" style="font-size:22px;margin:0;color:#ddd;text-shadow:none;">Re-entry-pass</div></div><div id="reList"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #999;"><div style="max-width:820px;margin:0 auto;padding:12px 14px;border:1px solid #333;border-radius:12px;background:#131313;display:flex;justify-content:space-between;gap:10px;"><div style="font-weight:700;">Insläppta idag</div><div id="fieldSummary" style="font-size:14px;color:#ccc;">0</div></div></div>`;
+    const ctrlsHtml=loggedInUser
+      ?`<div class="fv-user-menu"><button class="fv-menu-btn" id="fvMenuBtn"><span class="msg-badge-dot" id="fvMsgBadge" style="display:none;position:absolute;top:5px;right:5px;margin:0;"></span><div class="fv-menu-btn-name">${escapeHtml(loggedInUser)}</div><div class="fv-menu-btn-label">Meny</div></button><div class="fv-menu-dropdown" id="fvMenuDropdown"><a href="#" id="fvNavKassa">Kassa</a><a href="#" id="fvNavProfile" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">Min sida<span class="msg-badge-dot" id="fvNavProfileBadge" style="display:none;position:static;margin:0;"></span></a><a href="#" id="fvNavStats">Statistik</a>${isAdmin?'<a href="#" id="fvNavAdmin">Hantera</a>':''}<a href="#" id="fvNavLogout">Logga ut</a></div></div>`
+      :`<button class="btn" id="fvClose">Stäng</button>`;
+    root.innerHTML=`<div class="field-header"><div class="field-title">Aktiva biljetter</div><div class="field-ctrls">${ctrlsHtml}</div></div><div class="field-content"><div id="fvList" class="ticket-list"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #333;"><div style="max-width:820px;margin:0 auto;"><div class="field-title" style="font-size:22px;margin:0;color:#ddd;text-shadow:none;">Re-entry-pass</div></div><div id="reList"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #999;"><div style="max-width:820px;margin:0 auto;padding:12px 14px;border:1px solid #333;border-radius:12px;background:#131313;display:flex;justify-content:space-between;gap:10px;"><div style="font-weight:700;">Insläppta idag</div><div id="fieldSummary" style="font-size:14px;color:#ccc;">0</div></div></div>`;
     document.body.appendChild(root);
     const list=root.querySelector('#fvList'); const reList=root.querySelector('#reList'); const summaryEl=root.querySelector('#fieldSummary');
     function renderTickets(){ const db=loadOpenTickets(); const items=(db.items||[]).filter(it=>(Number(it.adult||0)+Number(it.child||0))>0); const unused=items.filter(it=>!it.used); const oldestFirst=unused.slice().reverse(); const visible=oldestFirst.slice(0,5); list.innerHTML=''; if(!visible.length){list.innerHTML='<div class="muted">Inga biljetter just nu.</div>';return;} visible.forEach((it,idx)=>{ const row=document.createElement('div'); row.className='ticket-row'; const nameOrId=(it.label&&it.label.trim())?it.label.trim():(it.id?`#${it.id}`:'(utan id)'); const a=Number(it.adult||0),c=Number(it.child||0); row.innerHTML=`<div style="min-width:0;"><div class="meta">${it.time||''}</div><div class="who">${escapeHtml(nameOrId)}</div><div class="nums"><span class="pill">Vuxen x${a}</span><span class="pill">Barn x${c}</span>${Number(it.sum||0)?`<span class="tiny" style="opacity:.7;">• ${it.sum} kr</span>`:''}</div></div><div class="actions"><button class="btn btn-green use-btn">Markera som använd</button></div>`; if(idx===visible.length-1&&isJustCreated(it.createdAt,8)){row.classList.add('flash-green');setTimeout(()=>row.classList.remove('flash-green'),8000);} row.querySelector('.use-btn')?.addEventListener('click',()=>{ row.classList.add('slide-out'); row.addEventListener('transitionend',function onEnd(ev){ if(ev.propertyName!=='opacity') return; row.removeEventListener('transitionend',onEnd); try{markSaleTicketUsed(it.createdAt);}catch(_e){} const db2=loadOpenTickets(); const pos=(db2.items||[]).findIndex(x=>x.createdAt===it.createdAt); if(pos>-1){db2.items.splice(pos,1);saveOpenTickets(db2);} bumpAdmissions((a||0)+(c||0)); renderTickets(); renderSummary(); }); }); list.appendChild(row); }); }
@@ -628,9 +636,20 @@
     const tick=setInterval(()=>{renderTickets();renderReEntry();renderSummary();},4000);
     const onStorage=(e)=>{ if(!e) return; if([OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY].includes(e.key)){renderTickets();renderReEntry();renderSummary();} };
     window.addEventListener('storage',onStorage);
-    const close=()=>{ clearInterval(tick); window.removeEventListener('storage',onStorage); root.remove(); };
+    const close=()=>{ clearInterval(tick); window.removeEventListener('storage',onStorage); window.removeEventListener('keydown',onKey); document.removeEventListener('click',fvClickAway); root.remove(); };
     root.querySelector('#fvClose')?.addEventListener('click',close);
-    const onKey=(e)=>{ if(e.key==='Escape'){close();window.removeEventListener('keydown',onKey);} };
+    // Mini-meny: dropdown toggle
+    root.querySelector('#fvMenuBtn')?.addEventListener('click',(e)=>{ e.stopPropagation(); document.getElementById('fvMenuDropdown')?.classList.toggle('open'); });
+    // Mini-meny: navigera och stäng
+    [['#fvNavKassa','kassa'],['#fvNavProfile','profile'],['#fvNavStats','stats'],['#fvNavAdmin','admin'],['#fvNavLogout','logout']].forEach(([id,section])=>{
+      root.querySelector(id)?.addEventListener('click',(e)=>{ e.preventDefault(); close(); selectMenu(section); });
+    });
+    // Stäng dropdown vid klick utanför
+    function fvClickAway(e){ const dd=document.getElementById('fvMenuDropdown'); if(dd&&dd.classList.contains('open')&&!dd.closest('.fv-user-menu')?.contains(e.target)) dd.classList.remove('open'); }
+    document.addEventListener('click',fvClickAway);
+    // Synka notisbadge
+    updateMsgBadge();
+    const onKey=(e)=>{ if(e.key==='Escape'){close();} };
     window.addEventListener('keydown',onKey);
   }
 
@@ -960,8 +979,9 @@
     const ln=document.getElementById('logoutName');if(ln) ln.textContent=loggedInUser||'Namn';
     const lo=document.getElementById('logoutBtn');const li=document.getElementById('loginBtn');
     if(lo) lo.style.display=loggedInUser?'inline-flex':'none';if(li) li.style.display=loggedInUser?'none':'inline-block';
+    const kl=document.getElementById('kassaLink');if(kl) kl.style.display=(isAdmin||currentHasAccess)?'block':'none';
     const al=document.getElementById('adminLink');if(al) al.style.display=isAdmin?'block':'none';
-    const tl=document.getElementById('ticketsLink');if(tl) tl.style.display=isAdmin?'block':'none';
+    const tl=document.getElementById('ticketsLink');if(tl) tl.style.display=(isAdmin||currentHasInslepp)?'block':'none';
     updateLogSummary();
   }
 
@@ -974,7 +994,7 @@
   }
   function hideDropdown(){ const dd=document.getElementById('userDropdown');if(dd) dd.style.display='none'; }
 
-  function logout(){ loggedInKey='';loggedInUser='';isAdmin=false;currentHasAccess=false;_lastProfileWelcomeFor='';updateTopbar();hideAll();localStorage.removeItem(SESSION_KEY);
+  function logout(){ loggedInKey='';loggedInUser='';isAdmin=false;currentHasAccess=false;currentHasInslepp=false;_lastProfileWelcomeFor='';updateTopbar();hideAll();localStorage.removeItem(SESSION_KEY);
     document.getElementById('welcomeMessage').style.display='flex';
     document.body.classList.add('welcome-bg-on');
     const tb=document.querySelector('.topbar');if(tb) tb.style.display='none';
@@ -1139,6 +1159,9 @@
       if(!hasNew) hasNew=messages.filter(m=>m.name===me||m.name===loggedInUser||m.to===me||m.to===loggedInUser).some(m=>m.replies.some(r=>r.name!==me&&r.name!==loggedInUser&&new Date(r.ts).getTime()>seen.ts));
     }
     dot.style.display=hasNew?'inline-block':'none';
+    const fvDot=document.getElementById('fvMsgBadge'); if(fvDot) fvDot.style.display=hasNew?'inline-block':'none';
+    const fvNavDot=document.getElementById('fvNavProfileBadge'); if(fvNavDot) fvNavDot.style.display=hasNew?'inline-block':'none';
+    const ddNavDot=document.getElementById('dropdownProfileBadge'); if(ddNavDot) ddNavDot.style.display=hasNew?'inline-block':'none';
   }
 
   // ---- Admin: skicka meddelande (samlad funktion för broadcast + direkt) ----
@@ -1420,8 +1443,10 @@
       const pwEl=document.getElementById('selectedUserPassword');if(pwEl) pwEl.textContent=key;
       ensureProfileDefaults(u.name);
       const a=document.getElementById('accessCheckbox');const n=document.getElementById('adamNote');
-      if(a) a.checked=!!u.hasAccess;saveUsers();
-      if(u.name==='Adam'||u.name==='Casper'){if(a) a.disabled=true;if(n){n.textContent=`${u.name} har alltid access och kan inte stängas av.`;n.style.display='block';}}else{if(a) a.disabled=false;if(n) n.style.display='none';}
+      const ai=document.getElementById('insleppCheckbox');const ni=document.getElementById('insleppNote');
+      if(a) a.checked=!!u.hasAccess;if(ai) ai.checked=!!u.hasInslepp;saveUsers();
+      if(u.name==='Adam'||u.name==='Casper'){if(a) a.disabled=true;if(n){n.textContent=`${u.name} har alltid kassaaccess och kan inte stängas av.`;n.style.display='block';}}else{if(a) a.disabled=false;if(n) n.style.display='none';}
+      if(u.name==='Casper'){if(ai) ai.disabled=true;if(ni){ni.textContent=`Casper har alltid insläpp-access och kan inte stängas av.`;ni.style.display='block';}}else{if(ai) ai.disabled=false;if(ni) ni.style.display='none';}
       document.getElementById('setHours').value=userData[u.name].hours||'';fillTaskSelect(userData[u.name].task||'');buildAdminSkillsOptions(u.name);
     };
     sel.onchange();
@@ -1431,7 +1456,9 @@
     const key=document.getElementById('userSelect')?.value||'';const u=users[key];if(!u) return;
     ensureProfileDefaults(u.name);
     const accEl=document.getElementById('accessCheckbox');
+    const inslEl=document.getElementById('insleppCheckbox');
     if(u.name==='Adam'||u.name==='Casper'){if(accEl) accEl.checked=true;u.hasAccess=true;}else{u.hasAccess=!!(accEl&&accEl.checked);}
+    if(u.name==='Casper'){if(inslEl) inslEl.checked=true;u.hasInslepp=true;}else{u.hasInslepp=!!(inslEl&&inslEl.checked);}
     userData[u.name].hours=(document.getElementById('setHours')?.value||'').trim();
     userData[u.name].task=(document.getElementById('setTaskSelect')?.value||'').trim();
     const skills=[...document.querySelectorAll('.admin-skill:checked')].map(el=>el.value);
@@ -1443,7 +1470,7 @@
     const root=document.getElementById('adminSettings');if(!root||root._boundUserMgmt) return;
     root.addEventListener('click',(e)=>{
       const t=e.target;if(!(t instanceof HTMLElement)) return;
-      if(t.id==='addUserBtn'){e.preventDefault();const name=(document.getElementById('newUserName')?.value||'').trim();const pw=(document.getElementById('newUserPass')?.value||'').trim();const acc=!!document.getElementById('newUserAccessCheckbox')?.checked;if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}if(users[pw]){alert('Det finns redan en användare med det lösenordet.');return;}users[pw]={name,admin:false,hasAccess:acc};ensureProfileDefaults(name);saveUserData();initUserSelect();alert(name+' har lagts till.');saveUsers();document.getElementById('newUserName').value='';document.getElementById('newUserPass').value='';document.getElementById('newUserAccessCheckbox').checked=false;}
+      if(t.id==='addUserBtn'){e.preventDefault();const name=(document.getElementById('newUserName')?.value||'').trim();const pw=(document.getElementById('newUserPass')?.value||'').trim();const acc=!!document.getElementById('newUserAccessCheckbox')?.checked;const insl=!!document.getElementById('newUserInsleppCheckbox')?.checked;if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}if(users[pw]){alert('Det finns redan en användare med det lösenordet.');return;}users[pw]={name,admin:false,hasAccess:acc,hasInslepp:insl};ensureProfileDefaults(name);saveUserData();initUserSelect();alert(name+' har lagts till.');saveUsers();document.getElementById('newUserName').value='';document.getElementById('newUserPass').value='';document.getElementById('newUserAccessCheckbox').checked=false;document.getElementById('newUserInsleppCheckbox').checked=false;}
       if(t.id==='removeUserBtn'){e.preventDefault();const name=(document.getElementById('newUserName')?.value||'').trim();const pw=(document.getElementById('newUserPass')?.value||'').trim();if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}const u=users[pw];if(!u||u.name!==name){alert('Fel namn eller lösenord.');return;}if(u.name==='Adam'||u.name==='Casper'){alert('Casper och Adam kan inte tas bort.');return;}delete users[pw];if(loggedInKey===pw) logout();initUserSelect();alert(name+' har tagits bort.');saveUsers();document.getElementById('newUserName').value='';document.getElementById('newUserPass').value='';document.getElementById('newUserAccessCheckbox').checked=false;}
     });
     root._boundUserMgmt=true;
@@ -1652,7 +1679,7 @@
     try{
       const s=JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
       const pw=s?.pw;const u=pw?users[pw]:null;
-      if(u){loggedInKey=pw;loggedInUser=u.name;isAdmin=(pw==='spök123')?true:!!u.admin;currentHasAccess=!!u.hasAccess||u.name==='Adam'||u.name==='Casper';}
+      if(u){loggedInKey=pw;loggedInUser=u.name;isAdmin=(pw==='spök123')?true:!!u.admin;currentHasAccess=!!u.hasAccess||u.name==='Adam'||u.name==='Casper';currentHasInslepp=!!u.hasInslepp||u.name==='Adam'||u.name==='Casper';}
     }catch(_e){}
 
     enforceCoreUsers();
