@@ -276,6 +276,49 @@
     .admin-password .label { margin-right: 6px; opacity: .8; }
     .admin-password .value { font-family: monospace; color: rgba(232,224,208,0.65); }
 
+    /* ====== WELCOME LOADING OVERLAY ====== */
+    #welcomeLoading {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      background: #0d0b0a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      pointer-events: none;
+      transition: opacity 0.7s ease;
+    }
+    #welcomeLoading.wl-out { opacity: 0; }
+    .wl-ember {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 60%, rgba(212,100,20,0.9) 0%, rgba(139,26,26,0.5) 45%, transparent 72%);
+      box-shadow: 0 0 18px 6px rgba(180,60,20,0.25), 0 0 40px 10px rgba(139,26,26,0.12);
+      animation: wl-flicker 1.8s ease-in-out infinite;
+    }
+    @keyframes wl-flicker {
+      0%,100% { transform: scaleY(1) scaleX(1);    opacity: 0.75; }
+      30%      { transform: scaleY(1.08) scaleX(0.95); opacity: 1;    }
+      60%      { transform: scaleY(0.94) scaleX(1.04); opacity: 0.85; }
+      80%      { transform: scaleY(1.04) scaleX(0.97); opacity: 0.95; }
+    }
+    .wl-text {
+      font-family: 'IM Fell English', serif;
+      font-style: italic;
+      font-size: 13px;
+      letter-spacing: 1.5px;
+      color: rgba(232,224,208,0.28);
+      margin: 0;
+      animation: wl-breathe 2.4s ease-in-out infinite;
+    }
+    @keyframes wl-breathe {
+      0%,100% { opacity: 0.28; }
+      50%      { opacity: 0.6;  }
+    }
+
     /* ====== WELCOME ====== */
     #welcomeMessage {
       display: none;

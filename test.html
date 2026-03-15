@@ -84,6 +84,10 @@
 
   <!-- ===== VÄLKOMST ===== -->
   <div class="welcome-message" id="welcomeMessage">
+    <div id="welcomeLoading" aria-hidden="true">
+      <div class="wl-ember"></div>
+      <p class="wl-text">laddar…</p>
+    </div>
     <div class="welcome-inner">
       <div class="welcome-hero">
         <img id="welcomeKorpenLogo" src="korpen.png" alt="Spökhotellet Korpen" onerror="this.style.display='none'">
@@ -529,7 +533,7 @@
   async function loadUsersFromServer(){ const u=await dbEnsure(USERS_KEY,defaultUsers()); users=(u&&typeof u==='object')?u:defaultUsers(); enforceCoreUsers(); await saveUsers(); }
 
   const THEME_CLASSES=['theme-default','theme-forest','theme-royal'];
-  let cart={}, totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0;
+  let cart={}, cartHistory=[], totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0;
   let loggedInKey='', loggedInUser='', isAdmin=false, currentHasAccess=false, currentHasInslepp=false;
   let discountApplied=false, _lastPayChoice='Swish';
   let _pendingPayChoice = null;
@@ -668,7 +672,7 @@
 
   try{ loadWelcomeFAQ(); }catch(_e){}
 
-  function addItem(n,p){ cart[n]=cart[n]?{qty:cart[n].qty+1,price:p}:{qty:1,price:p}; renderCart(); }
+  function addItem(n,p){ cart[n]=cart[n]?{qty:cart[n].qty+1,price:p}:{qty:1,price:p}; cartHistory.push(n); renderCart(); }
   function removeItem(n){ delete cart[n]; renderCart(); }
   function incItem(name){ if(cart[name]){cart[name].qty+=1;renderCart();} }
   function decItem(name){ if(cart[name]){cart[name].qty-=1;if(cart[name].qty<=0){delete cart[name];}renderCart();} }
@@ -687,9 +691,15 @@
     else if(e.key==='Backspace'){
       if(isTypingContext()) return;
       const kassaOpen=document.getElementById('kassaContainer')?.style.display==='block'; if(!kassaOpen) return;
+      e.preventDefault(); if(cartHistory.length===0) return;
+      const last=cartHistory.pop(); if(cart[last]){cart[last].qty-=1;if(cart[last].qty<=0) delete cart[last];}
+      renderCart();
+    }
+    else if(e.key==='Escape'){
+      if(isTypingContext()) return;
+      const kassaOpen=document.getElementById('kassaContainer')?.style.display==='block'; if(!kassaOpen) return;
       e.preventDefault(); if(Object.keys(cart).length===0) return;
-      const ok=confirm('Töm hela kassan?'); if(!ok) return;
-      cart={}; discountApplied=false;
+      cart={}; cartHistory=[]; discountApplied=false;
       const db=document.getElementById('discountBtn'); if(db){db.classList.remove('applied');db.textContent='50% rabatt (1 gång)';}
       renderCart();
     }
@@ -709,7 +719,7 @@
     });
     const raw=cartSumRaw(); const sum=discountApplied?Math.round(raw/2):raw;
     const t=document.getElementById('total'); if(t) t.textContent=`Totalt: ${sum} kr${discountApplied?' (50% rabatt)':''}`;
-    const chk=document.getElementById('checkout'); if(chk) chk.disabled=(sum===0);
+    const chk=document.getElementById('checkout'); if(chk) chk.disabled=(Object.keys(cart).length===0);
   }
 
   (function bindDiscount(){ const b=document.getElementById('discountBtn'); if(!b||b._bound) return; b.addEventListener('click',()=>{ const hasItems=Object.keys(cart).length>0; if(!hasItems){ if(discountApplied){discountApplied=false;b.classList.remove('applied');b.textContent='50% rabatt (1 gång)';renderCart();}else{alert('Lägg något i kassan först.');} return; } discountApplied=!discountApplied; b.classList.toggle('applied',discountApplied); b.textContent=discountApplied?'50% rabatt aktiv — klicka för att ta bort':'50% rabatt (1 gång)'; renderCart(); }); b._bound=true; })();
@@ -758,7 +768,7 @@
     html+=`<br><span class="tiny">Betalning: ${escapeHtml(payType||'—')} • Säljare: ${escapeHtml(loggedInUser||'—')}</span>`;
     entry.innerHTML=html; safePrepend(logWrap,entry);
     try{ recordSale({time:nowStr,items:lines,sum:finalSum,adult,child,seller:loggedInUser||'—',payType:payType||'—',ticketUid:newOpenTicket?.createdAt||null,ticketLabel:newOpenTicket?.label||(newOpenTicket?.id?`#${newOpenTicket.id}`:null),used:false,breakdown,reEntryCreated:reEntryCount,reEntryIds:createdReEntryIds}); _statsDirty=true; }catch(_e){}
-    cart={}; discountApplied=false;
+    cart={}; cartHistory=[]; discountApplied=false;
     const db=document.getElementById('discountBtn'); if(db){db.classList.remove('applied');db.textContent='50% rabatt (1 gång)';}
     renderCart();
     const sc=document.getElementById('statsContainer'); if(sc&&sc.style.display==='block'){renderCockpit();renderStats();}
@@ -1709,6 +1719,13 @@
     const _offlineBanner = document.getElementById('offlineBanner');
     function _setOffline(on){ if(_offlineBanner) _offlineBanner.classList.toggle('visible', on); }
 
+    function dismissWelcomeLoading(){
+      const el=document.getElementById('welcomeLoading'); if(!el) return;
+      el.classList.add('wl-out');
+      setTimeout(()=>el.remove(), 750);
+    }
+    const _wlFallback=setTimeout(dismissWelcomeLoading, 5000);
+
     (async()=>{
       try{
         await dbRefreshMany(BOOT_KEYS);
@@ -1722,6 +1739,7 @@
         if(document.getElementById('profileContainer')?.style.display==='block'){loadProfile();}
         _setOffline(false);
       }catch(e){ console.warn('Bakgrundsrefresh misslyckades:',e); _setOffline(true); }
+      finally{ clearTimeout(_wlFallback); dismissWelcomeLoading(); }
     })();
 
     _doRefresh = async ()=>{
