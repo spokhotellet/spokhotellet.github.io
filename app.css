@@ -448,7 +448,15 @@
       font-size: 28px;
       color: #f0ebe2;
       text-shadow: 0 2px 12px rgba(139,26,26,0.3);
+      position: relative;
     }
+    #kbHelpBtn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 50%; width: 22px; height: 22px; font-size: 12px; color: rgba(232,224,208,0.45); cursor: pointer; line-height: 1; padding: 0; font-family: serif; transition: background .15s, color .15s; }
+    #kbHelpBtn:hover { background: rgba(255,255,255,0.12); color: rgba(232,224,208,0.85); }
+    #kbHelp { background: rgba(10,8,6,0.97); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 14px 18px; max-width: 320px; margin: -8px auto 16px; text-align: left; }
+    .kb-section { font-family: 'IM Fell English SC', serif; font-size: 11px; letter-spacing: 1px; color: rgba(212,135,42,0.7); margin-bottom: 6px; }
+    .kb-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; font-family: 'IM Fell English', serif; font-size: 13px; color: rgba(232,224,208,0.6); }
+    .kb-row span { margin-left: 4px; }
+    kbd { display: inline-block; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: 11px; color: rgba(232,224,208,0.8); white-space: nowrap; }
     #closedMessage {
       display: none;
       color: #ff4444;
@@ -490,6 +498,9 @@
     .products .btn-reentry:hover { background: rgba(45,30,65,0.8); }
     .products .btn-other  { background: rgba(40,35,25,0.7); border-color: rgba(80,70,50,0.6); }
     .products .btn-other:hover { background: rgba(50,44,30,0.8); }
+    .products .btn-free   { opacity: 0.42; filter: grayscale(0.55); }
+    .products .btn-free:hover { opacity: 0.65; filter: grayscale(0.3); }
+
 
     .cart-table { width: 100%; max-width: 820px; margin: 0 auto 20px; border-collapse: collapse; background: rgba(10,8,6,0.7); border: 1px solid rgba(255,255,255,0.07); border-radius: 6px; overflow: hidden; }
     .cart-table th, .cart-table td { padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); text-align: left; color: #e8e0d0; font-family: 'IM Fell English', serif; }
@@ -577,6 +588,12 @@
     .fv-menu-dropdown a:hover { background: rgba(255,255,255,.06); color: #e8e0d0; }
     .fv-menu-dropdown a + a { border-top: 1px solid rgba(255,255,255,.05); }
     .field-title { font-family: "IM Fell English SC", serif; font-size: 28px; letter-spacing: .4px; color: #e53935; text-shadow: 0 0 12px rgba(229,57,53,.45), 2px 2px 0 rgba(0,0,0,.7); }
+    .fv-clock { font-family: "IM Fell English SC", serif; font-size: 22px; letter-spacing: 2px; color: rgba(232,224,208,0.75); text-shadow: 0 0 10px rgba(212,135,42,0.2); position: absolute; left: 50%; transform: translateX(-50%); pointer-events: none; }
+    .fv-more-badge { max-width: 820px; margin: 8px auto 0; text-align: center; font-family: "IM Fell English", serif; font-style: italic; font-size: 13px; color: rgba(255,255,255,0.35); letter-spacing: 0.5px; }
+    .fv-timer { font-family: monospace; font-size: 12px; color: rgba(255,255,255,0.4); margin-left: 6px; letter-spacing: 0.5px; transition: color 0.4s; }
+    .fv-timer-over { color: #e53935; animation: fv-timer-pulse 2s ease-in-out infinite; }
+    @keyframes fv-timer-pulse { 0%,100%{opacity:1;} 50%{opacity:0.55;} }
+    .queue-warn-dot { display: inline-block; margin-left: 6px; background: #e53935; color: #fff; font-size: 10px; font-weight: 700; font-family: monospace; border-radius: 50%; width: 16px; height: 16px; line-height: 16px; text-align: center; vertical-align: middle; animation: fv-timer-pulse 1.5s ease-in-out infinite; cursor: pointer; }
     .field-content { flex: 1; overflow: auto; padding: 20px 16px 32px; position: relative; z-index: 1; }
     .ticket-list { max-width: 820px; margin: 0 auto; }
     .ticket-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; margin: 12px 0; background: #141414; border: 1px solid #2a2a2a; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.35); transition: transform .18s ease, box-shadow .28s ease, border-color .28s ease, opacity .28s ease; }
