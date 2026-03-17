@@ -278,25 +278,25 @@
 
     /* ====== WELCOME LOADING OVERLAY ====== */
     #welcomeLoading {
-      position: absolute;
+      position: fixed;
       inset: 0;
-      z-index: 20;
+      z-index: 9998;
       background: #0d0b0a;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 22px;
+      gap: 32px;
       pointer-events: none;
-      transition: opacity 0.7s ease;
+      transition: opacity 0.8s ease;
     }
     #welcomeLoading.wl-out { opacity: 0; }
     .wl-ember {
-      width: 40px;
-      height: 40px;
+      width: 80px;
+      height: 80px;
       border-radius: 50%;
       background: radial-gradient(circle at 50% 60%, rgba(212,100,20,0.9) 0%, rgba(139,26,26,0.5) 45%, transparent 72%);
-      box-shadow: 0 0 18px 6px rgba(180,60,20,0.25), 0 0 40px 10px rgba(139,26,26,0.12);
+      box-shadow: 0 0 32px 12px rgba(180,60,20,0.3), 0 0 70px 20px rgba(139,26,26,0.15);
       animation: wl-flicker 1.8s ease-in-out infinite;
     }
     @keyframes wl-flicker {
@@ -306,11 +306,10 @@
       80%      { transform: scaleY(1.04) scaleX(0.97); opacity: 0.95; }
     }
     .wl-text {
-      font-family: 'IM Fell English', serif;
-      font-style: italic;
-      font-size: 13px;
-      letter-spacing: 1.5px;
-      color: rgba(232,224,208,0.28);
+      font-family: 'IM Fell English SC', serif;
+      font-size: 18px;
+      letter-spacing: 3px;
+      color: rgba(232,224,208,0.35);
       margin: 0;
       animation: wl-breathe 2.4s ease-in-out infinite;
     }
@@ -641,8 +640,8 @@
     .reentry-row .label { font-family: "IM Fell English SC", serif; letter-spacing: .3px; font-size: 18px; }
 
     /* ====== DISPLAY MODE ====== */
-    .display-view { position: fixed; inset: 0; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; z-index: 9999; cursor: pointer; overflow: hidden; }
-    .display-view > div:first-child { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .display-view { position: fixed; inset: 0; background: #0d0b0a; background-image: radial-gradient(ellipse 120% 80% at 50% 0%, rgba(80,10,10,0.7) 0%, transparent 55%), radial-gradient(ellipse 100% 60% at 50% 100%, rgba(40,5,5,0.5) 0%, transparent 55%); color: #fff; display: flex; align-items: center; justify-content: center; z-index: 9999; cursor: pointer; overflow: hidden; }
+    .display-view > div:first-child { position: relative; z-index: 0; }
     .display-view::after { content: ""; position: absolute; inset: -20%; background: radial-gradient(120% 80% at 50% 10%, rgba(255,255,255,0.06), transparent 60%), radial-gradient(100% 60% at 20% 70%, rgba(255,255,255,0.04), transparent 60%), radial-gradient(100% 60% at 80% 60%, rgba(255,255,255,0.05), transparent 60%); opacity: .5; filter: blur(30px); animation: fog-drift 50s linear infinite; pointer-events: none; }
     @keyframes fog-drift { 0%{transform:translate3d(-5%,-2%,0) scale(1.05);} 50%{transform:translate3d(6%,3%,0) scale(1.1);} 100%{transform:translate3d(-5%,-2%,0) scale(1.05);} }
     #displayQueue { font-family: "IM Fell English SC", serif; font-size: clamp(6rem, 16vw, 20rem); letter-spacing: .5px; line-height: 1; text-align: center; padding: 0 4vw; animation: flicker 6s infinite steps(60, end), glow 3.5s ease-in-out infinite; }
@@ -651,6 +650,19 @@
     .scanlines { position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 2px, transparent 4px); mix-blend-mode: overlay; pointer-events: none; animation: scan 12s linear infinite; opacity: .25; }
     #displayLabel { font-family: "IM Fell English SC", serif; font-size: clamp(1.5rem, 4vw, 3rem); letter-spacing: .5px; text-shadow: 0 2px 10px rgba(0,0,0,.55); margin-bottom: .6em; color: #ccc; animation: flickerLabel 6s infinite steps(60, end); }
     #displayHours { margin-top: 0.6em; font-family: "IM Fell English SC", serif; font-size: clamp(1.2rem, 3vw, 2.2rem); letter-spacing: .4px; color: #ccc; text-shadow: 0 2px 10px rgba(0,0,0,.55); }
+    .ds-panel { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; text-align: center; transition: opacity 0.7s ease, transform 0.7s ease; transform: scale(1); opacity: 1; }
+    .ds-panel.ds-out { opacity: 0; transform: scale(1.03); }
+    .ds-inner { width: 100%; padding: 0 6vw; }
+    .ds-logo { width: clamp(60px, 9vw, 110px); height: auto; margin-bottom: 0.5em; opacity: 0.82; filter: drop-shadow(0 0 24px rgba(139,26,26,0.55)); }
+    .ds-ornament { font-family: "IM Fell English SC", serif; font-size: clamp(0.9rem, 1.8vw, 1.5rem); color: rgba(212,135,42,0.55); letter-spacing: 0.7em; margin: 0.35em 0; }
+    .ds-title { font-family: "IM Fell English SC", serif; font-size: clamp(1.8rem, 5vw, 4.5rem); letter-spacing: 0.6px; color: rgba(232,224,208,0.5); margin-bottom: 0.1em; }
+    .ds-prices { display: flex; flex-direction: column; gap: clamp(0.4rem, 1.2vw, 1rem); max-width: 720px; margin: 0.6em auto 0; }
+    .ds-price-row { display: flex; align-items: baseline; gap: 0.5em; padding: 0.25em 0.4em; border-bottom: 1px solid rgba(255,255,255,0.06); opacity: 0; animation: ds-row-in 0.45s ease forwards; }
+    .ds-price-name { font-family: "IM Fell English SC", serif; font-size: clamp(1.3rem, 3.2vw, 2.8rem); color: rgba(232,224,208,0.9); white-space: nowrap; }
+    .ds-price-dots { flex: 1; border-bottom: 1px dotted rgba(255,255,255,0.18); margin-bottom: 0.22em; }
+    .ds-price-val { font-family: "IM Fell English SC", serif; font-size: clamp(1.5rem, 4vw, 3.6rem); color: rgba(212,175,55,0.95); text-shadow: 0 0 22px rgba(212,175,55,0.35); white-space: nowrap; }
+    .ds-info-text { font-family: "IM Fell English SC", serif; font-size: clamp(1.8rem, 5.5vw, 6rem); color: #f0ebe2; letter-spacing: 0.5px; line-height: 1.25; text-shadow: 0 0 1px rgba(232,224,208,0.3), 0 0 18px rgba(139,26,26,0.4), 2px 2px 0 rgba(0,0,0,0.7); animation: flickerLabel 6s infinite steps(60,end); }
+    @keyframes ds-row-in { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes flicker      { 0%,97%,100%{opacity:1;} 98%{opacity:.92;} 99%{opacity:.85;} }
     @keyframes glow         { 0%,100%{filter:drop-shadow(0 0 0 rgba(0,0,0,0));} 50%{filter:drop-shadow(0 0 6px rgba(0,0,0,.35));} }
     @keyframes scan         { 0%{background-position-y:0;} 100%{background-position-y:200px;} }
