@@ -2185,7 +2185,7 @@
     // Logga
     const logoData=localStorage.getItem('welcomeLogo');
     const logoEl=document.getElementById('cdLogo');
-    if(logoEl&&logoData){ logoEl.src=logoData; logoEl.style.display='block'; }
+    if(logoEl){ logoEl.src=logoData||'korpen.png'; logoEl.style.display='block'; }
 
     // Stäng med Escape eller 3 snabba tryck
     const exitDisplay=()=>{ clearInterval(pollInterval); location.href=location.href.split('?')[0]; };
