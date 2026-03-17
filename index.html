@@ -82,12 +82,14 @@
     </div>
   </div>
 
+  <!-- ===== LOADING OVERLAY ===== -->
+  <div id="welcomeLoading" aria-hidden="true">
+    <div class="wl-ember"></div>
+    <p class="wl-text">laddar…</p>
+  </div>
+
   <!-- ===== VÄLKOMST ===== -->
   <div class="welcome-message" id="welcomeMessage">
-    <div id="welcomeLoading" aria-hidden="true">
-      <div class="wl-ember"></div>
-      <p class="wl-text">laddar…</p>
-    </div>
     <div class="welcome-inner">
       <div class="welcome-hero">
         <img id="welcomeKorpenLogo" src="korpen.png" alt="Spökhotellet Korpen" onerror="this.style.display='none'">
@@ -354,6 +356,13 @@
           <button class="btn btn-green" onclick="saveSwishNumber()">Spara</button>
         </div>
         <div id="swishNumberConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
+        <h4 style="margin:16px 0 6px;">Rullande text (kötidsdisplay)</h4>
+        <div class="tiny muted" style="margin-bottom:6px;">Visas längst ner i kötidsdisplayen. Separera flera meningar med <strong>|</strong></div>
+        <div class="row" style="gap:8px;">
+          <input id="displayTickerInput" class="input" placeholder="t.ex. Välkommen! | Kort film ca 30 min" style="flex:1;">
+          <button class="btn btn-green" onclick="saveDisplayTicker()">Spara</button>
+        </div>
+        <div id="displayTickerConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
       </div>
     </div>
   </div>
@@ -385,7 +394,7 @@
     <h1><button id="displayBtn" onclick="toggleDisplayBtn()" title="Koppla kundskärm" aria-label="Koppla kundskärm"><svg width="13" height="11" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="1" width="24" height="16" rx="2"/><path d="M9 21h8M13 17v4"/></svg></button>Spökhotellet Korpen<button id="kbHelpBtn" onclick="document.getElementById('kbHelp').toggleAttribute('hidden')" title="Tangentbordsgenvägar" aria-label="Visa tangentbordsgenvägar">?</button></h1>
     <div id="kbHelp" hidden>
       <div class="kb-section">Kassa</div>
-      <div class="kb-row"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd><span>Lägg till produkt</span></div>
+      <div id="kbProductRows"></div>
       <div class="kb-row"><kbd>+</kbd><span>50% rabatt</span></div>
       <div class="kb-row"><kbd>⌫</kbd><span>Ångra senaste</span></div>
       <div class="kb-row"><kbd>Esc</kbd><span>Töm kassan</span></div>
@@ -400,12 +409,14 @@
     <div id="closedMessage">Kassan är stängd</div>
     <div class="products"></div>
     <button id="discountBtn" title="Använd 50% rabatt en gång på denna kund">50% rabatt (1 gång)</button>
-    <table class="cart-table">
-      <thead><tr><th>Produkt</th><th>Antal</th><th>Pris</th><th></th></tr></thead>
-      <tbody></tbody>
-    </table>
-    <div id="total">Totalt: 0 kr</div>
-    <button id="checkout" disabled>Genomför köp</button>
+    <div id="cartFooter">
+      <table class="cart-table">
+        <thead><tr><th>Produkt</th><th>Antal</th><th>Pris</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="total">Totalt: 0 kr</div>
+      <button id="checkout" disabled>Genomför köp</button>
+    </div>
     <div id="logSummary"></div>
     <div id="logEntries"></div>
 
@@ -565,7 +576,7 @@
   async function apiGet(key){ const r = await fetch(`${API_URL}?key=${encodeURIComponent(key)}&_=${Date.now()}`, { cache: 'no-store' }); const j = await r.json(); return j.value; }
   async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
-  const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1';
+  const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1'; const DISPLAY_TICKER_KEY='displayTickerTextV1';
   const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1';
 
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
@@ -722,7 +733,8 @@
     function fmtElapsed(ms){ const s=Math.floor(ms/1000); if(s<60) return `${s}s`; const m=Math.floor(s/60); const rs=s%60; return `${m}:${String(rs).padStart(2,'0')}`; }
     function updateTimersAndWarn(){ const threshold=parseQueueMinutes(queueTime); root.querySelectorAll('.fv-timer[data-created]').forEach(el=>{ const ms=Date.now()-Date.parse(el.dataset.created); if(isNaN(ms)||ms<0) return; el.textContent=fmtElapsed(ms); const over=threshold!=null&&ms>threshold*60*1000; el.classList.toggle('fv-timer-over',over); }); }
     function renderTickets(){ const db=loadOpenTickets(); const items=(db.items||[]).filter(it=>(Number(it.adult||0)+Number(it.child||0))>0); const unused=items.filter(it=>!it.used); const oldestFirst=unused.slice().reverse(); const TICKET_LIMIT=3; const visible=oldestFirst.slice(0,TICKET_LIMIT); list.innerHTML=''; if(!visible.length){list.innerHTML='<div class="muted">Inga biljetter just nu.</div>';updateTimersAndWarn();return;} visible.forEach((it,idx)=>{ const row=document.createElement('div'); row.className='ticket-row'; const nameOrId=(it.label&&it.label.trim())?it.label.trim():(it.id?`#${it.id}`:'(utan id)'); const a=Number(it.adult||0),c=Number(it.child||0); row.innerHTML=`<div style="min-width:0;"><div class="meta">${it.time||''} <span class="fv-timer" data-created="${escapeHtml(it.createdAt||'')}"></span></div><div class="who">${escapeHtml(nameOrId)}</div><div class="nums">${a>0?`<span class="pill"><strong style="font-size:22px;line-height:1;">${a}</strong> Vuxen</span>`:''} ${c>0?`<span class="pill"><strong style="font-size:22px;line-height:1;">${c}</strong> Barn</span>`:''} ${Number(it.sum||0)?`<span class="tiny" style="opacity:.7;">• ${it.sum} kr</span>`:''}</div></div><div class="actions"><button class="btn btn-green use-btn">Markera som använd</button></div>`; if(idx===visible.length-1&&isJustCreated(it.createdAt,8)){row.classList.add('flash-green');setTimeout(()=>row.classList.remove('flash-green'),8000);} row.querySelector('.use-btn')?.addEventListener('click',()=>{ row.classList.add('slide-out'); row.addEventListener('transitionend',function onEnd(ev){ if(ev.propertyName!=='opacity') return; row.removeEventListener('transitionend',onEnd); try{markSaleTicketUsed(it.createdAt);}catch(_e){} const db2=loadOpenTickets(); const pos=(db2.items||[]).findIndex(x=>x.createdAt===it.createdAt); if(pos>-1){db2.items.splice(pos,1);saveOpenTickets(db2);} bumpAdmissions((a||0)+(c||0)); renderTickets(); renderSummary(); }); }); list.appendChild(row); }); if(unused.length>TICKET_LIMIT){const badge=document.createElement('div');badge.className='fv-more-badge';badge.textContent=`+${unused.length-TICKET_LIMIT} till`;list.appendChild(badge);} updateTimersAndWarn(); }
-    function renderReEntry(){ const db=loadReEntry(); const passes=db.passes||[]; reList.innerHTML=''; if(!passes.length){reList.innerHTML='<div class="muted" style="max-width:820px;margin:8px auto;">Inga re-entry-pass ännu.</div>';return;} passes.forEach(p=>{ const row=document.createElement('div'); row.className='reentry-row'; row.innerHTML=`<div class="label">${escapeHtml(p.label||'Pass')}</div><div class="count">Insläppt ${Number(p.count||0)} gånger</div><div class="actions"><button class="btn btn-green re-btn">Släpp in</button></div>`; const btn=row.querySelector('.re-btn'); btn?.addEventListener('click',()=>{ if(!canClickRe(p.id)){btn.disabled=true;setTimeout(()=>btn.disabled=false,REENTRY_COOLDOWN_MS);return;} btn.disabled=true; incReEntry(p.id); renderReEntry(); renderSummary(); setTimeout(()=>btn.disabled=false,REENTRY_COOLDOWN_MS); }); reList.appendChild(row); }); }
+    function rePassExpired(p){ const range=getOpenHourRange(); if(!range) return false; const now=new Date(); const nowMins=now.getHours()*60+now.getMinutes(); return nowMins>range.end*60; }
+    function renderReEntry(){ const db=loadReEntry(); const passes=db.passes||[]; reList.innerHTML=''; if(!passes.length){reList.innerHTML='<div class="muted" style="max-width:820px;margin:8px auto;">Inga re-entry-pass ännu.</div>';return;} passes.forEach(p=>{ const row=document.createElement('div'); row.className='reentry-row'; const created=Date.parse(p.createdAt||''); const createdStr=created?new Date(created).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'}):''; const expired=rePassExpired(p); const ageBadge=expired?`<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:rgba(180,80,0,0.3);border:1px solid rgba(220,120,0,0.4);color:rgba(255,160,60,0.9);margin-left:6px;">Utgånget</span>`:''; row.innerHTML=`<div style="min-width:0;"><div class="label" style="${expired?'opacity:0.5;':''}">${escapeHtml(p.label||'Pass')}${ageBadge}</div><div class="count">Insläppt ${Number(p.count||0)} gånger${createdStr?` · Skapad ${createdStr}`:''}</div></div><div class="actions"><button class="btn ${expired?'':'btn-green'} re-btn" ${expired?'disabled title="Passet har gått ut"':''}>Släpp in</button></div>`; const btn=row.querySelector('.re-btn'); if(!expired) btn?.addEventListener('click',()=>{ if(!canClickRe(p.id)){btn.disabled=true;setTimeout(()=>btn.disabled=false,REENTRY_COOLDOWN_MS);return;} btn.disabled=true; incReEntry(p.id); renderReEntry(); renderSummary(); setTimeout(()=>btn.disabled=false,REENTRY_COOLDOWN_MS); }); reList.appendChild(row); }); }
     function renderSummary(){ const a=loadAdmissions(); summaryEl.textContent=String(Number(a.count||0)); }
     renderTickets(); renderReEntry(); renderSummary();
     const tick=setInterval(()=>{renderTickets();renderReEntry();renderSummary();},4000);
@@ -751,7 +763,7 @@
 
   function loadProducts(){ const arr=dbGet(PRODUCTS_KEY,null); if(Array.isArray(arr)&&arr.length) return arr; const seed=defaultProducts(); dbSet(PRODUCTS_KEY,seed).catch(()=>{}); return seed; }
   function saveProducts(arr){ dbSet(PRODUCTS_KEY,Array.isArray(arr)?arr:[]).catch(()=>{}); }
-  function renderProductButtons(){ const wrap=document.querySelector('.products'); if(!wrap) return; wrap.innerHTML=''; loadProducts().forEach(p=>{ const btn=document.createElement('button'); btn.textContent=Number(p.price)===0?`${p.name} – gratis`:`${p.name} – ${p.price} kr`; const n=p.name.toLowerCase(); if(n.includes('vuxen')) btn.classList.add('btn-adult'); else if(n.includes('barn')) btn.classList.add('btn-child'); else if(n.includes('re')) btn.classList.add('btn-reentry'); else btn.classList.add('btn-other'); if(Number(p.price)===0) btn.classList.add('btn-free'); btn.addEventListener('click',()=>addItem(p.name,p.price)); wrap.appendChild(btn); }); }
+  function renderProductButtons(){ const wrap=document.querySelector('.products'); if(!wrap) return; wrap.innerHTML=''; loadProducts().forEach(p=>{ const btn=document.createElement('button'); btn.textContent=Number(p.price)===0?`${p.name} – gratis`:`${p.name} – ${p.price} kr`; const n=p.name.toLowerCase(); if(n.includes('vuxen')) btn.classList.add('btn-adult'); else if(n.includes('barn')) btn.classList.add('btn-child'); else if(n.includes('re')) btn.classList.add('btn-reentry'); else btn.classList.add('btn-other'); if(Number(p.price)===0) btn.classList.add('btn-free'); btn.addEventListener('click',()=>addItem(p.name,p.price)); wrap.appendChild(btn); }); const kbRows=document.getElementById('kbProductRows'); if(kbRows) kbRows.innerHTML=loadProducts().slice(0,9).map((p,i)=>`<div class="kb-row"><kbd>${i+1}</kbd><span>${escapeHtml(p.name)}</span></div>`).join(''); }
   function renderProductsManager(){ const root=document.getElementById('productsList'); if(!root) return; const prods=loadProducts(); root.innerHTML=prods.map(p=>`<div class="row" style="justify-content:space-between;gap:8px;margin:6px 0;"><div class="row" style="flex:1;"><input class="input" style="min-width:220px;" id="pname-${p.id}" value="${escapeHtml(p.name)}"><input class="input" type="number" id="pprice-${p.id}" min="0" step="1" value="${p.price}"></div><div class="row"><button class="btn" onclick="saveProduct(${p.id})">Spara</button><button class="btn btn-danger" onclick="deleteProduct(${p.id})">Ta bort</button></div></div>`).join(''); const addBtn=document.getElementById('pAddBtn'); if(addBtn&&!addBtn._bound){addBtn.addEventListener('click',()=>{ const nameEl=document.getElementById('pNewName'); const priceEl=document.getElementById('pNewPrice'); const name=(nameEl?.value||'').trim(); const price=parseInt(priceEl?.value||'0',10); if(!name||isNaN(price)||price<0){alert('Fyll i giltigt namn och pris.');return;} const list=loadProducts(); const id=list.reduce((m,x)=>Math.max(m,x.id||0),0)+1; list.push({id,name,price}); saveProducts(list); nameEl.value=''; priceEl.value=''; renderProductsManager(); renderProductButtons(); });addBtn._bound=true;} }
   function saveProduct(id){ const prods=loadProducts(); const i=prods.findIndex(p=>p.id===id); if(i===-1) return; const name=(document.getElementById('pname-'+id)?.value||'').trim(); const price=parseInt(document.getElementById('pprice-'+id)?.value||'0',10); if(!name||isNaN(price)||price<0){alert('Ogiltigt namn eller pris.');return;} prods[i].name=name; prods[i].price=price; saveProducts(prods); renderProductsManager(); renderProductButtons(); }
   function deleteProduct(id){ saveProducts(loadProducts().filter(p=>p.id!==id)); renderProductsManager(); renderProductButtons(); }
@@ -766,13 +778,11 @@
   function isAnyModalOpen(){ const pay=document.getElementById('payModal'); const appr=document.getElementById('approveModal'); const login=document.getElementById('loginModal'); return (pay&&pay.style.display==='flex')||(appr&&appr.style.display==='flex')||(login&&login.classList.contains('active')); }
   function isTypingContext(){ const a=document.activeElement; if(!a) return false; const tag=(a.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||a.isContentEditable; }
   function addProductByNameMatch(regex){ const prods=loadProducts(); const p=prods.find(x=>regex.test(String(x.name||'').toLowerCase())); if(!p) return false; const kassaOpen=document.getElementById('kassaContainer')?.style.display==='block'; const closed=(openingHours==='Stängt'&&!isAdmin); if(!kassaOpen||closed) return false; addItem(p.name,p.price); return true; }
+  function addProductByIndex(idx){ const prods=loadProducts(); const p=prods[idx]; if(!p) return false; const kassaOpen=document.getElementById('kassaContainer')?.style.display==='block'; const closed=(openingHours==='Stängt'&&!isAdmin); if(!kassaOpen||closed) return false; addItem(p.name,p.price); return true; }
 
   document.addEventListener('keydown',(e)=>{
     if(isTypingContext()) return; if(isAnyModalOpen()) return; if(!loggedInUser) return; if(!currentHasAccess&&!isAdmin) return;
-    if(e.key==='1'){ if(addProductByNameMatch(/vuxen/)) e.preventDefault(); }
-    else if(e.key==='2'){ if(addProductByNameMatch(/barn/)) e.preventDefault(); }
-    else if(e.key==='3'){ if(addProductByNameMatch(/spel/)) e.preventDefault(); }
-    else if(e.key==='4'){ if(addProductByNameMatch(/re|re-entry|åter/)) e.preventDefault(); }
+    const digit=parseInt(e.key,10); if(digit>=1&&digit<=9){ if(addProductByIndex(digit-1)){ e.preventDefault(); return; } }
     else if(e.key==='+'||e.key==='='){ const b=document.getElementById('discountBtn'); if(b&&b.style.display!=='none'){b.click();e.preventDefault();} }
     else if(e.key==='Backspace'){
       if(isTypingContext()) return;
@@ -1119,6 +1129,7 @@
 
   function upsert(parent,id,html){ let el=document.getElementById(id); if(!el){el=document.createElement('div');el.id=id;parent.appendChild(el);} el.innerHTML=html; }
   function cockpitTotals(dateStr){ const hist=loadSalesHistory(); const d=hist[dateStr]||{}; const adult=d.adult||0,child=d.child||0,total=adult+child,intake=d.income||0,receipts=d.count||0; let intakeAdult=0,intakeChild=0,intakeReEntry=0,intakeOther=0; const entries=Array.isArray(d.entries)?d.entries:[]; entries.forEach(e=>{const b=e&&e.breakdown;if(b){intakeAdult+=Number(b.adult||0);intakeChild+=Number(b.child||0);intakeReEntry+=Number(b.reEntry||0);intakeOther+=Number(b.other||0);}}); return {adult,child,total,intake,receipts,intakeAdult,intakeChild,intakeReEntry,intakeOther}; }
+  function paymentTotalsForDate(dateStr){ const hist=loadSalesHistory(); const d=hist[dateStr]||{}; const entries=Array.isArray(d.entries)?d.entries:[]; const tots={}; entries.forEach(e=>{ const p=e.payType||'—'; tots[p]=(tots[p]||0)+Number(e.sum||0); }); return tots; }
   function parseHourFromTimeStr(t){ if(typeof t!=='string') return 0; const m=t.match(/(\d{1,2}):(\d{2})/); if(!m) return 0; let h=parseInt(m[1],10); if(/pm/i.test(t)&&h<12) h+=12; if(/am/i.test(t)&&h===12) h=0; return h%24; }
   function getOpenHourRange(){ if(!openingHours||openingHours==='Stängt') return null; const m=openingHours.match(/(\d{1,2}):\d{2}\s*[–-]\s*(\d{1,2}):\d{2}/); if(!m) return null; let start=parseInt(m[1],10),end=parseInt(m[2],10); start=Math.max(0,Math.min(23,start)); end=Math.max(0,Math.min(24,end)); return {start,end}; }
   function intakeBucketsByHour(dateStr){ const out=Array.from({length:24},()=>0); const day=loadSalesHistory()[dateStr]||{}; const entries=Array.isArray(day.entries)?day.entries:[]; entries.forEach(e=>{const h=parseHourFromTimeStr(e.time);out[h]+=Number(e.sum||0);}); return out; }
@@ -1130,7 +1141,7 @@
   function renderCockpit(){
     const statsRoot=document.getElementById('statsContent'); if(!statsRoot) return;
     if(!loggedInUser){upsert(statsRoot,'cockpitWrap','<div class="muted">Logga in för att se cockpiten.</div>');return;}
-    const today=todayStr();const totals=cockpitTotals(today);const costs=getDailyCosts();const net=Number(totals.intake||0)-Number(costs||0);const admitted=admittedToday();const reEntryAdmitted=reEntryAdmittedToday();const range=getOpenHourRange();
+    const today=todayStr();const totals=cockpitTotals(today);const payTots=paymentTotalsForDate(today);const costs=getDailyCosts();const net=Number(totals.intake||0)-Number(costs||0);const admitted=admittedToday();const reEntryAdmitted=reEntryAdmittedToday();const range=getOpenHourRange();
     let guestsPerHour=guestBucketsByHour();let intakePerHour=intakeBucketsByHour(today);let hourOffset=0;
     if(range){guestsPerHour=guestsPerHour.slice(range.start,range.end);intakePerHour=intakePerHour.slice(range.start,range.end);hourOffset=range.start;}
     const maxG=guestsPerHour.reduce((m,v)=>Math.max(m,v),0);const maxI=intakePerHour.reduce((m,v)=>Math.max(m,v),0);
@@ -1151,7 +1162,7 @@
         if(wrapEl) wrapEl.innerHTML=svgBars24(guestsPerHour,Math.max(maxG,5),90,{id:'cockpitChart',unit:'gäster',startHour:hourOffset});
       }else{
         const fc=computeForecastForToday(totals.intake,admitted);const fcNote=`${fc.label} • ${admitted} insläppta`;
-        if(pillsEl) pillsEl.innerHTML=`<span class="pill">Dagens intäkt: <strong>${totals.intake} kr</strong></span><span class="pill" style="${net>=0?'border-color:rgba(40,167,69,0.5);':'border-color:rgba(192,57,43,0.5);'}">Resultat: <strong>${net} kr</strong></span><span class="pill">Beräknad intäkt: <strong>~ ${fc.predicted} kr</strong></span><button class="btn pill" type="button" id="buyBtn" style="margin-left:auto;">Köp: <strong>${totals.receipts}</strong></button><button class="btn pill" type="button" id="intakeDetailsBtn">+</button><div id="buyPanel" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill">Köptillfällen: <strong>${totals.receipts}</strong></span><span class="pill">Biljetter sålda: <strong>${totals.adult+totals.child}</strong></span><span class="pill">Vuxen: <strong>${totals.adult}</strong></span><span class="pill">Barn: <strong>${totals.child}</strong></span><span class="pill">Övrigt: <strong>${totals.intakeOther||0} kr</strong></span><span class="pill">Re-entry köp: <strong>${reEntryPurchasesForDate(todayStr())}</strong></span></div></div><div id="intakeDetails" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setDailyCostsViaPrompt()':''}">Utgifter: <strong>${costs} kr</strong></span>${(()=>{if(costs<=0) return '';const be=fc.avgUsed>0?Math.ceil(costs/fc.avgUsed):null;if(!be) return '';const covered=totals.intake>=costs;return `<span class="pill" style="${covered?'border-color:rgba(40,167,69,0.5);':''}">Nollpunkt: <strong>~${be} besökare</strong>${covered?' ✓':''}</span>`;})()}<span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setForecastTargetViaPrompt()':''}">Prognos insläppta: <strong>${fc.target}</strong></span><span class="pill tiny" style="opacity:.9;">${escapeHtml(fcNote)}</span>${isAdmin?`<span class="pill clickable" onclick="setForecastFallbackAvgViaPrompt()">Fallback-snitt: <strong>${Math.round(fc.fallbackAvg)} kr/p</strong></span>`:``}</div>${(()=>{ const hrs=loadOpeningHours(); const sim=getSimilarDays(hrs); if(!sim.length) return ''; const avg=Math.round(sim.reduce((s,d)=>s+d.admitted,0)/sim.length); const toggleBtn='<button class="btn pill" type="button" onclick="toggleSimilarDays()" style="font-size:12px;">'+(_showSimilarDays?'▲':'▼')+' Liknande dagar ('+sim.length+')</button>'; if(!_showSimilarDays) return '<div style="margin-top:8px;">'+toggleBtn+'</div>'; const rows=sim.map(d=>'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;"><span>'+d.date+'</span><span>'+d.admitted+' gäster</span></div>').join(''); const useBtn=isAdmin?'<button class="btn pill" type="button" onclick="useSimilarDaysAvg('+avg+')">Använd som prognos</button>':''; return '<div style="margin-top:8px;">'+toggleBtn+'<div style="margin-top:6px;background:rgba(0,0,0,.25);border-radius:8px;padding:8px 12px;">'+rows+'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><strong style="font-size:13px;">Snitt: '+avg+' gäster</strong>'+useBtn+'</div></div></div>'; })()}</div>`;
+        if(pillsEl) pillsEl.innerHTML=`<span class="pill">Dagens intäkt: <strong>${totals.intake} kr</strong></span><span class="pill" style="${net>=0?'border-color:rgba(40,167,69,0.5);':'border-color:rgba(192,57,43,0.5);'}">Resultat: <strong>${net} kr</strong></span><span class="pill">Beräknad intäkt: <strong>~ ${fc.predicted} kr</strong></span><button class="btn pill" type="button" id="buyBtn" style="margin-left:auto;">Köp: <strong>${totals.receipts}</strong></button><button class="btn pill" type="button" id="intakeDetailsBtn">+</button><div id="buyPanel" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill">Köptillfällen: <strong>${totals.receipts}</strong></span><span class="pill">Biljetter sålda: <strong>${totals.adult+totals.child}</strong></span><span class="pill">Vuxen: <strong>${totals.adult}</strong></span><span class="pill">Barn: <strong>${totals.child}</strong></span><span class="pill">Övrigt: <strong>${totals.intakeOther||0} kr</strong></span><span class="pill">Re-entry köp: <strong>${reEntryPurchasesForDate(todayStr())}</strong></span></div><div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px;">${['Swish','Kort','Kontant'].map(m=>payTots[m]?`<span class="pill">${m}: <strong>${payTots[m]} kr</strong></span>`:'').join('')}</div></div><div id="intakeDetails" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setDailyCostsViaPrompt()':''}">Utgifter: <strong>${costs} kr</strong></span>${(()=>{if(costs<=0) return '';const be=fc.avgUsed>0?Math.ceil(costs/fc.avgUsed):null;if(!be) return '';const covered=totals.intake>=costs;return `<span class="pill" style="${covered?'border-color:rgba(40,167,69,0.5);':''}">Nollpunkt: <strong>~${be} besökare</strong>${covered?' ✓':''}</span>`;})()}<span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setForecastTargetViaPrompt()':''}">Prognos insläppta: <strong>${fc.target}</strong></span><span class="pill tiny" style="opacity:.9;">${escapeHtml(fcNote)}</span>${isAdmin?`<span class="pill clickable" onclick="setForecastFallbackAvgViaPrompt()">Fallback-snitt: <strong>${Math.round(fc.fallbackAvg)} kr/p</strong></span>`:``}</div>${(()=>{ const hrs=loadOpeningHours(); const sim=getSimilarDays(hrs); if(!sim.length) return ''; const avg=Math.round(sim.reduce((s,d)=>s+d.admitted,0)/sim.length); const toggleBtn='<button class="btn pill" type="button" onclick="toggleSimilarDays()" style="font-size:12px;">'+(_showSimilarDays?'▲':'▼')+' Liknande dagar ('+sim.length+')</button>'; if(!_showSimilarDays) return '<div style="margin-top:8px;">'+toggleBtn+'</div>'; const rows=sim.map(d=>'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;"><span>'+d.date+'</span><span>'+d.admitted+' gäster</span></div>').join(''); const useBtn=isAdmin?'<button class="btn pill" type="button" onclick="useSimilarDaysAvg('+avg+')">Använd som prognos</button>':''; return '<div style="margin-top:8px;">'+toggleBtn+'<div style="margin-top:6px;background:rgba(0,0,0,.25);border-radius:8px;padding:8px 12px;">'+rows+'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><strong style="font-size:13px;">Snitt: '+avg+' gäster</strong>'+useBtn+'</div></div></div>'; })()}</div>`;
         if(buyWasOpen){const p=document.getElementById('buyPanel');if(p) p.style.display='block';}
         if(detWasOpen){const p=document.getElementById('intakeDetails');if(p) p.style.display='block';}
         const buyBtn=document.getElementById('buyBtn');if(buyBtn&&!buyBtn._bound){buyBtn.addEventListener('click',()=>{const buy=document.getElementById('buyPanel');const det=document.getElementById('intakeDetails');const open=buy&&buy.style.display==='block';if(buy) buy.style.display=open?'none':'block';if(!open&&det) det.style.display='none';});buyBtn._bound=true;}
@@ -1172,9 +1183,9 @@
     if(!dates.length){root.innerHTML='<div class="muted" style="font-style:italic;">Ingen historik än.</div>';return;}
     root.innerHTML='';
     dates.forEach(date=>{
-      const s=hist[date]||{};const totalGuests=(s.adult||0)+(s.child||0);const detailId=`statsDetail-${date}`;const btnId=`statsBtn-${date}`;const hoursLabel=s.hours&&s.hours!=='Stängt'?` • ${s.hours}`:'';
+      const s=hist[date]||{};const totalGuests=(s.adult||0)+(s.child||0);const detailId=`statsDetail-${date}`;const btnId=`statsBtn-${date}`;const hoursLabel=s.hours&&s.hours!=='Stängt'?` • ${s.hours}`:'';const _sEntries=Array.isArray(s.entries)?s.entries:[];const _sPay={};_sEntries.forEach(e=>{const p=e.payType||'—';_sPay[p]=(_sPay[p]||0)+Number(e.sum||0);});const payLabel=['Swish','Kort','Kontant'].filter(m=>_sPay[m]).map(m=>`${m}: ${_sPay[m]} kr`).join(' / ');
       const wrap=document.createElement('div');wrap.className='section';
-      wrap.innerHTML=`<button id="${btnId}" class="disclosure" type="button" onclick="toggleStats('${date}',this)">${date}${hoursLabel} — Gäster: ${totalGuests} (Vuxna: ${s.adult||0}, Barn: ${s.child||0}) • Inkomst: ${s.income||0} kr • Köp: ${s.count||0}</button><div id="${detailId}" class="content" style="display:none;"></div>`;
+      wrap.innerHTML=`<button id="${btnId}" class="disclosure" type="button" onclick="toggleStats('${date}',this)">${date}${hoursLabel} — Gäster: ${totalGuests} (Vuxna: ${s.adult||0}, Barn: ${s.child||0}) • Inkomst: ${s.income||0} kr • Köp: ${s.count||0}${payLabel?' • '+payLabel:''}</button><div id="${detailId}" class="content" style="display:none;"></div>`;
       root.appendChild(wrap);
     });
     const openDays=loadOpenStatsDays();
@@ -1188,8 +1199,9 @@
     if(willOpen){
       const histAll=loadSalesHistory();const s=histAll[date];
       const deleteBar=`<div class="row" style="justify-content:space-between;align-items:center;margin:6px 0 12px;gap:10px;flex-wrap:wrap;"><div class="tiny muted">Administratör: visa sammanfattning eller radera dagen.</div><div class="row" style="gap:8px;flex-wrap:wrap;"><button class="btn" onclick="showDaySummaryModal('${date}')">Visa sammanfattning</button><button class="btn btn-danger" onclick="deleteStatsDay('${date}')">Radera dag</button></div></div><hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:10px 0;">`;
-      if(!s||!Array.isArray(s.entries)||!s.entries.length){el.innerHTML=deleteBar+'<div class="muted" style="font-style:italic;">Inga detaljposter för datumet.</div>';}
-      else{el.innerHTML=deleteBar+s.entries.map(e=>{ const isReEntryPurchase=Number(e?.reEntryCreated||0)>0||Number(e?.breakdown?.reEntry||0)>0;let usedBadge='';if(isReEntryPurchase){const day=histAll[date]||{};const passes=Array.isArray(day.reEntryPasses)?day.reEntryPasses:[];const countMap={};passes.forEach(p=>{countMap[p.id]=Number(p.count||0);});const ids=Array.isArray(e.reEntryIds)?e.reEntryIds:[];if(ids.length){usedBadge=ids.map(id=>{const p=passes.find(x=>x.id===id);const label=p?.label||'Re-entry';const n=(countMap[id]??0);return `<span class="pill" style="background:rgba(75,0,130,0.4);border-color:rgba(142,106,216,0.5);">${escapeHtml(label)}: ${n} gånger</span>`;}).join(' ');}else{usedBadge=`<span class="pill" style="background:rgba(75,0,130,0.4);">Re-entry</span>`;}}else if(typeof e.used==='boolean'){usedBadge=e.used?'<span class="pill" style="background:rgba(26,58,35,0.5);border-color:rgba(40,167,69,0.4);">Använd</span>':'<span class="pill">Ej använd</span>';}const labelPart=e.ticketLabel?` — <em>${escapeHtml(e.ticketLabel)}</em>`:'';return `<div class="log-entry"><strong>${escapeHtml(e.time)}<br></strong>${(e.items||[]).map(escapeHtml).join('<br>')}<br><em>Summa: ${e.sum} kr</em>${labelPart}${usedBadge?` ${usedBadge}`:``}<br><span class="tiny">Säljare: ${escapeHtml(e.seller||'—')} • Betalning: ${escapeHtml(e.payType||'—')}</span></div>`; }).join('');}
+      const _tPay=paymentTotalsForDate(date);const _tPayPills=['Swish','Kort','Kontant'].map(m=>_tPay[m]?`<span class="pill">${m}: <strong>${_tPay[m]} kr</strong></span>`:'').join('');const payRow=_tPayPills?`<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px;">${_tPayPills}</div>`:'';
+      if(!s||!Array.isArray(s.entries)||!s.entries.length){el.innerHTML=deleteBar+payRow+'<div class="muted" style="font-style:italic;">Inga detaljposter för datumet.</div>';}
+      else{el.innerHTML=deleteBar+payRow+s.entries.map(e=>{ const isReEntryPurchase=Number(e?.reEntryCreated||0)>0||Number(e?.breakdown?.reEntry||0)>0;let usedBadge='';if(isReEntryPurchase){const day=histAll[date]||{};const passes=Array.isArray(day.reEntryPasses)?day.reEntryPasses:[];const countMap={};passes.forEach(p=>{countMap[p.id]=Number(p.count||0);});const ids=Array.isArray(e.reEntryIds)?e.reEntryIds:[];if(ids.length){usedBadge=ids.map(id=>{const p=passes.find(x=>x.id===id);const label=p?.label||'Re-entry';const n=(countMap[id]??0);return `<span class="pill" style="background:rgba(75,0,130,0.4);border-color:rgba(142,106,216,0.5);">${escapeHtml(label)}: ${n} gånger</span>`;}).join(' ');}else{usedBadge=`<span class="pill" style="background:rgba(75,0,130,0.4);">Re-entry</span>`;}}else if(typeof e.used==='boolean'){usedBadge=e.used?'<span class="pill" style="background:rgba(26,58,35,0.5);border-color:rgba(40,167,69,0.4);">Använd</span>':'<span class="pill">Ej använd</span>';}const labelPart=e.ticketLabel?` — <em>${escapeHtml(e.ticketLabel)}</em>`:'';return `<div class="log-entry"><strong>${escapeHtml(e.time)}<br></strong>${(e.items||[]).map(escapeHtml).join('<br>')}<br><em>Summa: ${e.sum} kr</em>${labelPart}${usedBadge?` ${usedBadge}`:``}<br><span class="tiny">Säljare: ${escapeHtml(e.seller||'—')} • Betalning: ${escapeHtml(e.payType||'—')}</span></div>`; }).join('');}
     }
     if(btnEl){const base=btnEl.textContent.replace(/^Visa |^Dölj /,'');btnEl.textContent=(willOpen?'Dölj ':'Visa ')+base;}
   }
@@ -1257,9 +1269,39 @@
     const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';
   }
 
+  function saveDisplayTicker(){ const val=(document.getElementById('displayTickerInput')?.value||'').trim(); localStorage.setItem(DISPLAY_TICKER_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayTickerConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} }
+
   function computeDisplayTextAndState(){ const q=String(queueTime||'').trim();const qLower=q.toLowerCase();const isClosed=openingHours==='Stängt'||qLower.includes('stängt');let text='Ingen info';if(qLower==='stängt för kvällen') text='Stängt för kvällen';else if(qLower==='tillfälligt stängt') text='Tillfälligt stängt';else if(openingHours==='Stängt'||qLower==='stängt') text='Stängt';else if(q) text=q;return {text,isClosed}; }
-  function showDisplay(){ const {text,isClosed}=computeDisplayTextAndState();const o=document.createElement('div');o.className='display-view '+(isClosed?'state-closed':'state-open');const inner=document.createElement('div');inner.style.cssText='display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;';const label=document.createElement('div');label.id='displayLabel';label.textContent='Beräknad kötid';const d=document.createElement('div');d.id='displayQueue';d.textContent=text;const hours=document.createElement('div');hours.id='displayHours';hours.textContent=(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${openingHours}`:`Stängt idag`;const scan=document.createElement('div');scan.className='scanlines';inner.appendChild(label);inner.appendChild(d);inner.appendChild(hours);o.appendChild(inner);o.appendChild(scan);const close=()=>{ localStorage.removeItem('overlayModeV1'); o.remove(); };document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',esc);}});let taps=0,tapTimer=null;o.addEventListener('pointerdown',(e)=>{if(e.pointerType!=='touch') return;taps+=1;clearTimeout(tapTimer);tapTimer=setTimeout(()=>{taps=0;},1500);if(taps>=3) close();},{passive:true});document.body.appendChild(o); }
-  function refreshDisplayOverlay(){ const root=document.querySelector('.display-view');if(!root) return;const lbl=root.querySelector('#displayQueue');const hrs=root.querySelector('#displayHours');const {text,isClosed}=computeDisplayTextAndState();if(lbl) lbl.textContent=text;if(hrs) hrs.textContent=(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${openingHours}`:`Stängt idag`;root.classList.toggle('state-closed',isClosed);root.classList.toggle('state-open',!isClosed); }
+
+  function showDisplay(){
+    const o=document.createElement('div'); o.className='display-view'; document.body.appendChild(o);
+    const scan=document.createElement('div'); scan.className='scanlines'; o.appendChild(scan);
+    const panel=document.createElement('div'); panel.className='ds-panel'; o.appendChild(panel);
+
+    function buildSlides(){ const content=[]; const prods=loadProducts().filter(p=>Number(p.price)>0); if(prods.length) content.push({type:'prices',prods}); const custom=(localStorage.getItem(DISPLAY_TICKER_KEY)||'').trim(); if(custom) custom.split('|').forEach(s=>{s=s.trim();if(s) content.push({type:'info',text:s});}); if(!content.length) return [{type:'queue'}]; const result=[]; content.forEach(s=>{result.push({type:'queue'});result.push(s);}); return result; }
+
+    function renderSlide(slide){ const {text,isClosed}=computeDisplayTextAndState(); o.className='display-view '+(isClosed?'state-closed':'state-open');
+      if(slide.type==='queue') return `<div class="ds-inner"><div id="displayLabel">Beräknad kötid</div><div id="displayQueue">${escapeHtml(text)}</div><div id="displayHours">${(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${escapeHtml(openingHours)}`:'Stängt idag'}</div></div>`;
+      if(slide.type==='prices') return `<div class="ds-inner"><img src="korpen.png" class="ds-logo" onerror="this.style.display='none'" alt=""><div class="ds-title">Priser</div><div class="ds-ornament">— ✦ —</div><div class="ds-prices">${slide.prods.map((p,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.1+0.15}s"><span class="ds-price-name">${escapeHtml(p.name)}</span><span class="ds-price-dots"></span><span class="ds-price-val">${p.price} kr</span></div>`).join('')}</div></div>`;
+      if(slide.type==='info') return `<div class="ds-inner"><img src="korpen.png" class="ds-logo" onerror="this.style.display='none'" alt=""><div class="ds-ornament">— ✦ —</div><div class="ds-info-text">${escapeHtml(slide.text)}</div></div>`;
+      return ''; }
+
+    let slides=buildSlides(); let idx=0;
+    o._rebuildSlides=()=>{ slides=buildSlides(); };
+
+    function showSlide(i,immediate=false){
+      if(!immediate) panel.classList.add('ds-out');
+      setTimeout(()=>{ panel.innerHTML=renderSlide(slides[i]); void panel.offsetWidth; panel.classList.remove('ds-out'); },immediate?0:700);
+    }
+    showSlide(0,true);
+    const timer=setInterval(()=>{ idx=(idx+1)%slides.length; showSlide(idx); },8000);
+
+    const close=()=>{ clearInterval(timer); localStorage.removeItem('overlayModeV1'); o.remove(); };
+    document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',esc);}});
+    let taps=0,tapTimer=null; o.addEventListener('pointerdown',(e)=>{if(e.pointerType!=='touch') return;taps+=1;clearTimeout(tapTimer);tapTimer=setTimeout(()=>{taps=0;},1500);if(taps>=3) close();},{passive:true});
+  }
+
+  function refreshDisplayOverlay(){ const root=document.querySelector('.display-view');if(!root) return; const lbl=root.querySelector('#displayQueue');const hrs=root.querySelector('#displayHours');const {text,isClosed}=computeDisplayTextAndState();if(lbl) lbl.textContent=text;if(hrs) hrs.textContent=(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${openingHours}`:'Stängt idag';root.classList.toggle('state-closed',isClosed);root.classList.toggle('state-open',!isClosed);if(root._rebuildSlides) root._rebuildSlides(); }
 
   /* ============================== RECENSIONER ============================== */
   let _reviewRating = 0;
@@ -1962,10 +2004,11 @@
     const _offlineBanner = document.getElementById('offlineBanner');
     function _setOffline(on){ if(_offlineBanner) _offlineBanner.classList.toggle('visible', on); }
 
+    document.body.style.overflow='hidden';
     function dismissWelcomeLoading(){
       const el=document.getElementById('welcomeLoading'); if(!el) return;
       el.classList.add('wl-out');
-      setTimeout(()=>el.remove(), 750);
+      setTimeout(()=>{ el.remove(); document.body.style.overflow=''; }, 750);
     }
     const _wlFallback=setTimeout(dismissWelcomeLoading, 5000);
 
@@ -2139,6 +2182,8 @@
   async function loadDisplayAdminStatus(){
     const inp=document.getElementById('swishNumberInput');
     if(inp) inp.value=getSwishNumber();
+    const tickerInp=document.getElementById('displayTickerInput');
+    if(tickerInp) tickerInp.value=localStorage.getItem(DISPLAY_TICKER_KEY)||'';
     const statusEl=document.getElementById('displayAdminStatus');
     const btn=document.getElementById('displayAdminDisconnectBtn');
     if(!statusEl) return;
@@ -2267,7 +2312,7 @@
       }catch(_e){}
     }
     pollDisplay();
-    const pollInterval=setInterval(pollDisplay,2000);
+    const pollInterval=setInterval(pollDisplay,800);
   }
 
   boot();
