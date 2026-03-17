@@ -376,19 +376,13 @@
       <div class="muted" style="margin-top:8px;">Välj en bakgrundsfärg för just din sida!</div>
     </div>
 
-    <div id="displaySection" style="margin-top:20px; border-top:1px solid rgba(0,0,0,0.12); padding-top:16px; display:none;">
-      <h4 style="font-family:'IM Fell English SC',serif;margin:0 0 8px;">Kundskärm</h4>
-      <div id="displayStatusText" style="font-size:13px;color:rgba(0,0,0,0.5);margin-bottom:10px;">Kollar status...</div>
-      <div id="displayBtns"></div>
-    </div>
-
     <!-- Meddelandesektion (längst ned) — fylls av JS beroende på roll -->
     <div id="staffMsgSection"></div>
   </div>
 
   <!-- ===== KASSA ===== -->
   <div id="kassaContainer">
-    <h1>Spökhotellet Korpen<button id="kbHelpBtn" onclick="document.getElementById('kbHelp').toggleAttribute('hidden')" title="Tangentbordsgenvägar" aria-label="Visa tangentbordsgenvägar">?</button></h1>
+    <h1><button id="displayBtn" onclick="toggleDisplayBtn()" title="Koppla kundskärm" aria-label="Koppla kundskärm"><svg width="13" height="11" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="1" width="24" height="16" rx="2"/><path d="M9 21h8M13 17v4"/></svg></button>Spökhotellet Korpen<button id="kbHelpBtn" onclick="document.getElementById('kbHelp').toggleAttribute('hidden')" title="Tangentbordsgenvägar" aria-label="Visa tangentbordsgenvägar">?</button></h1>
     <div id="kbHelp" hidden>
       <div class="kb-section">Kassa</div>
       <div class="kb-row"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd><span>Lägg till produkt</span></div>
@@ -1675,7 +1669,7 @@
     updateMsgBadge();
   }
 
-  function loadProfile(){ if(!userData||typeof userData!=='object') userData={};const name=loggedInUser;ensureProfileDefaults(name);if(_lastProfileWelcomeFor!==name){setRandomWelcome(name);_lastProfileWelcomeFor=name;}document.getElementById('myHours').textContent=(userData[name].hours||'').trim()||'–';document.getElementById('myTask').textContent=(userData[name].task||'').trim()||'–';const sk=document.getElementById('skillsList');if(sk) sk.innerHTML=renderSkillsBadges(userData[name].skills);applyProfileTheme(userData[name].theme);setThemeRadios(userData[name].theme);renderStaffMsgSection();loadDisplayStatus(); }
+  function loadProfile(){ if(!userData||typeof userData!=='object') userData={};const name=loggedInUser;ensureProfileDefaults(name);if(_lastProfileWelcomeFor!==name){setRandomWelcome(name);_lastProfileWelcomeFor=name;}document.getElementById('myHours').textContent=(userData[name].hours||'').trim()||'–';document.getElementById('myTask').textContent=(userData[name].task||'').trim()||'–';const sk=document.getElementById('skillsList');if(sk) sk.innerHTML=renderSkillsBadges(userData[name].skills);applyProfileTheme(userData[name].theme);setThemeRadios(userData[name].theme);renderStaffMsgSection(); }
 
   function loadSkillCatalog(){ const arr=dbGet(SKILL_CATALOG_KEY,null);if(Array.isArray(arr)&&arr.length) return arr;const seed=defaultSkillCatalog();dbSet(SKILL_CATALOG_KEY,seed).catch(()=>{});return seed; }
   function saveSkillCatalog(list){ dbSet(SKILL_CATALOG_KEY,(list||[]).filter(Boolean)).catch(()=>{}); }
@@ -1948,7 +1942,7 @@
     loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();bindWelcomeControls();
     hideAll();
 
-    if(loggedInUser){ selectMenu(isAdmin?'admin':'profile'); }
+    if(loggedInUser){ selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership(); }
     else{
       document.getElementById('welcomeMessage').style.display='flex';
       if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');
@@ -2060,9 +2054,20 @@
     apiSet(CUSTOMER_DISPLAY_CART_KEY,JSON.stringify(data)).catch(()=>{});
   }
 
+  function updateDisplayBtn(){
+    const btn=document.getElementById('displayBtn'); if(!btn) return;
+    btn.classList.toggle('active',_displayActive);
+    btn.title=_displayActive?'Koppla från kundskärm':'Koppla kundskärm';
+  }
+  async function toggleDisplayBtn(){
+    const btn=document.getElementById('displayBtn');
+    if(btn) btn.classList.add('loading');
+    if(_displayActive) await disconnectDisplay(); else await connectDisplay();
+    if(btn) btn.classList.remove('loading');
+  }
   async function syncDisplayOwnership(){
     if(!loggedInUser) return;
-    try{ const owner=await apiGet(CUSTOMER_DISPLAY_OWNER_KEY); _displayActive=(owner===loggedInUser); }catch(_e){}
+    try{ const owner=await apiGet(CUSTOMER_DISPLAY_OWNER_KEY); _displayActive=(owner===loggedInUser); updateDisplayBtn(); }catch(_e){}
   }
 
   function pushDisplayCart(){
@@ -2116,10 +2121,9 @@
       await apiSet(CUSTOMER_DISPLAY_OWNER_KEY,loggedInUser);
       await apiSet(CUSTOMER_DISPLAY_CART_KEY,JSON.stringify({items:[],discount:false,total:0,ts:Date.now(),state:'idle'}));
       _displayActive=true;
+      updateDisplayBtn();
       if(statusEl) statusEl.textContent='Kundskärmen är kopplad till din kassa.';
       if(btnsEl) btnsEl.innerHTML='<button class="btn btn-danger" onclick="disconnectDisplay()">Koppla från</button>';
-      const displayUrl=location.href.split('?')[0]+'?display';
-      window.open(displayUrl,'kundskarm');
     }catch(_e){ if(statusEl) statusEl.textContent='Fel vid koppling — försök igen.'; }
   }
 
@@ -2128,7 +2132,7 @@
       await apiSet(CUSTOMER_DISPLAY_OWNER_KEY,'');
       await apiSet(CUSTOMER_DISPLAY_CART_KEY,'');
       _displayActive=false;
-      loadDisplayStatus();
+      updateDisplayBtn();
     }catch(_e){}
   }
 
@@ -2156,6 +2160,7 @@
       await apiSet(CUSTOMER_DISPLAY_OWNER_KEY,'');
       await apiSet(CUSTOMER_DISPLAY_CART_KEY,'');
       _displayActive=false;
+      updateDisplayBtn();
       loadDisplayAdminStatus();
     }catch(_e){}
   }
@@ -2226,8 +2231,23 @@
       const amtEl=document.getElementById('cdSwishAmount'); if(amtEl) amtEl.textContent=`${data.total} kr`;
     }
 
-    let _lastPollTs=0;
+    let _lastPollTs=0, _lastOwnerCheck=0;
+    async function updateConnStatus(){
+      try{
+        const owner=await apiGet(CUSTOMER_DISPLAY_OWNER_KEY);
+        const dot=document.getElementById('cdConnDot');
+        const lbl=document.getElementById('cdConnLabel');
+        const wrap=document.getElementById('cdConnStatus');
+        const connected=!!owner;
+        if(dot) dot.style.background=connected?'#6f6':'rgba(232,224,208,0.2)';
+        if(lbl) lbl.textContent=connected?owner:'ej kopplad';
+        if(wrap) wrap.style.opacity=connected?'0.35':'0.2';
+      }catch(_e){}
+    }
+    updateConnStatus();
     async function pollDisplay(){
+      const now=Date.now();
+      if(now-_lastOwnerCheck>6000){ _lastOwnerCheck=now; updateConnStatus(); }
       try{
         const raw=await apiGet(CUSTOMER_DISPLAY_CART_KEY);
         if(!raw){ showIdle(); return; }
@@ -2291,6 +2311,10 @@
       <div id="cdClock" style="margin-top:28px; font-size:1.8rem; letter-spacing:2px; opacity:0.55; font-family:'IM Fell English SC',serif;"></div>
     </div>
 
+    <div id="cdConnStatus" style="position:absolute; bottom:16px; right:20px; display:flex; align-items:center; gap:6px; opacity:0.25; transition:opacity .3s;">
+      <div id="cdConnDot" style="width:6px; height:6px; border-radius:50%; background:rgba(232,224,208,0.3); flex-shrink:0; transition:background .4s;"></div>
+      <span id="cdConnLabel" style="font-size:0.65rem; letter-spacing:0.5px; font-family:'IM Fell English',serif; font-style:italic; color:rgba(232,224,208,0.8);">ej kopplad</span>
+    </div>
   </div>
 
   <!-- ===== CHECKOUT SUCCESS FLASH ===== -->
