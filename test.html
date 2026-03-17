@@ -1087,6 +1087,19 @@
       </div>
     </div>`;
 
+    // Betalningsmetoder
+    const payTots = paymentTotalsForDate(dateStr);
+    const payMethods = ['Swish','Kort','Kontant'].filter(m=>payTots[m]);
+    if(payMethods.length){
+      html += `<hr class="day-summary-divider">
+      <div class="day-summary-section">
+        <div class="day-summary-section-title">Betalningsmetoder</div>
+        <div class="day-summary-pills">
+          ${payMethods.map(m=>pill(m, payTots[m]+' kr')).join('')}
+        </div>
+      </div>`;
+    }
+
     // Ekonomi
     html += `<hr class="day-summary-divider">
     <div class="day-summary-section">
@@ -1185,7 +1198,7 @@
     dates.forEach(date=>{
       const s=hist[date]||{};const totalGuests=(s.adult||0)+(s.child||0);const detailId=`statsDetail-${date}`;const btnId=`statsBtn-${date}`;const hoursLabel=s.hours&&s.hours!=='Stängt'?` • ${s.hours}`:'';const _sEntries=Array.isArray(s.entries)?s.entries:[];const _sPay={};_sEntries.forEach(e=>{const p=e.payType||'—';_sPay[p]=(_sPay[p]||0)+Number(e.sum||0);});const payLabel=['Swish','Kort','Kontant'].filter(m=>_sPay[m]).map(m=>`${m}: ${_sPay[m]} kr`).join(' / ');
       const wrap=document.createElement('div');wrap.className='section';
-      wrap.innerHTML=`<button id="${btnId}" class="disclosure" type="button" onclick="toggleStats('${date}',this)">${date}${hoursLabel} — Gäster: ${totalGuests} (Vuxna: ${s.adult||0}, Barn: ${s.child||0}) • Inkomst: ${s.income||0} kr • Köp: ${s.count||0}${payLabel?' • '+payLabel:''}</button><div id="${detailId}" class="content" style="display:none;"></div>`;
+      wrap.innerHTML=`<button id="${btnId}" class="disclosure" type="button" onclick="toggleStats('${date}',this)">${date}${hoursLabel} — Gäster: ${totalGuests} (Vuxna: ${s.adult||0}, Barn: ${s.child||0}) • Inkomst: ${s.income||0} kr • Köp: ${s.count||0}</button><div id="${detailId}" class="content" style="display:none;"></div>`;
       root.appendChild(wrap);
     });
     const openDays=loadOpenStatsDays();
