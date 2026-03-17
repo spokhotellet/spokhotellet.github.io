@@ -276,6 +276,16 @@
     .admin-password .label { margin-right: 6px; opacity: .8; }
     .admin-password .value { font-family: monospace; color: rgba(232,224,208,0.65); }
 
+    /* Admin form helpers */
+    #adminSettings > h3 { font-family: 'IM Fell English SC', serif; letter-spacing: 0.5px; color: #f0ebe2; margin-bottom: 12px; }
+    .admin-label { display: block; font-family: 'IM Fell English SC', serif; font-size: 12px; color: rgba(232,224,208,0.5); letter-spacing: 0.5px; margin-bottom: 5px; }
+    .admin-field { margin-bottom: 12px; }
+    .admin-textarea { width: 100%; padding: 10px; background: rgba(255,255,255,0.04); color: #e8e0d0; border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; font-family: 'IM Fell English', serif; font-size: 14px; resize: vertical; transition: border-color 0.15s; }
+    .admin-textarea:focus { outline: none; border-color: rgba(139,26,26,0.5); }
+    .admin-divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 14px 0; }
+    .section .content h4 { margin-top: 12px; margin-bottom: 6px; }
+    .section .content h4:first-child { margin-top: 0; }
+
     /* ====== WELCOME LOADING OVERLAY ====== */
     #welcomeLoading {
       position: fixed;
