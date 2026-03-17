@@ -452,6 +452,13 @@
     }
     #kbHelpBtn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 50%; width: 22px; height: 22px; font-size: 12px; color: rgba(232,224,208,0.45); cursor: pointer; line-height: 1; padding: 0; font-family: serif; transition: background .15s, color .15s; }
     #kbHelpBtn:hover { background: rgba(255,255,255,0.12); color: rgba(232,224,208,0.85); }
+    #displayBtn { position: absolute; left: 0; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 50%; width: 22px; height: 22px; color: rgba(232,224,208,0.45); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; transition: background .15s, color .15s, border-color .2s; }
+    #displayBtn:hover { background: rgba(255,255,255,0.12); color: rgba(232,224,208,0.85); }
+    #displayBtn.active { background: rgba(80,180,80,0.15); border-color: rgba(80,180,80,0.5); color: #6f6; }
+    #displayBtn.active:hover { background: rgba(80,180,80,0.25); }
+    @keyframes displaySpin { to { transform: rotate(360deg); } }
+    #displayBtn.loading { pointer-events: none; border-color: transparent; }
+    #displayBtn.loading::before { content: ''; position: absolute; inset: -1px; border-radius: 50%; border: 1px solid rgba(232,224,208,0.1); border-top-color: rgba(232,224,208,0.75); animation: displaySpin 0.7s linear infinite; }
     #kbHelp { background: rgba(10,8,6,0.97); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 14px 18px; max-width: 320px; margin: -8px auto 16px; text-align: left; }
     .kb-section { font-family: 'IM Fell English SC', serif; font-size: 11px; letter-spacing: 1px; color: rgba(212,135,42,0.7); margin-bottom: 6px; }
     .kb-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; font-family: 'IM Fell English', serif; font-size: 13px; color: rgba(232,224,208,0.6); }
