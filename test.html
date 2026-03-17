@@ -2118,8 +2118,6 @@
       _displayActive=true;
       if(statusEl) statusEl.textContent='Kundskärmen är kopplad till din kassa.';
       if(btnsEl) btnsEl.innerHTML='<button class="btn btn-danger" onclick="disconnectDisplay()">Koppla från</button>';
-      const displayUrl=location.href.split('?')[0]+'?display';
-      window.open(displayUrl,'kundskarm');
     }catch(_e){ if(statusEl) statusEl.textContent='Fel vid koppling — försök igen.'; }
   }
 
