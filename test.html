@@ -538,7 +538,7 @@
       if(!_db.loaded.has(USERS_KEY)) await loadUsersFromServer();
       const u = users[pw];
       const typedName = (document.getElementById('loginNameInput')?.value || '').trim().toLowerCase();
-      if(typedName === 'kö' && pw === '00'){ closeLoginModal(); showDisplay(); return; }
+      if(typedName === 'kö' && pw === '00'){ closeLoginModal(); localStorage.setItem('overlayModeV1','ko'); showDisplay(); return; }
       if(typedName === 'biljett' && pw === '00'){ closeLoginModal(); openRecentTicketsFull(); return; }
       if(typedName === 'pos' && pw === '00'){ closeLoginModal(); startCustomerDisplayMode(); return; }
       const displayName = (document.getElementById('loginNameInput')?.value || '').trim();
@@ -1264,7 +1264,7 @@
   }
 
   function computeDisplayTextAndState(){ const q=String(queueTime||'').trim();const qLower=q.toLowerCase();const isClosed=openingHours==='Stängt'||qLower.includes('stängt');let text='Ingen info';if(qLower==='stängt för kvällen') text='Stängt för kvällen';else if(qLower==='tillfälligt stängt') text='Tillfälligt stängt';else if(openingHours==='Stängt'||qLower==='stängt') text='Stängt';else if(q) text=q;return {text,isClosed}; }
-  function showDisplay(){ const {text,isClosed}=computeDisplayTextAndState();const o=document.createElement('div');o.className='display-view '+(isClosed?'state-closed':'state-open');const inner=document.createElement('div');inner.style.cssText='display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;';const label=document.createElement('div');label.id='displayLabel';label.textContent='Beräknad kötid';const d=document.createElement('div');d.id='displayQueue';d.textContent=text;const hours=document.createElement('div');hours.id='displayHours';hours.textContent=(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${openingHours}`:`Stängt idag`;const scan=document.createElement('div');scan.className='scanlines';inner.appendChild(label);inner.appendChild(d);inner.appendChild(hours);o.appendChild(inner);o.appendChild(scan);const close=()=>o.remove();document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',esc);}});let taps=0,tapTimer=null;o.addEventListener('pointerdown',(e)=>{if(e.pointerType!=='touch') return;taps+=1;clearTimeout(tapTimer);tapTimer=setTimeout(()=>{taps=0;},1500);if(taps>=3) close();},{passive:true});document.body.appendChild(o); }
+  function showDisplay(){ const {text,isClosed}=computeDisplayTextAndState();const o=document.createElement('div');o.className='display-view '+(isClosed?'state-closed':'state-open');const inner=document.createElement('div');inner.style.cssText='display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;';const label=document.createElement('div');label.id='displayLabel';label.textContent='Beräknad kötid';const d=document.createElement('div');d.id='displayQueue';d.textContent=text;const hours=document.createElement('div');hours.id='displayHours';hours.textContent=(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${openingHours}`:`Stängt idag`;const scan=document.createElement('div');scan.className='scanlines';inner.appendChild(label);inner.appendChild(d);inner.appendChild(hours);o.appendChild(inner);o.appendChild(scan);const close=()=>{ localStorage.removeItem('overlayModeV1'); o.remove(); };document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',esc);}});let taps=0,tapTimer=null;o.addEventListener('pointerdown',(e)=>{if(e.pointerType!=='touch') return;taps+=1;clearTimeout(tapTimer);tapTimer=setTimeout(()=>{taps=0;},1500);if(taps>=3) close();},{passive:true});document.body.appendChild(o); }
   function refreshDisplayOverlay(){ const root=document.querySelector('.display-view');if(!root) return;const lbl=root.querySelector('#displayQueue');const hrs=root.querySelector('#displayHours');const {text,isClosed}=computeDisplayTextAndState();if(lbl) lbl.textContent=text;if(hrs) hrs.textContent=(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${openingHours}`:`Stängt idag`;root.classList.toggle('state-closed',isClosed);root.classList.toggle('state-open',!isClosed); }
 
   /* ============================== RECENSIONER ============================== */
@@ -1916,6 +1916,9 @@
   }
 
   /* ============================== BOOT ============================== */
+  // Nödutgång: tryck Escape 3 ggr snabbt för att rensa overlay-läge
+  (function(){let n=0,t=null;document.addEventListener('keydown',function(e){if(e.key!=='Escape') return;n++;clearTimeout(t);t=setTimeout(()=>{n=0;},800);if(n>=3){localStorage.removeItem('overlayModeV1');location.href=location.href.split('?')[0];}});})();
+
   async function boot(){
     // Recensionsvy om URL innehåller ?review
     if(new URLSearchParams(window.location.search).has('review')){ showReviewView(); return; }
@@ -1954,6 +1957,7 @@
     }
 
     updateTopbar();renderCart();
+    if(localStorage.getItem('overlayModeV1')==='ko') showDisplay();
     setupLiveStatus();
     initEmbers();
 
@@ -2187,8 +2191,13 @@
     const logoEl=document.getElementById('cdLogo');
     if(logoEl){ logoEl.src=logoData||'korpen.png'; logoEl.style.display='block'; }
 
+    // Klocka
+    const clockEl=document.getElementById('cdClock');
+    function updateClock(){ if(clockEl){ const n=new Date(); clockEl.textContent=n.toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'}); } }
+    updateClock(); const clockInterval=setInterval(updateClock,1000);
+
     // Stäng med Escape eller 3 snabba tryck
-    const exitDisplay=()=>{ clearInterval(pollInterval); location.href=location.href.split('?')[0]; };
+    const exitDisplay=()=>{ clearInterval(pollInterval); clearInterval(clockInterval); localStorage.removeItem('overlayModeV1'); location.href=location.href.split('?')[0]; };
     document.addEventListener('keydown',function escExit(e){ if(e.key==='Escape'){ document.removeEventListener('keydown',escExit); exitDisplay(); } });
     let taps=0,tapTimer=null;
     view.addEventListener('pointerdown',(e)=>{ if(e.pointerType!=='touch') return; taps+=1; clearTimeout(tapTimer); tapTimer=setTimeout(()=>{taps=0;},1500); if(taps>=3) exitDisplay(); },{passive:true});
@@ -2276,9 +2285,10 @@
       </div>
     </div>
 
-    <!-- Höger: logga -->
-    <div style="width:280px; display:flex; align-items:center; justify-content:center; border-left:1px solid rgba(232,224,208,0.08); padding:32px; flex-shrink:0;">
-      <img id="cdLogo" src="" alt="" style="max-width:100%; max-height:280px; object-fit:contain; display:none; opacity:0.9;">
+    <!-- Höger: logga + klocka -->
+    <div style="width:280px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:56px; border-left:1px solid rgba(232,224,208,0.08); padding-left:32px; padding-right:32px; flex-shrink:0;">
+      <img id="cdLogo" src="" alt="" style="max-width:100%; max-height:200px; object-fit:contain; display:none; opacity:0.9;">
+      <div id="cdClock" style="margin-top:28px; font-size:1.8rem; letter-spacing:2px; opacity:0.55; font-family:'IM Fell English SC',serif;"></div>
     </div>
 
   </div>
