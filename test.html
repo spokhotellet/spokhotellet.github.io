@@ -624,7 +624,7 @@
   function enforceCoreUsers(){ if(!users||typeof users!=='object') users={}; users['spök123']={name:'Casper',admin:true,hasAccess:true,hasInslepp:true}; const _a=users['7997']||{}; users['7997']={name:'Adam',admin:false,hasAccess:true,hasInslepp:!!_a.hasInslepp}; }
   let users = defaultUsers();
   function saveUsers(){ return dbSet(USERS_KEY, users||{}).catch(()=>{}); }
-  async function loadUsersFromServer(){ const u=await dbEnsure(USERS_KEY,defaultUsers()); users=(u&&typeof u==='object')?u:defaultUsers(); enforceCoreUsers(); await saveUsers(); }
+  async function loadUsersFromServer(){ const u=await dbEnsure(USERS_KEY,defaultUsers()); const _before=JSON.stringify(users); users=(u&&typeof u==='object')?u:defaultUsers(); enforceCoreUsers(); if(JSON.stringify(users)!==_before) await saveUsers(); }
 
   const THEME_CLASSES=['theme-default','theme-forest','theme-royal'];
   let _displayActive=false, _suppressDisplayPush=false;
@@ -1986,6 +1986,8 @@
     loadWelcomeBg();
 
     const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:REVIEWS_KEY,fallback:[]}];
+    // Bara nycklar som ändras löpande — hämtas vid periodisk refresh
+    const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]}];
 
     persistCacheHydrate(BOOT_KEYS);
     openingHours=loadOpeningHours();queueTime=loadQueue();
@@ -2051,7 +2053,7 @@
 
     _doRefresh = async ()=>{
       try{
-        await dbRefreshMany(BOOT_KEYS);await loadUsersFromServer();
+        await dbRefreshMany(REFRESH_KEYS);await loadUsersFromServer();
         userData=dbGet(STORAGE_KEY,{})||{};
         refreshCockpitIfOpen();
         if(document.getElementById('profileContainer')?.style.display==='block'&&loggedInUser) loadProfile();
@@ -2060,7 +2062,9 @@
       }catch(e){ _setOffline(true); }
     };
 
-    setInterval(_doRefresh,4000);
+    setInterval(_doRefresh,20000);
+    // Uppdatera direkt när fliken blir aktiv igen (istället för att vänta på nästa interval)
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden) _doRefresh?.(); });
   }
 
   /* ============================== AUTO-LOGOUT ============================== */
@@ -2332,7 +2336,7 @@
       }catch(_e){}
     }
     pollDisplay();
-    const pollInterval=setInterval(pollDisplay,800);
+    const pollInterval=setInterval(pollDisplay,2000);
   }
 
   boot();
