@@ -342,6 +342,20 @@
       <button class="disclosure" type="button" onclick="adminAccordion('reviewsContent', this)">Recensioner</button>
       <div id="reviewsContent" class="content"></div>
     </div>
+
+    <div class="section">
+      <button class="disclosure" type="button" onclick="adminAccordion('displayAdminContent', this); loadDisplayAdminStatus()">Kundskärm</button>
+      <div id="displayAdminContent" class="content">
+        <div id="displayAdminStatus" class="muted" style="font-size:13px;margin-bottom:10px;">–</div>
+        <button id="displayAdminDisconnectBtn" class="btn btn-danger" style="display:none" onclick="adminDisconnectDisplay()">Koppla från</button>
+        <h4 style="margin:16px 0 6px;">Swish-nummer</h4>
+        <div class="row" style="gap:8px;">
+          <input id="swishNumberInput" class="input" placeholder="t.ex. 1234567890" style="flex:1;">
+          <button class="btn btn-green" onclick="saveSwishNumber()">Spara</button>
+        </div>
+        <div id="swishNumberConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
+      </div>
+    </div>
   </div>
 
   <!-- ===== MIN SIDA ===== -->
@@ -360,6 +374,12 @@
         <button type="button" class="theme-dot" data-theme="royal" title="Lila"></button>
       </div>
       <div class="muted" style="margin-top:8px;">Välj en bakgrundsfärg för just din sida!</div>
+    </div>
+
+    <div id="displaySection" style="margin-top:20px; border-top:1px solid rgba(0,0,0,0.12); padding-top:16px; display:none;">
+      <h4 style="font-family:'IM Fell English SC',serif;margin:0 0 8px;">Kundskärm</h4>
+      <div id="displayStatusText" style="font-size:13px;color:rgba(0,0,0,0.5);margin-bottom:10px;">Kollar status...</div>
+      <div id="displayBtns"></div>
     </div>
 
     <!-- Meddelandesektion (längst ned) — fylls av JS beroende på roll -->
@@ -395,31 +415,77 @@
     <div id="logSummary"></div>
     <div id="logEntries"></div>
 
-    <div id="payModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="payTitle">
-      <div class="modal">
-        <h3 id="payTitle">Välj betalningsmetod</h3>
-        <div id="paySum" class="tiny" style="margin-bottom:8px;"></div>
-        <input id="ticketLabelInput" class="input" placeholder="Biljettnamn (vid köp av biljett)" style="width:100%; margin:6px 0 10px;">
-        <div class="row" style="gap:12px; margin-bottom:8px;">
-          <label class="pill"><input type="radio" name="payModal" value="Swish" checked> Swish</label>
-          <label class="pill"><input type="radio" name="payModal" value="Kort"> Kort</label>
-          <label class="pill"><input type="radio" name="payModal" value="Kontant"> Kontant</label>
-        </div>
-        <div class="actions">
-          <button id="payCancel" class="btn">Avbryt</button>
-          <button id="payConfirm" class="btn btn-green">Bekräfta</button>
-        </div>
+  </div>
+
+  <!-- ===== BETALA-MODAL ===== -->
+  <div id="payModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="payTitle">
+    <div class="modal">
+      <h3 id="payTitle">Välj betalningsmetod</h3>
+      <div id="paySum" class="tiny" style="margin-bottom:8px;"></div>
+      <input id="ticketLabelInput" class="input" placeholder="Biljettnamn (vid köp av biljett)" style="width:100%; margin:6px 0 10px;">
+      <div class="row" style="gap:12px; margin-bottom:8px;">
+        <label class="pill"><input type="radio" name="payModal" value="Swish" checked> Swish</label>
+        <label class="pill"><input type="radio" name="payModal" value="Kort"> Kort</label>
+        <label class="pill"><input type="radio" name="payModal" value="Kontant"> Kontant</label>
+      </div>
+      <div class="actions">
+        <button id="payCancel" class="btn" onclick="closePayModal()">Avbryt</button>
+        <button id="payConfirm" class="btn btn-green" onclick="handlePayConfirm()">Bekräfta</button>
       </div>
     </div>
+  </div>
 
-    <div id="approveModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="approveTitle">
-      <div class="modal">
-        <h3 id="approveTitle">Bekräftelse av godkänt köp</h3>
-        <div class="tiny" id="approveMeta" style="margin-bottom:10px;">–</div>
-        <div class="row" style="justify-content:flex-end; gap:10px;">
-          <button id="approveNo" class="btn btn-danger">Avböj</button>
-          <button id="approveYes" class="btn btn-green">Godkänt</button>
+  <!-- ===== KONTANT-MODAL ===== -->
+  <div id="kontantModal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal" style="width:min(400px,96vw);">
+      <h3 style="margin:0 0 14px; font-family:'IM Fell English SC',serif;">Kontantbetalning</h3>
+      <div id="kontantItems" style="margin-bottom:10px; font-size:13px;"></div>
+      <div style="border-top:1px solid rgba(232,224,208,0.15); padding-top:10px; display:flex; flex-direction:column; gap:8px; font-family:'IM Fell English SC',serif;">
+        <div id="kontantDiscountRow" style="display:none; justify-content:space-between; color:rgba(150,255,150,0.85); font-size:13px;"><span>Rabatt (50%)</span><strong id="kontantDiscountAmt"></strong></div>
+        <div style="display:flex; justify-content:space-between; font-size:1.1rem;"><span>Att betala</span><strong id="kontantTotal">–</strong></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <label style="white-space:nowrap; font-size:14px;">Mottaget (kr)</label>
+          <input id="kontantReceivedInput" class="input" type="number" min="0" step="1" placeholder="0" style="width:120px; text-align:right; font-size:1.1rem;" oninput="updateKontantChange()">
         </div>
+        <div style="display:flex; justify-content:space-between; font-size:1.3rem; border-top:1px solid rgba(232,224,208,0.15); padding-top:8px;">
+          <span>Växel</span><strong id="kontantChange" style="min-width:80px; text-align:right;">–</strong>
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-end; gap:10px; margin-top:16px;">
+        <button class="btn btn-danger" onclick="handleKontantNo()">Avbryt</button>
+        <button class="btn btn-green" onclick="handleKontantYes()">Genomfört</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BEKRÄFTA-MODAL (Kort & Swish) ===== -->
+  <div id="approveModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="approveTitle">
+    <div class="modal">
+      <h3 id="approveTitle">Bekräftelse av godkänt köp</h3>
+      <div class="tiny" id="approveMeta" style="margin-bottom:14px;">–</div>
+      <div class="row" style="justify-content:flex-end; gap:10px;">
+        <button id="approveNo" class="btn btn-danger" onclick="handleApproveNo()">Avböj</button>
+        <button id="approveYes" class="btn btn-green" onclick="handleApproveYes()">Godkänt</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== VÄXEL-MODAL (Kontant) ===== -->
+  <div id="vaxelModal" class="modal-overlay" role="dialog" aria-modal="true">
+    <div class="modal" style="width:min(420px,96vw);">
+      <h3 style="margin:0 0 14px; font-family:'IM Fell English SC',serif;">Kontantbetalning</h3>
+      <div id="vaxelItems" style="font-size:13px; margin-bottom:10px;"></div>
+      <div style="border-top:1px solid rgba(232,224,208,0.15); padding-top:10px; display:flex; flex-direction:column; gap:6px; margin-bottom:16px;">
+        <div id="vaxelDiscountRow" style="display:none; justify-content:space-between; color:rgba(150,255,150,0.85); font-size:13px;"><span>Rabatt (50%)</span><strong id="vaxelDiscountAmt"></strong></div>
+        <div style="display:flex; justify-content:space-between; font-size:1.1rem;"><span>Att betala</span><strong id="vaxelTotal">–</strong></div>
+        <div style="display:flex; justify-content:space-between; font-size:1.1rem;"><span>Mottaget</span><strong id="vaxelMottaget">–</strong></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:1.5rem; font-weight:bold; border-top:1px solid rgba(232,224,208,0.15); padding-top:8px;">
+          <span>Ge tillbaka</span><span id="vaxelBelopp" style="color:#6f6;">0 kr</span>
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-end; gap:10px;">
+        <button id="vaxelNo" class="btn btn-danger" onclick="handleVaxelNo()">Avbryt</button>
+        <button id="vaxelYes" class="btn btn-green" onclick="handleVaxelYes()">Genomfört</button>
       </div>
     </div>
   </div>
@@ -473,7 +539,8 @@
       const u = users[pw];
       const typedName = (document.getElementById('loginNameInput')?.value || '').trim().toLowerCase();
       if(typedName === 'kö' && pw === '00'){ closeLoginModal(); showDisplay(); return; }
-      if(typedName === 'biljett' && pw === '0000'){ closeLoginModal(); openRecentTicketsFull(); return; }
+      if(typedName === 'biljett' && pw === '00'){ closeLoginModal(); openRecentTicketsFull(); return; }
+      if(typedName === 'pos' && pw === '00'){ closeLoginModal(); startCustomerDisplayMode(); return; }
       const displayName = (document.getElementById('loginNameInput')?.value || '').trim();
       if(u){
         enforceCoreUsers();
@@ -504,6 +571,7 @@
   async function apiGet(key){ const r = await fetch(`${API_URL}?key=${encodeURIComponent(key)}&_=${Date.now()}`, { cache: 'no-store' }); const j = await r.json(); return j.value; }
   async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
+  const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1';
   const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1';
 
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
@@ -547,11 +615,14 @@
   async function loadUsersFromServer(){ const u=await dbEnsure(USERS_KEY,defaultUsers()); users=(u&&typeof u==='object')?u:defaultUsers(); enforceCoreUsers(); await saveUsers(); }
 
   const THEME_CLASSES=['theme-default','theme-forest','theme-royal'];
+  let _displayActive=false, _suppressDisplayPush=false;
   let cart={}, cartHistory=[], totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0;
   let loggedInKey='', loggedInUser='', isAdmin=false, currentHasAccess=false, currentHasInslepp=false;
   let discountApplied=false, _lastPayChoice='Swish';
   let _pendingPayChoice = null;
   let _pendingPaySumText = '';
+  let _pendingKontantChange = 0;
+  let _pendingKontantLabel = '';
   let _doRefresh = null;
 
   function todayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -636,7 +707,7 @@
   function bumpAdmissions(n){ n=Math.max(0,Number(n||0)); if(!n) return; const o=loadAdmissions(); o.count=Math.max(0,Number(o.count||0)+n); o.entries=Array.isArray(o.entries)?o.entries:[]; o.entries.push({ts:new Date().toISOString(),n}); saveAdmissions(o); try{recordAdmission(n,o.entries[o.entries.length-1]?.ts);}catch(_e){} refreshCockpitIfOpen(); }
   function admittedToday(){ const a=loadAdmissions(); return Number(a.count||0); }
   function reEntryAdmittedToday(){ const db=loadReEntry(); const passes=Array.isArray(db.passes)?db.passes:[]; return passes.reduce((sum,p)=>sum+Number(p.count||0),0); }
-  function loadReEntry(){ let o=dbGet(REENTRY_KEY,defaultReEntry()); if(!o||o.date!==todayStr()) o=defaultReEntry(); o.passes=Array.isArray(o.passes)?o.passes:[]; return o; }
+  function loadReEntry(){ let o=dbGet(REENTRY_KEY,defaultReEntry()); if(!o||o.date!==todayStr()){ const fresh=defaultReEntry(); dbSet(REENTRY_KEY,fresh).catch(()=>{}); return fresh; } o.passes=Array.isArray(o.passes)?o.passes:[]; return o; }
   function saveReEntry(o){ const safe=o&&typeof o==='object'?o:defaultReEntry(); if(safe.date!==todayStr()) safe.date=todayStr(); if(!Array.isArray(safe.passes)) safe.passes=[]; dbSet(REENTRY_KEY,safe).catch(()=>{}); }
   function addReEntry(label){ const lab=(label||'').trim(); if(!lab) return null; const db=loadReEntry(); const id=Math.random().toString(36).slice(2,8); const createdAt=new Date().toISOString(); db.passes.push({id,label:lab,count:0,uses:[],createdAt}); saveReEntry(db); histUpsertReEntryPass({id,label:lab,createdAt}); return id; }
   function incReEntry(id){ const db=loadReEntry(); const p=(db.passes||[]).find(x=>x.id===id); if(!p) return; p.count=Number(p.count||0)+1; if(!Array.isArray(p.uses)) p.uses=[]; const ts=new Date().toISOString(); p.uses.push(ts); saveReEntry(db); histIncReEntryUse(id,ts); bumpAdmissions(1); }
@@ -741,16 +812,151 @@
     const raw=cartSumRaw(); const sum=discountApplied?Math.round(raw/2):raw;
     const t=document.getElementById('total'); if(t) t.textContent=`Totalt: ${sum} kr${discountApplied?' (50% rabatt)':''}`;
     const chk=document.getElementById('checkout'); if(chk) chk.disabled=(Object.keys(cart).length===0);
+    pushDisplayCart();
+  }
+
+
+  function openKontantModal(){
+    const total=cartFinalSum();
+    const raw=cartSumRaw();
+    // Varor
+    const itemsEl=document.getElementById('kontantItems');
+    if(itemsEl) itemsEl.innerHTML=Object.entries(cart).map(([name,i])=>
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(232,224,208,0.08);font-size:13px;">
+        <span>${escapeHtml(name)} <span style="opacity:0.5;">x${i.qty}</span></span><span>${i.qty*i.price} kr</span>
+      </div>`).join('');
+    // Rabatt
+    const discRow=document.getElementById('kontantDiscountRow');
+    const discAmt=document.getElementById('kontantDiscountAmt');
+    if(discountApplied){ if(discRow) discRow.style.display='flex'; if(discAmt) discAmt.textContent=`-${raw-total} kr`; }
+    else{ if(discRow) discRow.style.display='none'; }
+    document.getElementById('kontantTotal').textContent=`${total} kr`;
+    const inp=document.getElementById('kontantReceivedInput');
+    if(inp){ inp.value=total; }
+    document.getElementById('kontantModal').style.display='flex';
+    updateKontantChange();
+    setTimeout(()=>{ inp?.focus(); inp?.select(); }, 60);
+  }
+  function closeKontantModal(){ document.getElementById('kontantModal').style.display='none'; }
+  function openKontantLabelFocus(){ setTimeout(()=>{ document.getElementById('kontantLabelInput')?.focus(); }, 60); }
+
+  function updateKontantChange(){
+    const inp=document.getElementById('kontantReceivedInput');
+    const el=document.getElementById('kontantChange');
+    const received=parseFloat(inp?.value)||0;
+    const total=cartFinalSum();
+    const change=received-total;
+    if(received<=0){ el.textContent='–'; el.style.color=''; if(_displayActive) pushDisplayCart(); return; }
+    if(change<0){ el.style.color='#f66'; el.textContent=`Saknas ${Math.abs(change)} kr`; if(_displayActive) pushDisplayCart(); }
+    else{ el.style.color='#6f6'; el.textContent=`${change} kr`; if(_displayActive) pushKontantDisplay(change); }
+  }
+
+  function pushKontantDisplay(change){
+    if(!_displayActive) return;
+    const items=Object.entries(cart).map(([name,i])=>({name,qty:i.qty,price:i.price}));
+    const total=cartFinalSum();
+    apiSet(CUSTOMER_DISPLAY_CART_KEY, JSON.stringify({state:'kontant',change,items,total,discount:discountApplied,ts:Date.now()})).catch(()=>{});
   }
 
   (function bindDiscount(){ const b=document.getElementById('discountBtn'); if(!b||b._bound) return; b.addEventListener('click',()=>{ const hasItems=Object.keys(cart).length>0; if(!hasItems){ if(discountApplied){discountApplied=false;b.classList.remove('applied');b.textContent='50% rabatt (1 gång)';renderCart();}else{alert('Lägg något i kassan först.');} return; } discountApplied=!discountApplied; b.classList.toggle('applied',discountApplied); b.textContent=discountApplied?'50% rabatt aktiv — klicka för att ta bort':'50% rabatt (1 gång)'; renderCart(); }); b._bound=true; })();
 
   function cartFinalSum(){ const raw=cartSumRaw(); return discountApplied?Math.round(raw/2):raw; }
-  function openPayModal(){ if(!Object.keys(cart).length) return; document.getElementById('paySum').textContent=`Summa: ${cartFinalSum()} kr${discountApplied?' (50% rabatt)':''}`; document.getElementById('payModal').style.display='flex'; }
-  function closePayModal(){ document.getElementById('payModal').style.display='none'; }
+  function openPayModal(){
+    if(!Object.keys(cart).length) return;
+    document.getElementById('paySum').textContent=`Summa: ${cartFinalSum()} kr${discountApplied?' (50% rabatt)':''}`;
+    document.getElementById('payModal').style.display='flex';
+  }
+  function closePayModal(){
+    document.getElementById('payModal').style.display='none';
+  }
   function getModalPayChoice(){ const el=document.querySelector('input[name="payModal"]:checked'); return el?el.value:'Swish'; }
-  function openApproveModal(){ const el=document.getElementById('approveModal'); const meta=document.getElementById('approveMeta'); if(meta) meta.textContent=_pendingPaySumText||'Kontrollera att betalningen gick igenom.'; if(el) el.style.display='flex'; }
+
+  function handlePayConfirm(){
+    const choice=getModalPayChoice();
+    _lastPayChoice=choice; _pendingPayChoice=choice;
+    const sum=cartFinalSum();
+    _pendingPaySumText=`Summa: ${sum} kr \u2022 Betalning: ${choice}`;
+    closePayModal();
+    if(choice==='Kontant'){ openKontantModal(); return; }
+    if(choice==='Swish') pushSwishDisplay(sum);
+    openApproveModal();
+  }
+  function handleApproveYes(){
+    const choice=_pendingPayChoice||'Swish';
+    _pendingPayChoice=null; _pendingPaySumText=''; _pendingKontantChange=0;
+    closeApproveModal();
+    performCheckout(choice);
+  }
+  function handleApproveNo(){
+    _pendingPayChoice=null; _pendingPaySumText=''; _pendingKontantChange=0;
+    closeApproveModal();
+    if(_displayActive) pushDisplayCart();
+  }
+  function handleKontantYes(){
+    const received=parseFloat(document.getElementById('kontantReceivedInput')?.value)||0;
+    const total=cartFinalSum();
+    const change=Math.max(0,received-total);
+    _pendingKontantChange=change;
+    _pendingPayChoice='Kontant';
+    _pendingPaySumText=`Totalt: ${total} kr • Mottaget: ${received} kr • Växel: ${change} kr`;
+    closeKontantModal();
+    openApproveModal();
+  }
+  function handleKontantNo(){
+    _pendingPayChoice=null; _pendingPaySumText='';
+    closeKontantModal();
+    if(_displayActive) pushDisplayCart();
+  }
+  function handleVaxelYes(){
+    _pendingKontantChange=0;
+    _pendingPayChoice='Kontant';
+    _pendingPaySumText=`Summa: ${cartFinalSum()} kr \u2022 Betalning: Kontant`;
+    closeVaxelModal();
+    openApproveModal();
+  }
+  function handleVaxelNo(){
+    _pendingPayChoice=null; _pendingKontantChange=0;
+    closeVaxelModal();
+    if(_displayActive) pushDisplayCart();
+  }
+
+  function openApproveModal(){
+    const el=document.getElementById('approveModal');
+    const meta=document.getElementById('approveMeta');
+    const title=document.getElementById('approveTitle');
+    if(title) title.textContent='Bekräftelse av godkänt köp';
+    if(meta) meta.textContent=_pendingPaySumText||'Kontrollera att betalningen gick igenom.';
+    if(_pendingPayChoice==='Swish'){ pushSwishDisplay(cartFinalSum()); }
+    else if(_pendingPayChoice==='Kontant'){ pushKontantDisplay(_pendingKontantChange); }
+    if(el) el.style.display='flex';
+  }
   function closeApproveModal(){ const el=document.getElementById('approveModal'); if(el) el.style.display='none'; }
+
+  function openVaxelModal(received, total, change){
+    const el=document.getElementById('vaxelModal');
+    // Varor
+    const itemsEl=document.getElementById('vaxelItems');
+    if(itemsEl) itemsEl.innerHTML=Object.entries(cart).map(([name,i])=>
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(232,224,208,0.08);">
+        <span>${escapeHtml(name)} <span style="opacity:0.5;">x${i.qty}</span></span><span>${i.qty*i.price} kr</span>
+      </div>`).join('');
+    // Rabatt
+    const raw=cartSumRaw();
+    const discRow=document.getElementById('vaxelDiscountRow');
+    const discAmt=document.getElementById('vaxelDiscountAmt');
+    if(discountApplied){ if(discRow) discRow.style.display='flex'; if(discAmt) discAmt.textContent=`-${raw-total} kr`; }
+    else{ if(discRow) discRow.style.display='none'; }
+    // Summor
+    const totEl=document.getElementById('vaxelTotal');
+    const motEl=document.getElementById('vaxelMottaget');
+    const belopp=document.getElementById('vaxelBelopp');
+    if(totEl) totEl.textContent=`${total} kr`;
+    if(motEl) motEl.textContent=`${received} kr`;
+    if(belopp){ belopp.textContent=`${change} kr`; belopp.style.color=change>0?'#6f6':'#f0ebe2'; }
+    if(el) el.style.display='flex';
+    setTimeout(()=>{ document.getElementById('vaxelYes')?.focus(); }, 60);
+  }
+  function closeVaxelModal(){ const el=document.getElementById('vaxelModal'); if(el) el.style.display='none'; }
 
   function performCheckout(payType){
     if(!Object.keys(cart).length) return;
@@ -789,10 +995,27 @@
     html+=`<br><span class="tiny">Betalning: ${escapeHtml(payType||'—')} • Säljare: ${escapeHtml(loggedInUser||'—')}</span>`;
     entry.innerHTML=html; safePrepend(logWrap,entry);
     try{ recordSale({time:nowStr,items:lines,sum:finalSum,adult,child,seller:loggedInUser||'—',payType:payType||'—',ticketUid:newOpenTicket?.createdAt||null,ticketLabel:newOpenTicket?.label||(newOpenTicket?.id?`#${newOpenTicket.id}`:null),used:false,breakdown,reEntryCreated:reEntryCount,reEntryIds:createdReEntryIds}); _statsDirty=true; }catch(_e){}
+    const _tackGuestName=newOpenTicket?.label||label||'';
+    _suppressDisplayPush=true;
     cart={}; cartHistory=[]; discountApplied=false;
     const db=document.getElementById('discountBtn'); if(db){db.classList.remove('applied');db.textContent='50% rabatt (1 gång)';}
     renderCart();
+    _suppressDisplayPush=false;
+    if(_displayActive){ try{ apiSet(CUSTOMER_DISPLAY_CART_KEY, JSON.stringify({items:[],discount:false,total:0,ts:Date.now(),state:'tack',guestName:_tackGuestName})).catch(()=>{}); }catch(_e){} }
+    showCheckoutFlash();
     const sc=document.getElementById('statsContainer'); if(sc&&sc.style.display==='block'){renderCockpit();renderStats();}
+  }
+
+  function showCheckoutFlash(){
+    const el=document.getElementById('checkoutFlash');
+    if(!el) return;
+    el.style.opacity='0'; el.style.transition='opacity 0.25s'; el.style.display='flex';
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{ el.style.opacity='1'; }));
+    clearTimeout(el._t);
+    el._t=setTimeout(()=>{
+      el.style.transition='opacity 0.5s'; el.style.opacity='0';
+      setTimeout(()=>{ el.style.display='none'; }, 500);
+    }, 1800);
   }
 
   function guestsByHourFromSales(dateStr){ const out=Array.from({length:24},()=>0); const day=loadSalesHistory()[dateStr]||{}; const entries=Array.isArray(day.entries)?day.entries:[]; entries.forEach(e=>{const h=parseHourFromTimeStr(e.time);const g=Number(e.adult||0)+Number(e.child||0);out[h]+=g;}); return out; }
@@ -1452,7 +1675,7 @@
     updateMsgBadge();
   }
 
-  function loadProfile(){ if(!userData||typeof userData!=='object') userData={};const name=loggedInUser;ensureProfileDefaults(name);if(_lastProfileWelcomeFor!==name){setRandomWelcome(name);_lastProfileWelcomeFor=name;}document.getElementById('myHours').textContent=(userData[name].hours||'').trim()||'–';document.getElementById('myTask').textContent=(userData[name].task||'').trim()||'–';const sk=document.getElementById('skillsList');if(sk) sk.innerHTML=renderSkillsBadges(userData[name].skills);applyProfileTheme(userData[name].theme);setThemeRadios(userData[name].theme);renderStaffMsgSection(); }
+  function loadProfile(){ if(!userData||typeof userData!=='object') userData={};const name=loggedInUser;ensureProfileDefaults(name);if(_lastProfileWelcomeFor!==name){setRandomWelcome(name);_lastProfileWelcomeFor=name;}document.getElementById('myHours').textContent=(userData[name].hours||'').trim()||'–';document.getElementById('myTask').textContent=(userData[name].task||'').trim()||'–';const sk=document.getElementById('skillsList');if(sk) sk.innerHTML=renderSkillsBadges(userData[name].skills);applyProfileTheme(userData[name].theme);setThemeRadios(userData[name].theme);renderStaffMsgSection();loadDisplayStatus(); }
 
   function loadSkillCatalog(){ const arr=dbGet(SKILL_CATALOG_KEY,null);if(Array.isArray(arr)&&arr.length) return arr;const seed=defaultSkillCatalog();dbSet(SKILL_CATALOG_KEY,seed).catch(()=>{});return seed; }
   function saveSkillCatalog(list){ dbSet(SKILL_CATALOG_KEY,(list||[]).filter(Boolean)).catch(()=>{}); }
@@ -1600,7 +1823,7 @@
   function selectMenu(menu){
     hideDropdown();hideAll();
     switch(menu){
-      case 'kassa':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}if(!currentHasAccess&&!isAdmin){alert('Du har inte access till kassan.');return selectMenu('profile');}const tbK=document.querySelector('.topbar');if(tbK)tbK.style.display='';document.getElementById('kassaContainer').style.display='block';renderProductButtons();const closed=(openingHours==='Stängt'&&!isAdmin);document.getElementById('closedMessage').style.display=closed?'block':'none';document.querySelector('.products').style.display=closed?'none':'flex';document.querySelector('.cart-table').style.display=closed?'none':'table';document.getElementById('checkout').style.display=closed?'none':'block';document.getElementById('discountBtn').style.display=closed?'none':'block';document.getElementById('total').style.display=closed?'none':'block';break;}
+      case 'kassa':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}if(!currentHasAccess&&!isAdmin){alert('Du har inte access till kassan.');return selectMenu('profile');}const tbK=document.querySelector('.topbar');if(tbK)tbK.style.display='';document.getElementById('kassaContainer').style.display='block';renderProductButtons();syncDisplayOwnership();const closed=(openingHours==='Stängt'&&!isAdmin);document.getElementById('closedMessage').style.display=closed?'block':'none';document.querySelector('.products').style.display=closed?'none':'flex';document.querySelector('.cart-table').style.display=closed?'none':'table';document.getElementById('checkout').style.display=closed?'none':'block';document.getElementById('discountBtn').style.display=closed?'none':'block';document.getElementById('total').style.display=closed?'none':'block';break;}
       case 'profile':{ if(!loggedInUser){document.getElementById('welcomeMessage').style.display='flex';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');const tb=document.querySelector('.topbar');if(tb)tb.style.display='none';const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';return;}const tb2=document.querySelector('.topbar');if(tb2)tb2.style.display='';document.getElementById('profileContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadProfile();markMsgSeen();break;}
       case 'admin':{ if(!isAdmin){alert('Endast admin.');return selectMenu('profile');}const tbA=document.querySelector('.topbar');if(tbA)tbA.style.display='';document.getElementById('adminSettings').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');initUserSelect();break;}
       case 'stats':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}const tbS=document.querySelector('.topbar');if(tbS)tbS.style.display='';document.getElementById('statsContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadDailyStats();openingHours=loadOpeningHours();queueTime=loadQueue();loadDailyCosts();loadDailyForecast();renderCockpit();renderStats();break;}
@@ -1640,21 +1863,16 @@
 
   (function bindCheckout(){
     const chk=document.getElementById('checkout');if(chk&&!chk._bound){chk.addEventListener('click',()=>{if(chk.disabled) return;openPayModal();});chk._bound=true;}
-    document.addEventListener('click',(e)=>{
-      const t=e.target;if(!(t instanceof HTMLElement)) return;
-      if(t.id==='payCancel'){e.stopPropagation();closePayModal();return;}
-      if(t.id==='payConfirm'){e.stopPropagation();const choice=getModalPayChoice();_lastPayChoice=choice;_pendingPayChoice=choice;_pendingPaySumText=`Summa: ${cartFinalSum()} kr • Betalning: ${choice}`;closePayModal();openApproveModal();return;}
-      if(t.id==='approveNo'){e.stopPropagation();_pendingPayChoice=null;_pendingPaySumText='';closeApproveModal();return;}
-      if(t.id==='approveYes'){e.stopPropagation();const choice=_pendingPayChoice||getModalPayChoice()||'Swish';_pendingPayChoice=null;_pendingPaySumText='';closeApproveModal();performCheckout(choice);return;}
-    });
   })();
 
   function isPayModalOpen(){ const el=document.getElementById('payModal');return el&&el.style.display==='flex'; }
   function isApproveModalOpen(){ const el=document.getElementById('approveModal');return el&&el.style.display==='flex'; }
   function setPayChoice(choice){ const input=document.querySelector(`input[name="payModal"][value="${choice}"]`);if(input) input.checked=true; }
   document.addEventListener('keydown',(e)=>{
+    if(e.repeat) return;
     if(isPayModalOpen()){ const labelInput=document.getElementById('ticketLabelInput');if(e.key==='1'){setPayChoice('Swish');e.preventDefault();return;}if(e.key==='2'){setPayChoice('Kort');e.preventDefault();return;}if(e.key==='3'){setPayChoice('Kontant');e.preventDefault();return;}if(e.key==='Enter'){e.preventDefault();if(document.activeElement!==labelInput){labelInput?.focus();return;}document.getElementById('payConfirm')?.click();return;}if(e.key==='Escape'){e.preventDefault();document.getElementById('payCancel')?.click();return;}return;}
     if(isApproveModalOpen()){if(e.key==='Enter'){e.preventDefault();document.getElementById('approveYes')?.click();return;}if(e.key==='Escape'){e.preventDefault();document.getElementById('approveNo')?.click();return;}return;}
+    const kontantEl=document.getElementById('kontantModal');if(kontantEl&&kontantEl.style.display==='flex'){if(e.key==='Enter'){e.preventDefault();handleKontantYes();return;}if(e.key==='Escape'){e.preventDefault();handleKontantNo();return;}return;}
   });
 
   /* ============================== EMBER PARTICLES ============================== */
@@ -1701,6 +1919,8 @@
   async function boot(){
     // Recensionsvy om URL innehåller ?review
     if(new URLSearchParams(window.location.search).has('review')){ showReviewView(); return; }
+    // Kundskärmsläge om URL innehåller ?display
+    if(new URLSearchParams(window.location.search).has('display')){ startCustomerDisplayMode(); return; }
 
     const lo=document.getElementById('logoutBtn');const li=document.getElementById('loginBtn');
     if(lo) lo.style.display='none';if(li) li.style.display='inline-block';
@@ -1760,6 +1980,7 @@
         loadDailyStats();loadDailyCosts();loadDailyForecast();
         loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();
         updateTopbar();refreshCockpitIfOpen();
+        syncDisplayOwnership();
         if(document.getElementById('kassaContainer')?.style.display==='block'){renderProductButtons();renderCart();}
         if(document.getElementById('profileContainer')?.style.display==='block'){loadProfile();}
         _setOffline(false);
@@ -1812,7 +2033,263 @@
     }
   }, 15000);
 
+  /* ============================== KUNDSKÄRM ============================== */
+  function saveSwishNumber(){
+    const val=(document.getElementById('swishNumberInput')?.value||'').trim();
+    localStorage.setItem(SWISH_NUMBER_KEY, val);
+    const c=document.getElementById('swishNumberConfirm');if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);}
+  }
+
+  function getSwishNumber(){ return localStorage.getItem(SWISH_NUMBER_KEY)||''; }
+
+  function buildSwishQrUrl(number, amount){
+    const qrData=`C${number};${Math.round(Number(amount))};Spökhotellet Korpen;0`;
+    return 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=16&data='+encodeURIComponent(qrData);
+  }
+
+  function pushSwishDisplay(amount){
+    if(!_displayActive) return;
+    const number=getSwishNumber();
+    if(!number){ console.warn('Swish-nummer saknas — sätt det i Admin → Kundskärm'); return; }
+    const qrUrl=buildSwishQrUrl(number, amount);
+    const data={state:'swish',total:amount,qrUrl,ts:Date.now()};
+    apiSet(CUSTOMER_DISPLAY_CART_KEY,JSON.stringify(data)).catch(()=>{});
+  }
+
+  async function syncDisplayOwnership(){
+    if(!loggedInUser) return;
+    try{ const owner=await apiGet(CUSTOMER_DISPLAY_OWNER_KEY); _displayActive=(owner===loggedInUser); }catch(_e){}
+  }
+
+  function pushDisplayCart(){
+    if(!_displayActive||_suppressDisplayPush) return;
+    try{
+      const items=Object.entries(cart).map(([name,i])=>({name,qty:i.qty,price:i.price}));
+      const data={items,discount:discountApplied,total:cartFinalSum(),ts:Date.now(),state:items.length?'cart':'idle'};
+      apiSet(CUSTOMER_DISPLAY_CART_KEY,JSON.stringify(data)).catch(()=>{});
+    }catch(_e){}
+  }
+
+  async function loadDisplayStatus(){
+    const sec=document.getElementById('displaySection');
+    const statusEl=document.getElementById('displayStatusText');
+    const btnsEl=document.getElementById('displayBtns');
+    if(!sec||!statusEl||!btnsEl) return;
+    if(!currentHasAccess){ sec.style.display='none'; return; }
+    sec.style.display='block';
+    statusEl.textContent='Kollar status...';
+    btnsEl.innerHTML='';
+    try{
+      const owner=await apiGet(CUSTOMER_DISPLAY_OWNER_KEY);
+      if(!owner){
+        statusEl.textContent='Ingen kundskärm kopplad.';
+        btnsEl.innerHTML='<button class="btn btn-green" onclick="connectDisplay()">Koppla kundskärm</button>';
+        _displayActive=false;
+      } else if(owner===loggedInUser){
+        statusEl.textContent='Kundskärmen är kopplad till din kassa.';
+        btnsEl.innerHTML='<button class="btn btn-danger" onclick="disconnectDisplay()">Koppla från</button>';
+        _displayActive=true;
+      } else {
+        statusEl.textContent=`Kopplad av ${owner}.`;
+        btnsEl.innerHTML=`<button class="btn" disabled>Koppla kundskärm</button>`;
+        _displayActive=false;
+      }
+    }catch(_e){ statusEl.textContent='Kunde inte hämta status.'; }
+  }
+
+  async function connectDisplay(){
+    const statusEl=document.getElementById('displayStatusText');
+    const btnsEl=document.getElementById('displayBtns');
+    if(statusEl) statusEl.textContent='Kopplar...';
+    if(btnsEl) btnsEl.innerHTML='';
+    try{
+      const owner=await apiGet(CUSTOMER_DISPLAY_OWNER_KEY);
+      if(owner&&owner!==loggedInUser){
+        if(statusEl) statusEl.textContent=`Kopplad av ${owner}.`;
+        if(btnsEl) btnsEl.innerHTML='<button class="btn" disabled>Koppla kundskärm</button>';
+        return;
+      }
+      await apiSet(CUSTOMER_DISPLAY_OWNER_KEY,loggedInUser);
+      await apiSet(CUSTOMER_DISPLAY_CART_KEY,JSON.stringify({items:[],discount:false,total:0,ts:Date.now(),state:'idle'}));
+      _displayActive=true;
+      if(statusEl) statusEl.textContent='Kundskärmen är kopplad till din kassa.';
+      if(btnsEl) btnsEl.innerHTML='<button class="btn btn-danger" onclick="disconnectDisplay()">Koppla från</button>';
+      const displayUrl=location.href.split('?')[0]+'?display';
+      window.open(displayUrl,'kundskarm');
+    }catch(_e){ if(statusEl) statusEl.textContent='Fel vid koppling — försök igen.'; }
+  }
+
+  async function disconnectDisplay(){
+    try{
+      await apiSet(CUSTOMER_DISPLAY_OWNER_KEY,'');
+      await apiSet(CUSTOMER_DISPLAY_CART_KEY,'');
+      _displayActive=false;
+      loadDisplayStatus();
+    }catch(_e){}
+  }
+
+  async function loadDisplayAdminStatus(){
+    const inp=document.getElementById('swishNumberInput');
+    if(inp) inp.value=getSwishNumber();
+    const statusEl=document.getElementById('displayAdminStatus');
+    const btn=document.getElementById('displayAdminDisconnectBtn');
+    if(!statusEl) return;
+    statusEl.textContent='Kollar...';
+    try{
+      const owner=await apiGet(CUSTOMER_DISPLAY_OWNER_KEY);
+      if(!owner){
+        statusEl.textContent='Ingen kundskärm kopplad.';
+        if(btn) btn.style.display='none';
+      } else {
+        statusEl.textContent=`Kopplad av: ${owner}`;
+        if(btn) btn.style.display='';
+      }
+    }catch(_e){ statusEl.textContent='Kunde inte hämta status.'; }
+  }
+
+  async function adminDisconnectDisplay(){
+    try{
+      await apiSet(CUSTOMER_DISPLAY_OWNER_KEY,'');
+      await apiSet(CUSTOMER_DISPLAY_CART_KEY,'');
+      _displayActive=false;
+      loadDisplayAdminStatus();
+    }catch(_e){}
+  }
+
+  function startPosMode(){
+    // Sätt en virtuell kassörsidentitet
+    loggedInUser='Kassan'; loggedInKey=''; isAdmin=false; currentHasAccess=true; currentHasInslepp=false;
+    // Dölj allt utom kassan
+    ['hoursMenu','queueMenu','adminSettings','profileContainer','statsContainer','welcomeMessage'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.style.display='none';
+    });
+    const tb=document.querySelector('.topbar'); if(tb) tb.style.display='none';
+    const ec=document.getElementById('emberCanvas'); if(ec) ec.style.display='none';
+    document.getElementById('kassaContainer').style.display='block';
+    renderProductButtons();
+    document.getElementById('closedMessage').style.display='none';
+    document.querySelector('.products').style.display='flex';
+    document.querySelector('.cart-table').style.display='table';
+    document.getElementById('checkout').style.display='block';
+    document.getElementById('discountBtn').style.display='block';
+    document.getElementById('total').style.display='block';
+    renderCart();
+    syncDisplayOwnership();
+  }
+
+  function startCustomerDisplayMode(){
+    // Dölj allt, visa kundskärmen
+    document.querySelectorAll('body > *').forEach(el=>{ el.style.display='none'; });
+    const view=document.getElementById('customerDisplayView');
+    if(view) view.style.display='flex';
+    // Logga
+    const logoData=localStorage.getItem('welcomeLogo');
+    const logoEl=document.getElementById('cdLogo');
+    if(logoEl&&logoData){ logoEl.src=logoData; logoEl.style.display='block'; }
+
+    // Stäng med Escape eller 3 snabba tryck
+    const exitDisplay=()=>{ clearInterval(pollInterval); location.href=location.href.split('?')[0]; };
+    document.addEventListener('keydown',function escExit(e){ if(e.key==='Escape'){ document.removeEventListener('keydown',escExit); exitDisplay(); } });
+    let taps=0,tapTimer=null;
+    view.addEventListener('pointerdown',(e)=>{ if(e.pointerType!=='touch') return; taps+=1; clearTimeout(tapTimer); tapTimer=setTimeout(()=>{taps=0;},1500); if(taps>=3) exitDisplay(); },{passive:true});
+
+    let tackTimer=null, inTack=false;
+    function cdHideAll(){ ['cdIdle','cdCart','cdTack','cdSwish','cdKontant'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; }); }
+    function showIdle(){ inTack=false; cdHideAll(); document.getElementById('cdIdle').style.display='flex'; }
+    function showCart(data){
+      cdHideAll(); document.getElementById('cdCart').style.display='flex';
+      const itemsEl=document.getElementById('cdItems');
+      if(itemsEl) itemsEl.innerHTML=data.items.map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(232,224,208,0.1);font-size:1.15rem;"><span>${escapeHtml(it.name)}<span style="color:rgba(232,224,208,0.45);margin-left:8px;">x${it.qty}</span></span><span>${it.qty*it.price} kr</span></div>`).join('');
+      const totalEl=document.getElementById('cdTotal');
+      if(totalEl) totalEl.textContent=`${data.total} kr${data.discount?' (50% rabatt)':''}`;
+    }
+    function showTack(data){
+      if(inTack) return;
+      inTack=true;
+      cdHideAll(); document.getElementById('cdTack').style.display='flex';
+      const nameEl=document.getElementById('cdTackName');
+      if(nameEl) nameEl.textContent=data?.guestName ? `Tack ${data.guestName} för ditt köp!` : 'Tack för besöket!';
+      tackTimer=setTimeout(()=>{ apiSet(CUSTOMER_DISPLAY_CART_KEY, JSON.stringify({items:[],state:'idle',ts:Date.now()})).catch(()=>{}); showIdle(); }, 5000);
+    }
+    function showSwish(data){
+      cdHideAll(); document.getElementById('cdSwish').style.display='flex';
+      const qrEl=document.getElementById('cdSwishQr'); if(qrEl) qrEl.src=data.qrUrl;
+      const amtEl=document.getElementById('cdSwishAmount'); if(amtEl) amtEl.textContent=`${data.total} kr`;
+    }
+
+    let _lastPollTs=0;
+    async function pollDisplay(){
+      try{
+        const raw=await apiGet(CUSTOMER_DISPLAY_CART_KEY);
+        if(!raw){ showIdle(); return; }
+        const data=JSON.parse(raw);
+        // Skip re-render if nothing changed (same timestamp), except tack which has its own guard
+        if(data.ts&&data.ts===_lastPollTs&&data.state!=='tack') return;
+        _lastPollTs=data.ts||0;
+        if(data.state==='tack'){ showTack(data); }
+        else if(data.state==='swish'&&data.qrUrl){ showSwish(data); }
+        else if(data.state==='kontant'){ cdHideAll(); document.getElementById('cdKontant').style.display='flex';
+          const itemsEl=document.getElementById('cdKontantItems');
+          if(itemsEl&&data.items) itemsEl.innerHTML=data.items.map(it=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(232,224,208,0.1);font-size:1.05rem;"><span>${escapeHtml(it.name)}<span style="opacity:0.4;margin-left:8px;">x${it.qty}</span></span><span>${it.qty*it.price} kr</span></div>`).join('');
+          const totalEl=document.getElementById('cdKontantTotal'); if(totalEl) totalEl.textContent=`${data.total||0} kr${data.discount?' (50% rabatt)':''}`;
+          const el=document.getElementById('cdChange'); if(el){ el.textContent=data.change>=0?`${data.change} kr`:`Saknas ${Math.abs(data.change)} kr`; el.style.color=data.change>=0?'#f0ebe2':'rgba(220,100,100,0.9)'; } }
+        else if(data.state==='cart'&&data.items&&data.items.length){ showCart(data); }
+        else{ showIdle(); }
+      }catch(_e){}
+    }
+    pollDisplay();
+    const pollInterval=setInterval(pollDisplay,2000);
+  }
+
   boot();
   </script>
+
+  <!-- ===== KUNDSKÄRM (iPhone-display) ===== -->
+  <div id="customerDisplayView" style="display:none; position:fixed; inset:0; background:#1a0d0d; color:#f0ebe2; font-family:'IM Fell English SC',serif; z-index:9999; flex-direction:row; align-items:stretch; box-sizing:border-box;">
+
+    <!-- Vänster: innehåll -->
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; padding:48px 40px;">
+      <div id="cdIdle" style="flex-direction:column;">
+        <div id="cdIdleHotelName" style="font-size:2rem; letter-spacing:2px; line-height:1.3;">Välkommen till Spökhotellet Korpen</div>
+      </div>
+      <div id="cdCart" style="display:none; flex-direction:column; width:100%;">
+        <div id="cdItems" style="width:100%;"></div>
+        <div style="border-top:1px solid rgba(232,224,208,0.2); margin-top:20px; padding-top:16px; display:flex; justify-content:flex-end;">
+          <div id="cdTotal" style="font-size:2.2rem; letter-spacing:1px;"></div>
+        </div>
+      </div>
+      <div id="cdTack" style="display:none; flex-direction:column;">
+        <div id="cdTackName" style="font-size:2.5rem; letter-spacing:1px;">Tack för besöket!</div>
+        <div style="font-size:1rem; color:rgba(232,224,208,0.4); margin-top:14px; letter-spacing:1px;">Ha en rysligt kul upplevelse</div>
+      </div>
+      <div id="cdKontant" style="display:none; flex-direction:column; width:100%;">
+        <div id="cdKontantItems" style="margin-bottom:12px;"></div>
+        <div style="border-top:1px solid rgba(232,224,208,0.15); padding-top:10px; display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex;justify-content:space-between;font-size:1.1rem;"><span style="opacity:0.6;">Totalt</span><span id="cdKontantTotal"></span></div>
+          <div style="display:flex;justify-content:space-between;font-size:1.4rem;border-top:1px solid rgba(232,224,208,0.12);padding-top:8px;margin-top:4px;"><span style="opacity:0.5;">Växel tillbaka</span><span id="cdChange" style="color:#f0ebe2;opacity:0.85;"></span></div>
+        </div>
+      </div>
+      <div id="cdSwish" style="display:none; flex-direction:column;">
+        <div style="font-size:1rem; color:rgba(232,224,208,0.5); letter-spacing:1px; margin-bottom:16px;">Betala med Swish</div>
+        <img id="cdSwishQr" src="" alt="Swish QR" style="width:240px; height:240px; border-radius:12px; display:block;">
+        <div id="cdSwishAmount" style="font-size:2rem; margin-top:20px; letter-spacing:1px;"></div>
+      </div>
+    </div>
+
+    <!-- Höger: logga -->
+    <div style="width:280px; display:flex; align-items:center; justify-content:center; border-left:1px solid rgba(232,224,208,0.08); padding:32px; flex-shrink:0;">
+      <img id="cdLogo" src="" alt="" style="max-width:100%; max-height:280px; object-fit:contain; display:none; opacity:0.9;">
+    </div>
+
+  </div>
+
+  <!-- ===== CHECKOUT SUCCESS FLASH ===== -->
+  <div id="checkoutFlash" style="display:none; position:fixed; inset:0; z-index:99999; pointer-events:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.45);">
+    <div style="background:#0f1f0f; border:1px solid rgba(100,220,100,0.35); border-radius:20px; padding:40px 56px; text-align:center; font-family:'IM Fell English SC',serif; color:#8eda8e; box-shadow:0 12px 60px rgba(0,0,0,0.8); transform:scale(1);">
+      <div style="font-size:3.2rem; margin-bottom:14px; line-height:1;">✓</div>
+      <div style="font-size:1.6rem; letter-spacing:1.5px;">Köp genomfört</div>
+    </div>
+  </div>
+
 </body>
 </html>
