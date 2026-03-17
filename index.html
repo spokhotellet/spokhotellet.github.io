@@ -199,7 +199,7 @@
 
   <!-- ===== ADMIN ===== -->
   <div id="adminSettings">
-    <h3 style="font-family:'IM Fell English SC',serif;letter-spacing:0.5px;color:#f0ebe2;margin-bottom:12px;">Hantera</h3>
+    <h3>Hantera</h3>
 
     <div class="section">
       <button class="disclosure" type="button" onclick="adminAccordion('personalContent', this)">Personalinställningar</button>
@@ -212,22 +212,21 @@
         </div>
         <div class="row" style="gap:24px; align-items:flex-start; margin-top:8px;">
           <div style="flex:1;">
-            <h4 style="margin:0 0 6px;">Arbetstid</h4>
+            <h4>Arbetstid</h4>
             <input id="setHours" class="input" placeholder="t.ex. 10:00–18:00" style="width:100%;">
           </div>
           <div style="flex:1;">
-            <h4 style="margin:0 0 6px;">Dagens uppgift</h4>
+            <h4>Dagens uppgift</h4>
             <select id="setTaskSelect" class="input" style="width:100%;"></select>
             <div class="tiny" style="margin-top:4px;">Visas på "Min sida".</div>
           </div>
         </div>
-        <h4 style="margin:12px 0 6px;">Kassa-access</h4>
-        <label style="display:block; margin-top:6px;"><input type="checkbox" id="accessCheckbox"> Kassa-access</label>
+        <h4>Åtkomst</h4>
+        <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="accessCheckbox"> Kassa-access</label>
         <small id="adamNote" style="display:none; color:#9f9;"></small>
-        <h4 style="margin:12px 0 6px;">Insläpp-access</h4>
-        <label style="display:block; margin-top:6px;"><input type="checkbox" id="insleppCheckbox"> Insläpp-access</label>
+        <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="insleppCheckbox"> Insläpp-access</label>
         <small id="insleppNote" style="display:none; color:#9f9;"></small>
-        <h4 style="margin:12px 0 6px;">Kompetenser</h4>
+        <h4>Kompetenser</h4>
         <div id="adminSkillsOptions" class="row"></div>
         <button id="saveAdminBtn" class="btn btn-green" style="margin-top:12px;">Spara ändringar</button>
         <div id="adminConfirm" style="display:none;color:#6f6;margin-top:10px;font-family:'IM Fell English',serif;font-style:italic;"></div>
@@ -235,94 +234,47 @@
     </div>
 
     <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('manageUserContent', this)">Lägg till/ta bort medarbetare</button>
+      <button class="disclosure" type="button" onclick="adminAccordion('manageUserContent', this)">Lägg till / ta bort medarbetare</button>
       <div id="manageUserContent" class="content">
-        <label>Användarnamn:<br><input id="newUserName" class="input" placeholder="Användarnamn" /></label>
-        <br>
-        <label>Lösenord:<br><input id="newUserPass" class="input" placeholder="Lösenord" /></label>
-        <label style="display:block;margin-top:8px;"><input type="checkbox" id="newUserAccessCheckbox"> Kassa-access</label>
-        <label style="display:block;margin-top:8px;"><input type="checkbox" id="newUserInsleppCheckbox"> Insläpp-access</label>
-        <div style="display:flex; gap:8px; margin-top:8px;">
+        <div class="admin-field">
+          <label class="admin-label" for="newUserName">Användarnamn</label>
+          <input id="newUserName" class="input" placeholder="Användarnamn" style="width:100%;">
+        </div>
+        <div class="admin-field">
+          <label class="admin-label" for="newUserPass">Lösenord</label>
+          <input id="newUserPass" class="input" placeholder="Lösenord" style="width:100%;">
+        </div>
+        <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="newUserAccessCheckbox"> Kassa-access</label>
+        <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="newUserInsleppCheckbox"> Insläpp-access</label>
+        <div class="row" style="gap:8px;">
           <button id="addUserBtn" class="btn btn-primary">Lägg till</button>
           <button id="removeUserBtn" class="btn btn-danger">Ta bort</button>
         </div>
-        <small class="tiny" style="display:block; margin-top:6px;">För att ta bort krävs korrekt namn <em>och</em> lösenord. Casper &amp; Adam kan inte tas bort.</small>
+        <div class="tiny" style="margin-top:8px;">För att ta bort krävs korrekt namn <em>och</em> lösenord. Casper &amp; Adam kan inte tas bort.</div>
       </div>
     </div>
 
     <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('catalogContent', this)">Kataloger (kompetenser &amp; uppgifter)</button>
+      <button class="disclosure" type="button" onclick="adminAccordion('catalogContent', this)">Kompetenser &amp; uppgifter</button>
       <div id="catalogContent" class="content">
-        <div class="row" style="gap:24px; align-items:flex-start; margin-top:8px; flex-wrap:wrap;">
-          <div style="flex:1; min-width:280px;">
-            <h4 style="margin:0 0 6px;">Kompetenser</h4>
+        <div class="row" style="gap:24px; align-items:flex-start; flex-wrap:wrap;">
+          <div style="flex:1; min-width:240px;">
+            <h4>Kompetenser</h4>
             <div id="skillCatalogList"></div>
             <div class="row" style="margin-top:8px;">
               <input id="newSkillInput" class="input" placeholder="Ny kompetens…" style="flex:1;">
               <button id="addSkillBtn" class="btn btn-green">Lägg till</button>
             </div>
           </div>
-          <div style="flex:1; min-width:280px;">
-            <h4 style="margin:0 0 6px;">Uppgifter</h4>
+          <div style="flex:1; min-width:240px;">
+            <h4>Uppgifter</h4>
             <div id="taskCatalogList"></div>
             <div class="row" style="margin-top:8px;">
-              <input id="newTaskInput" class="input" placeholder="Ny uppgift..." style="flex:1;">
+              <input id="newTaskInput" class="input" placeholder="Ny uppgift…" style="flex:1;">
               <button id="addTaskBtn" class="btn btn-green">Lägg till</button>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('welcomeEditContent', this)">Redigera välkomstsida</button>
-      <div id="welcomeEditContent" class="content">
-        <h4>Rubriker</h4>
-        <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
-          <label style="font-family:'IM Fell English SC',serif; font-size:12px; color:rgba(232,224,208,0.5); letter-spacing:0.5px;">RUBRIK
-            <input id="welcomeHotelNameInput" class="input" placeholder="Spökhotellet Korpen" style="display:block; width:100%; margin-top:5px;">
-          </label>
-          <label style="font-family:'IM Fell English SC',serif; font-size:12px; color:rgba(232,224,208,0.5); letter-spacing:0.5px;">UNDERRUBRIK
-            <input id="welcomeHeadlineInput" class="input" placeholder="En oförglömlig upplevelse väntar — välkommen!" style="display:block; width:100%; margin-top:5px;">
-          </label>
-          <label style="font-family:'IM Fell English SC',serif; font-size:12px; color:rgba(232,224,208,0.5); letter-spacing:0.5px;">UNDERTEXT
-            <input id="welcomeTaglineInput" class="input" placeholder="Kliv in i mörkret och upplev Korpens hemligheter." style="display:block; width:100%; margin-top:5px;">
-          </label>
-        </div>
-        <div class="row" style="justify-content:flex-end; margin-top:8px;">
-          <button id="saveWelcomeHeroBtn" class="btn btn-green">Spara rubriker</button>
-          <button id="resetWelcomeHeroBtn" class="btn btn-danger">Återställ standard</button>
-        </div>
-        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06); margin:14px 0;">
-        <h4>Välkomsttext</h4>
-        <textarea id="welcomeTextInput" rows="6" placeholder="Skriv informationstexten..." style="width:100%; box-sizing:border-box; padding:10px; background:rgba(255,255,255,0.04); color:#e8e0d0; border:1px solid rgba(255,255,255,0.1); border-radius:4px; font-family:'IM Fell English',serif; font-size:14px;"></textarea>
-        <div class="row" style="justify-content:flex-end; margin-top:8px;">
-          <button id="saveWelcomeTextBtn" class="btn btn-green">Spara text</button>
-          <button id="clearWelcomeTextBtn" class="btn btn-danger">Ta bort text</button>
-        </div>
-        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06); margin:14px 0;">
-        <h4>FAQ (välkomstsidan)</h4>
-        <textarea id="welcomeFaqInput" rows="10" placeholder="Skriv FAQ... Använd {{PRICE_ADULT}} och {{PRICE_CHILD}} för biljettpriser." style="width:100%; box-sizing:border-box; padding:10px; background:rgba(255,255,255,0.04); color:#e8e0d0; border:1px solid rgba(255,255,255,0.1); border-radius:4px; font-family:'IM Fell English',serif; font-size:14px;"></textarea>
-        <div class="row" style="justify-content:flex-end; margin-top:8px;">
-          <button id="saveWelcomeFaqBtn" class="btn btn-green">Spara FAQ</button>
-          <button id="clearWelcomeFaqBtn" class="btn btn-danger">Ta bort FAQ</button>
-        </div>
-        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06); margin:14px 0;">
-        <h4>Sociala medier</h4>
-        <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
-          <label style="display:flex; align-items:center; gap:10px; font-family:'IM Fell English SC',serif; font-size:13px; color:rgba(232,224,208,0.6);">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
-            <input id="socialIgInput" class="input" placeholder="https://instagram.com/ert_konto" style="flex:1;">
-          </label>
-          <label style="display:flex; align-items:center; gap:10px; font-family:'IM Fell English SC',serif; font-size:13px; color:rgba(232,224,208,0.6);">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-            <input id="socialFbInput" class="input" placeholder="https://facebook.com/er_sida" style="flex:1;">
-          </label>
-        </div>
-        <div class="row" style="justify-content:flex-end; margin-top:8px;">
-          <button id="saveSocialBtn" class="btn btn-green">Spara sociala länkar</button>
-        </div>
-        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06); margin:14px 0;">
       </div>
     </div>
 
@@ -341,29 +293,84 @@
     </div>
 
     <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('reviewsContent', this)">Recensioner</button>
-      <div id="reviewsContent" class="content"></div>
-    </div>
-
-    <div class="section">
       <button class="disclosure" type="button" onclick="adminAccordion('displayAdminContent', this); loadDisplayAdminStatus()">Kundskärm</button>
       <div id="displayAdminContent" class="content">
-        <div id="displayAdminStatus" class="muted" style="font-size:13px;margin-bottom:10px;">–</div>
+        <div id="displayAdminStatus" class="muted" style="margin-bottom:10px;">–</div>
         <button id="displayAdminDisconnectBtn" class="btn btn-danger" style="display:none" onclick="adminDisconnectDisplay()">Koppla från</button>
-        <h4 style="margin:16px 0 6px;">Swish-nummer</h4>
+        <h4>Swish-nummer</h4>
         <div class="row" style="gap:8px;">
           <input id="swishNumberInput" class="input" placeholder="t.ex. 1234567890" style="flex:1;">
           <button class="btn btn-green" onclick="saveSwishNumber()">Spara</button>
         </div>
         <div id="swishNumberConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
-        <h4 style="margin:16px 0 6px;">Rullande text (kötidsdisplay)</h4>
-        <div class="tiny muted" style="margin-bottom:6px;">Visas längst ner i kötidsdisplayen. Separera flera meningar med <strong>|</strong></div>
+        <h4>Info-slides (kötidsdisplay)</h4>
+        <div class="tiny muted" style="margin-bottom:6px;">Varje del visas som en egen informationssida i displayen. Separera med <strong>|</strong></div>
         <div class="row" style="gap:8px;">
           <input id="displayTickerInput" class="input" placeholder="t.ex. Välkommen! | Kort film ca 30 min" style="flex:1;">
           <button class="btn btn-green" onclick="saveDisplayTicker()">Spara</button>
         </div>
         <div id="displayTickerConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
       </div>
+    </div>
+
+    <div class="section">
+      <button class="disclosure" type="button" onclick="adminAccordion('welcomeEditContent', this)">Välkomstsida</button>
+      <div id="welcomeEditContent" class="content">
+        <h4>Rubriker</h4>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="admin-field">
+            <label class="admin-label" for="welcomeHotelNameInput">Rubrik</label>
+            <input id="welcomeHotelNameInput" class="input" placeholder="Spökhotellet Korpen" style="width:100%;">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label" for="welcomeHeadlineInput">Underrubrik</label>
+            <input id="welcomeHeadlineInput" class="input" placeholder="En oförglömlig upplevelse väntar — välkommen!" style="width:100%;">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label" for="welcomeTaglineInput">Undertext</label>
+            <input id="welcomeTaglineInput" class="input" placeholder="Kliv in i mörkret och upplev Korpens hemligheter." style="width:100%;">
+          </div>
+        </div>
+        <div class="row" style="justify-content:flex-end; margin-top:4px;">
+          <button id="saveWelcomeHeroBtn" class="btn btn-green">Spara rubriker</button>
+          <button id="resetWelcomeHeroBtn" class="btn btn-danger">Återställ standard</button>
+        </div>
+        <hr class="admin-divider">
+        <h4>Välkomsttext</h4>
+        <textarea id="welcomeTextInput" class="admin-textarea" rows="6" placeholder="Skriv informationstexten…"></textarea>
+        <div class="row" style="justify-content:flex-end; margin-top:8px;">
+          <button id="saveWelcomeTextBtn" class="btn btn-green">Spara text</button>
+          <button id="clearWelcomeTextBtn" class="btn btn-danger">Ta bort text</button>
+        </div>
+        <hr class="admin-divider">
+        <h4>FAQ</h4>
+        <div class="tiny muted" style="margin-bottom:6px;">Använd <strong>{{PRICE_ADULT}}</strong> och <strong>{{PRICE_CHILD}}</strong> för att infoga biljettpriser automatiskt.</div>
+        <textarea id="welcomeFaqInput" class="admin-textarea" rows="10" placeholder="Skriv FAQ…"></textarea>
+        <div class="row" style="justify-content:flex-end; margin-top:8px;">
+          <button id="saveWelcomeFaqBtn" class="btn btn-green">Spara FAQ</button>
+          <button id="clearWelcomeFaqBtn" class="btn btn-danger">Ta bort FAQ</button>
+        </div>
+        <hr class="admin-divider">
+        <h4>Sociala medier</h4>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px;">
+          <label style="display:flex; align-items:center; gap:10px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; color:rgba(232,224,208,0.45);"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+            <input id="socialIgInput" class="input" placeholder="https://instagram.com/ert_konto" style="flex:1;">
+          </label>
+          <label style="display:flex; align-items:center; gap:10px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0; color:rgba(232,224,208,0.45);"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            <input id="socialFbInput" class="input" placeholder="https://facebook.com/er_sida" style="flex:1;">
+          </label>
+        </div>
+        <div class="row" style="justify-content:flex-end; margin-top:8px;">
+          <button id="saveSocialBtn" class="btn btn-green">Spara sociala länkar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <button class="disclosure" type="button" onclick="adminAccordion('reviewsContent', this)">Recensioner</button>
+      <div id="reviewsContent" class="content"></div>
     </div>
   </div>
 
@@ -1087,6 +1094,19 @@
       </div>
     </div>`;
 
+    // Betalningsmetoder
+    const payTots = paymentTotalsForDate(dateStr);
+    const payMethods = ['Swish','Kort','Kontant'].filter(m=>payTots[m]);
+    if(payMethods.length){
+      html += `<hr class="day-summary-divider">
+      <div class="day-summary-section">
+        <div class="day-summary-section-title">Betalningsmetoder</div>
+        <div class="day-summary-pills">
+          ${payMethods.map(m=>pill(m, payTots[m]+' kr')).join('')}
+        </div>
+      </div>`;
+    }
+
     // Ekonomi
     html += `<hr class="day-summary-divider">
     <div class="day-summary-section">
@@ -1185,7 +1205,7 @@
     dates.forEach(date=>{
       const s=hist[date]||{};const totalGuests=(s.adult||0)+(s.child||0);const detailId=`statsDetail-${date}`;const btnId=`statsBtn-${date}`;const hoursLabel=s.hours&&s.hours!=='Stängt'?` • ${s.hours}`:'';const _sEntries=Array.isArray(s.entries)?s.entries:[];const _sPay={};_sEntries.forEach(e=>{const p=e.payType||'—';_sPay[p]=(_sPay[p]||0)+Number(e.sum||0);});const payLabel=['Swish','Kort','Kontant'].filter(m=>_sPay[m]).map(m=>`${m}: ${_sPay[m]} kr`).join(' / ');
       const wrap=document.createElement('div');wrap.className='section';
-      wrap.innerHTML=`<button id="${btnId}" class="disclosure" type="button" onclick="toggleStats('${date}',this)">${date}${hoursLabel} — Gäster: ${totalGuests} (Vuxna: ${s.adult||0}, Barn: ${s.child||0}) • Inkomst: ${s.income||0} kr • Köp: ${s.count||0}${payLabel?' • '+payLabel:''}</button><div id="${detailId}" class="content" style="display:none;"></div>`;
+      wrap.innerHTML=`<button id="${btnId}" class="disclosure" type="button" onclick="toggleStats('${date}',this)">${date}${hoursLabel} — Gäster: ${totalGuests} (Vuxna: ${s.adult||0}, Barn: ${s.child||0}) • Inkomst: ${s.income||0} kr • Köp: ${s.count||0}</button><div id="${detailId}" class="content" style="display:none;"></div>`;
       root.appendChild(wrap);
     });
     const openDays=loadOpenStatsDays();
