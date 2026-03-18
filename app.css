@@ -334,9 +334,6 @@
       min-height: 100vh;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 48px 20px 64px;
-      text-align: center;
       position: relative;
     }
     #welcomeMessage::before {
@@ -365,7 +362,7 @@
       z-index: 2;
     }
 
-    .welcome-hero { display: flex; flex-direction: column; align-items: center; gap: 18px; margin-bottom: 32px; }
+    .welcome-hero { width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 60px 20px 80px; text-align: center; position: relative; z-index: 2; }
     #welcomeKorpenLogo { max-width: 280px; width: 70%; height: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6)) drop-shadow(0 0 20px rgba(139,26,26,0.28)); animation: wFadeUp 0.7s ease both; }
     .welcome-hotel-name { font-family: 'IM Fell English SC', serif; font-size: clamp(1.4rem, 4.5vw, 2.2rem); letter-spacing: 4px; color: #f0ebe2; margin: 0; text-shadow: 0 2px 16px rgba(139,26,26,0.35); line-height: 1.2; animation: wFadeUp 0.7s ease 0.1s both; transition: opacity 0.38s ease; }
     #welcomeMessage h1 { font-family: 'IM Fell English', serif; font-style: italic; font-weight: 400; font-size: clamp(1.05rem, 2.6vw, 1.3rem); line-height: 1.55; color: rgba(232,224,208,0.75); letter-spacing: 0.2px; margin: 0; animation: wFadeUp 0.7s ease 0.2s both; transition: opacity 0.38s ease; }
@@ -402,8 +399,54 @@
     .social-btn svg { flex-shrink: 0; opacity: 0.7; transition: opacity 0.2s; }
     .social-btn:hover svg { opacity: 1; }
 
-    .welcome-staff-btn { margin-top: 20px; background: transparent; border: none; color: rgba(232,224,208,0.22); font-family: 'IM Fell English', serif; font-style: italic; font-size: 13px; cursor: pointer; letter-spacing: 0.3px; padding: 6px 12px; transition: color 0.2s; animation: wFadeUp 0.7s ease 0.55s both; }
+    .welcome-staff-btn { display: block; margin: 12px auto 48px; background: transparent; border: none; color: rgba(232,224,208,0.22); font-family: 'IM Fell English', serif; font-style: italic; font-size: 13px; cursor: pointer; letter-spacing: 0.3px; padding: 6px 12px; transition: color 0.2s; }
     .welcome-staff-btn:hover { color: rgba(232,224,208,0.5); }
+
+    /* ====== WELCOME LANDING – SEKTIONER ====== */
+    .ws-arrow { font-size: 22px; color: rgba(232,224,208,0.18); margin-top: 8px; animation: ws-arrow-bounce 2.2s ease-in-out infinite; line-height: 1; }
+    @keyframes ws-arrow-bounce { 0%,100%{ transform:translateY(0); opacity:0.18; } 50%{ transform:translateY(9px); opacity:0.42; } }
+
+    /* Stor statusindikator (Idag-fliken) */
+    .wt-status-big { text-align: center; padding: 24px 0 20px; }
+    .wt-open-badge { display: block; font-family: 'IM Fell English SC', serif; font-size: clamp(2.8rem, 10vw, 4.5rem); letter-spacing: 3px; line-height: 1; margin-bottom: 10px; transition: color 0.4s, text-shadow 0.4s; }
+    .wt-open-badge.is-open { color: rgba(100,210,130,0.95); text-shadow: 0 0 24px rgba(80,180,100,0.35); }
+    .wt-open-badge.is-closed { color: rgba(200,80,60,0.75); text-shadow: 0 0 20px rgba(180,50,40,0.2); }
+    .wt-hours-text { display: block; font-family: 'IM Fell English SC', serif; font-size: 15px; letter-spacing: 0.6px; color: rgba(232,224,208,0.45); margin-top: 4px; }
+
+    /* Flikar på välkomstsidan */
+    .ws-tabs { display: flex; gap: 0; justify-content: center; flex-wrap: wrap; margin: 4px 0 28px; border-bottom: 1px solid rgba(255,255,255,0.08); width: 100%; }
+    .ws-tab { background: transparent; border: none; border-bottom: 2px solid transparent; padding: 10px 20px; color: rgba(232,224,208,0.42); font-family: 'IM Fell English SC', serif; font-size: 14px; letter-spacing: 0.8px; cursor: pointer; transition: color 0.15s, border-color 0.15s; margin-bottom: -1px; }
+    .ws-tab:hover { color: rgba(232,224,208,0.78); }
+    .ws-tab.active { color: #e8e0d0; border-bottom-color: rgba(212,135,42,0.8); }
+    .ws-panel { width: 100%; min-height: 60px; }
+
+    .ws-nav { width: 100%; position: sticky; top: 0; z-index: 100; background: rgba(10,8,6,0.96); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid rgba(139,26,26,0.18); display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; padding: 9px 16px; }
+    .ws-nav-link { background: transparent; border: 1px solid transparent; border-radius: 20px; padding: 5px 14px; color: rgba(232,224,208,0.48); font-family: 'IM Fell English SC', serif; font-size: 13px; letter-spacing: 0.6px; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+    .ws-nav-link:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); color: rgba(232,224,208,0.88); }
+
+    .ws-body { max-width: 680px; width: 100%; margin: 0 auto; padding: 0 24px 32px; position: relative; z-index: 2; }
+
+    .ws-section { padding: 52px 0; border-bottom: 1px solid rgba(255,255,255,0.05); text-align: center; scroll-margin-top: 48px; }
+    .ws-section:last-of-type { border-bottom: none; }
+
+    .ws-heading { font-family: 'IM Fell English SC', serif; font-size: 10px; letter-spacing: 3.5px; color: rgba(212,135,42,0.6); text-transform: uppercase; margin: 0 0 28px; display: block; }
+
+    /* Statuskort i ny layout */
+    #ws-idag .welcome-status-row { margin-bottom: 0; }
+    #ws-idag #welcomeAdminBar { margin: 16px 0 0; }
+
+    /* Priskort */
+    .ws-prices { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .ws-price-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 8px; padding: 20px 24px; text-align: center; min-width: 120px; transition: background 0.2s, border-color 0.2s; }
+    .ws-price-card:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); }
+    .ws-price-name { display: block; font-family: 'IM Fell English SC', serif; font-size: 13px; letter-spacing: 0.4px; color: rgba(232,224,208,0.55); margin-bottom: 10px; }
+    .ws-price-val { font-family: 'IM Fell English SC', serif; font-size: 30px; color: #d4a854; line-height: 1; }
+    .ws-price-kr { font-size: 15px; color: rgba(212,168,84,0.65); margin-left: 3px; }
+
+    /* FAQ-innehåll i ny layout */
+    #ws-faq #welcomeFaqContent { text-align: left; max-width: 520px; margin: 0 auto; }
+    /* Info-innehåll i ny layout */
+    #ws-info #welcomeInfoText { display: block; }
 
     @keyframes wFadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 

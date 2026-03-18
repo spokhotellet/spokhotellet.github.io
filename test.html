@@ -98,6 +98,8 @@
   <!-- ===== VÄLKOMST ===== -->
   <div class="welcome-message" id="welcomeMessage">
     <div class="welcome-inner">
+
+      <!-- Hero -->
       <div class="welcome-hero">
         <img id="welcomeKorpenLogo" src="korpen.png" alt="Spökhotellet Korpen" onerror="this.style.display='none'">
         <p class="welcome-hotel-name" id="welcomeHotelName">Välkommen</p>
@@ -105,48 +107,76 @@
         <p class="welcome-tagline" id="welcomeTagline"></p>
       </div>
 
-      <div class="welcome-status-row" id="welcomeStatusRow">
-        <div class="welcome-status-card">
-          <span class="welcome-status-label">Kötid</span>
-          <span class="welcome-status-value" id="queueTimeDisplay">
-            <span class="status-dot dead"></span>Ingen info
-          </span>
+      <!-- Flikar -->
+      <div class="ws-tabs">
+        <button class="ws-tab active" data-tab="idag" onclick="showWelcomeTab('idag')">Idag</button>
+        <button class="ws-tab" data-tab="priser" onclick="showWelcomeTab('priser')">Priser</button>
+        <button class="ws-tab" data-tab="info" onclick="showWelcomeTab('info')">Info</button>
+        <button class="ws-tab" data-tab="kontakt" onclick="showWelcomeTab('kontakt')">Kontakt</button>
+      </div>
+
+      <!-- Panel: Idag -->
+      <div class="ws-panel" id="panel-idag">
+
+        <!-- Stor statusindikator -->
+        <div class="wt-status-big">
+          <span class="wt-open-badge is-closed" id="wtOpenBadge">Stängt</span>
+          <span class="wt-hours-text" id="wtHoursText"></span>
         </div>
-        <div class="welcome-status-card">
-          <span class="welcome-status-label">Öppet idag</span>
-          <span class="welcome-status-value" id="welcomeOpenHoursText">Ingen info</span>
+
+        <!-- Kötid (visas bara när öppet) -->
+        <div class="welcome-status-row" id="welcomeStatusRow">
+          <div class="welcome-status-card">
+            <span class="welcome-status-label">Kötid</span>
+            <span class="welcome-status-value" id="queueTimeDisplay">
+              <span class="status-dot dead"></span>Ingen info
+            </span>
+          </div>
+          <!-- Dold – behålls för JS-kompatibilitet -->
+          <div style="display:none;">
+            <span id="welcomeOpenHoursText"></span>
+          </div>
+        </div>
+
+        <div id="welcomeAdminBar">
+          <span onclick="maybeEditQueueTime(event)">✎ kötid</span>
+          <span onclick="maybeEditHours(event)">✎ öppettider</span>
+        </div>
+        <div id="welcomeInfoText"></div>
+        <div class="welcome-divider"></div>
+        <div id="welcomeReviews" style="display:none;"></div>
+      </div>
+
+      <!-- Panel: Priser -->
+      <div class="ws-panel" id="panel-priser" style="display:none;">
+        <div class="ws-prices" id="wsPrices"></div>
+      </div>
+
+      <!-- Panel: Info -->
+      <div class="ws-panel" id="panel-info" style="display:none;">
+        <div class="welcome-info-panel" id="welcomeInfoPanel">
+          <div id="welcomeFaqContent"></div>
         </div>
       </div>
 
-      <div id="welcomeAdminBar">
-        <span onclick="maybeEditQueueTime(event)">✎ kötid</span>
-        <span onclick="maybeEditHours(event)">✎ öppettider</span>
-      </div>
-
-      <div id="welcomeInfoText"></div>
-
-      <div class="welcome-divider"></div>
-
-      <div id="welcomeReviews" style="display:none;"></div>
-
-      <div class="welcome-info-panel" id="welcomeInfoPanel" style="display:none;">
-        <div id="welcomeFaqContent"></div>
-      </div>
-
-      <div class="welcome-social" id="welcomeSocial">
-        <a id="socialIgBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
-          Instagram
-        </a>
-        <a id="socialFbBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-          Facebook
-        </a>
+      <!-- Panel: Kontakt -->
+      <div class="ws-panel" id="panel-kontakt" style="display:none;">
+        <div class="welcome-social" id="welcomeSocial">
+          <a id="socialIgBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+            Instagram
+          </a>
+          <a id="socialFbBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            Facebook
+          </a>
+        </div>
       </div>
 
       <button class="welcome-staff-btn" onclick="openLoginModal()">
         — Personalinloggning —
       </button>
+
     </div>
   </div>
 
@@ -1294,6 +1324,11 @@
     const wHoursLabel=wHoursEl?.previousElementSibling;
     if(wHoursLabel) wHoursLabel.textContent=isClosed?'Idag':'Öppet idag';
 
+    const wtBadge=document.getElementById('wtOpenBadge');
+    const wtHours=document.getElementById('wtHoursText');
+    if(wtBadge){ wtBadge.textContent=isClosed?'Stängt':'Öppet'; wtBadge.className='wt-open-badge '+(isClosed?'is-closed':'is-open'); }
+    if(wtHours){ if(isClosed){ const nd=getNextOpenDate(); const nl=nd?formatNextOpen(nd):null; wtHours.textContent=nl?`Öppnar ${nl}`:''; }else{ wtHours.textContent=openingHours||''; } }
+
     const adminBar=document.getElementById('welcomeAdminBar');
     if(adminBar) adminBar.style.display=(loggedInUser&&isAdmin)?'block':'none';
 
@@ -2027,6 +2062,17 @@
     if(wm) obs.observe(wm,{attributes:true,attributeFilter:['style']});
   }
 
+  /* ============================== VÄLKOMSTFLIKAR ============================== */
+  function showWelcomeTab(name){
+    document.querySelectorAll('.ws-panel').forEach(p=>p.style.display='none');
+    document.querySelectorAll('.ws-tab').forEach(t=>t.classList.remove('active'));
+    const panel=document.getElementById('panel-'+name);
+    if(panel) panel.style.display='';
+    const tab=document.querySelector(`.ws-tab[data-tab="${name}"]`);
+    if(tab) tab.classList.add('active');
+  }
+  function renderWelcomePrices(){ const c=document.getElementById('wsPrices'); if(!c) return; const prods=loadProducts().filter(p=>Number(p.price)>0); c.innerHTML=`<div class="ds-prices" style="max-width:420px;margin:0 auto;">${prods.map((p,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.08+0.08}s"><span class="ds-price-name">${escapeHtml(p.name)}</span><span class="ds-price-dots"></span><span class="ds-price-val">${p.price} kr</span></div>`).join('')}</div>`; }
+
   /* ============================== BOOT ============================== */
   // Nödutgång: tryck Escape 3 ggr snabbt för att rensa overlay-läge
   (function(){let n=0,t=null;document.addEventListener('keydown',function(e){if(e.key!=='Escape') return;n++;clearTimeout(t);t=setTimeout(()=>{n=0;},800);if(n>=3){localStorage.removeItem('overlayModeV1');location.href=location.href.split('?')[0];}});})();
@@ -2059,7 +2105,7 @@
     }catch(_e){}
 
     enforceCoreUsers();
-    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();bindWelcomeControls();
+    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();renderWelcomePrices();showWelcomeTab('idag');bindWelcomeControls();
     hideAll();
 
     if(loggedInUser){ try{const _t=localStorage.getItem('userTheme_'+loggedInUser);if(_t) applyProfileTheme(_t);}catch(_e){} selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership(); }
@@ -2098,7 +2144,7 @@
         openingHours=loadOpeningHours();queueTime=loadQueue();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
-        loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();
+        loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();renderWelcomePrices();
         updateTopbar();refreshCockpitIfOpen();
         syncDisplayOwnership();
         if(document.getElementById('kassaContainer')?.style.display==='block'){renderProductButtons();renderCart();}
