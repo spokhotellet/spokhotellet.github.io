@@ -1470,7 +1470,7 @@
   function setThemeRadios(theme){ const sel=theme||'default';document.querySelectorAll('.theme-dot').forEach(d=>d.classList.toggle('active',d.dataset.theme===sel)); }
   function renderSkillsBadges(skills){ if(!skills||!skills.length) return '<span class="muted">–</span>';return skills.map(s=>`<span class="tag">${escapeHtml(s)}</span>`).join(''); }
 
-  (function attachThemeDotHandlers(){ document.querySelectorAll('.theme-dot').forEach(dot=>{ dot.addEventListener('click',()=>{ if(!loggedInUser){alert('Logga in först.');return;}ensureProfileDefaults(loggedInUser);const theme=dot.dataset.theme;userData[loggedInUser]=Object.assign({},userData[loggedInUser],{theme});saveUserData();applyProfileTheme(theme);setThemeRadios(theme); }); }); })();
+  (function attachThemeDotHandlers(){ document.querySelectorAll('.theme-dot').forEach(dot=>{ dot.addEventListener('click',()=>{ if(!loggedInUser){alert('Logga in först.');return;}ensureProfileDefaults(loggedInUser);const theme=dot.dataset.theme;userData[loggedInUser]=Object.assign({},userData[loggedInUser],{theme});saveUserData();try{localStorage.setItem('userTheme_'+loggedInUser,theme);}catch(_e){}applyProfileTheme(theme);setThemeRadios(theme); }); }); })();
 
   let _staffMsgJustSent=false, _adminMsgJustSaved=false, _adminDirectMsgJustSent=false;
 
@@ -1787,7 +1787,7 @@
     updateMsgBadge();
   }
 
-  function loadProfile(){ if(!userData||typeof userData!=='object') userData={};const name=loggedInUser;ensureProfileDefaults(name);if(_lastProfileWelcomeFor!==name){setRandomWelcome(name);_lastProfileWelcomeFor=name;}document.getElementById('myHours').textContent=(userData[name].hours||'').trim()||'–';document.getElementById('myTask').textContent=(userData[name].task||'').trim()||'–';const sk=document.getElementById('skillsList');if(sk) sk.innerHTML=renderSkillsBadges(userData[name].skills);applyProfileTheme(userData[name].theme);setThemeRadios(userData[name].theme);renderStaffMsgSection(); }
+  function loadProfile(){ if(!userData||typeof userData!=='object') userData={};const name=loggedInUser;const _hadServerData=(userData[name]!=null);ensureProfileDefaults(name);if(_lastProfileWelcomeFor!==name){setRandomWelcome(name);_lastProfileWelcomeFor=name;}document.getElementById('myHours').textContent=(userData[name].hours||'').trim()||'–';document.getElementById('myTask').textContent=(userData[name].task||'').trim()||'–';const sk=document.getElementById('skillsList');if(sk) sk.innerHTML=renderSkillsBadges(userData[name].skills);const _lsTheme=(()=>{try{return localStorage.getItem('userTheme_'+name)||null;}catch(_e){return null;}})();const _serverTheme=_hadServerData?userData[name].theme:null;const _theme=_serverTheme||_lsTheme||'default';try{localStorage.setItem('userTheme_'+name,_theme);}catch(_e){}if(!_serverTheme&&_lsTheme) userData[name].theme=_lsTheme;applyProfileTheme(_theme);setThemeRadios(_theme);renderStaffMsgSection(); }
 
   function loadSkillCatalog(){ const arr=dbGet(SKILL_CATALOG_KEY,null);if(Array.isArray(arr)&&arr.length) return arr;const seed=defaultSkillCatalog();dbSet(SKILL_CATALOG_KEY,seed).catch(()=>{});return seed; }
   function saveSkillCatalog(list){ dbSet(SKILL_CATALOG_KEY,(list||[]).filter(Boolean)).catch(()=>{}); }
@@ -2043,7 +2043,7 @@
 
     const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:REVIEWS_KEY,fallback:[]}];
     // Bara nycklar som ändras löpande — hämtas vid periodisk refresh
-    const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()}];
+    const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()}];
 
     persistCacheHydrate(BOOT_KEYS);
     openingHours=loadOpeningHours();queueTime=loadQueue();
@@ -2062,7 +2062,7 @@
     loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();bindWelcomeControls();
     hideAll();
 
-    if(loggedInUser){ selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership(); }
+    if(loggedInUser){ try{const _t=localStorage.getItem('userTheme_'+loggedInUser);if(_t) applyProfileTheme(_t);}catch(_e){} selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership(); }
     else{
       document.getElementById('welcomeMessage').style.display='flex';
       if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');
@@ -2114,6 +2114,7 @@
         loadDailyStats();loadDailyCosts();loadDailyForecast();
         refreshCockpitIfOpen();
         if(document.getElementById('profileContainer')?.style.display==='block'&&loggedInUser) loadProfile();
+        else if(loggedInUser){ const _lsT=(()=>{try{return localStorage.getItem('userTheme_'+loggedInUser)||null;}catch(_e){return null;}})();const _udT=(userData[loggedInUser]||{}).theme;const _t=_udT||_lsT;if(_t&&_t!=='default'||_lsT){applyProfileTheme(_t||'default');} }
         updateMsgBadge();
         _setOffline(false);
       }catch(e){ _setOffline(true); }
