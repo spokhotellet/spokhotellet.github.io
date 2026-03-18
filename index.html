@@ -559,7 +559,7 @@
       const typedName = (document.getElementById('loginNameInput')?.value || '').trim().toLowerCase();
       if(typedName === 'kö' && pw === '00'){ closeLoginModal(); localStorage.setItem('overlayModeV1','ko'); showDisplay(); return; }
       if(typedName === 'biljett' && pw === '00'){ closeLoginModal(); openRecentTicketsFull(); return; }
-      if(typedName === 'pos' && pw === '00'){ closeLoginModal(); startCustomerDisplayMode(); return; }
+      if(typedName === 'pos' && pw === '00'){ closeLoginModal(); localStorage.setItem('overlayModeV1','pos'); startCustomerDisplayMode(); return; }
       const displayName = (document.getElementById('loginNameInput')?.value || '').trim();
       if(u){
         enforceCoreUsers();
@@ -2072,6 +2072,7 @@
 
     updateTopbar();renderCart();
     if(localStorage.getItem('overlayModeV1')==='ko') showDisplay();
+    if(localStorage.getItem('overlayModeV1')==='pos') setTimeout(startCustomerDisplayMode, 0);
     setupLiveStatus();
     initEmbers();
 
