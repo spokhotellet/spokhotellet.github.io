@@ -434,6 +434,21 @@
     #profileContainer.theme-forest { background: linear-gradient(180deg, rgba(15,30,18,0.9), rgba(10,22,14,0.9)); border-color: rgba(50,120,60,0.2); }
     #profileContainer.theme-royal  { background: linear-gradient(180deg, rgba(25,15,40,0.9), rgba(18,10,30,0.9)); border-color: rgba(100,60,160,0.2); }
 
+    /* ====== GLOBALA TEMAN ====== */
+    /* Forest — gröna accenter */
+    body.theme-forest .topbar { border-bottom-color: rgba(40,130,60,0.45); box-shadow: 0 1px 0 rgba(40,167,69,0.12), 0 4px 20px rgba(0,0,0,0.6); }
+    body.theme-forest .btn:not(.btn-danger):not(.btn-green):not(#undoCartBtn) { border-color: rgba(40,167,69,0.28); }
+    body.theme-forest .btn:not(.btn-danger):not(.btn-green):not(#undoCartBtn):hover { background: rgba(40,167,69,0.1); border-color: rgba(40,167,69,0.55); }
+    body.theme-forest .modal { box-shadow: 0 8px 60px rgba(0,0,0,0.85), 0 0 30px rgba(20,90,40,0.25), inset 0 1px 0 rgba(40,167,69,0.1); }
+    body.theme-forest .section { border-color: rgba(40,167,69,0.18); }
+
+    /* Royal — lila accenter */
+    body.theme-royal .topbar { border-bottom-color: rgba(130,70,210,0.5); box-shadow: 0 1px 0 rgba(150,90,240,0.14), 0 4px 20px rgba(0,0,0,0.6); }
+    body.theme-royal .btn:not(.btn-danger):not(.btn-green):not(#undoCartBtn) { border-color: rgba(130,70,210,0.32); }
+    body.theme-royal .btn:not(.btn-danger):not(.btn-green):not(#undoCartBtn):hover { background: rgba(130,70,210,0.12); border-color: rgba(150,90,240,0.6); }
+    body.theme-royal .modal { box-shadow: 0 8px 60px rgba(0,0,0,0.85), 0 0 30px rgba(80,30,140,0.28), inset 0 1px 0 rgba(150,90,240,0.12); }
+    body.theme-royal .section { border-color: rgba(130,70,210,0.2); }
+
     .theme-dots { display: flex; gap: 10px; align-items: center; }
     .theme-dot { width: 28px; height: 28px; border-radius: 999px; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.35); transition: border-color 0.2s, box-shadow 0.2s; }
     .theme-dot:focus { outline: 2px solid #999; outline-offset: 2px; }
@@ -706,3 +721,17 @@
     .welcome-reviews-avg { font-family:'IM Fell English SC',serif; font-size:20px; color:#e8e0d0; margin-left:6px; vertical-align:middle; }
     .welcome-reviews-count { font-family:'IM Fell English',serif; font-size:12px; color:rgba(232,224,208,0.3); margin-top:3px; letter-spacing:0.5px; }
     .welcome-review-quote { font-family:'IM Fell English',serif; font-style:italic; font-size:13px; color:rgba(232,224,208,0.38); margin-top:8px; max-width:320px; margin-left:auto; margin-right:auto; line-height:1.5; }
+
+    /* ====== ÅNGRA-TOAST ====== */
+    #undoToast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(14px); background: rgba(16,12,10,0.97); border: 1px solid rgba(232,224,208,0.16); border-radius: 10px; padding: 12px 18px; display: flex; align-items: center; gap: 14px; font-family: 'IM Fell English SC', serif; font-size: 14px; color: rgba(232,224,208,0.82); z-index: 9500; opacity: 0; pointer-events: none; transition: opacity 0.22s, transform 0.22s; box-shadow: 0 4px 28px rgba(0,0,0,0.75); overflow: hidden; white-space: nowrap; }
+    #undoToast.visible { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+    #undoToastBtn { background: rgba(212,135,42,0.14); border: 1px solid rgba(212,135,42,0.45); border-radius: 6px; color: rgba(212,135,42,0.92); font-family: 'IM Fell English SC', serif; font-size: 13px; padding: 4px 14px; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
+    #undoToastBtn:hover { background: rgba(212,135,42,0.28); }
+    @keyframes undoBarShrink { from { width: 100%; } to { width: 0%; } }
+    #undoToastBar { position: absolute; bottom: 0; left: 0; height: 2px; background: rgba(212,135,42,0.45); border-radius: 0 0 10px 10px; }
+
+    /* ====== LOADING STATE ====== */
+    @keyframes btnSpin { to { transform: translateY(-50%) rotate(360deg); } }
+    .btn.loading { pointer-events: none; opacity: 0.6; padding-right: 30px; position: relative; }
+    .btn.loading::after { content: ''; position: absolute; right: 9px; top: 50%; transform: translateY(-50%); width: 11px; height: 11px; border-radius: 50%; border: 2px solid rgba(232,224,208,0.18); border-top-color: rgba(232,224,208,0.75); animation: btnSpin 0.7s linear infinite; }
+
