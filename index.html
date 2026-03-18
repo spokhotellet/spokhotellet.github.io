@@ -32,6 +32,13 @@
     <button onclick="resetAutoLogout()" style="margin-left:12px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:inherit;padding:3px 10px;cursor:pointer;font-family:'IM Fell English SC',serif;font-size:12px;">Fortsätt</button>
   </div>
 
+  <!-- ===== ÅNGRA-TOAST ===== -->
+  <div id="undoToast" role="status" aria-live="polite">
+    <span id="undoToastMsg"></span>
+    <button id="undoToastBtn" onclick="doUndo()">Ångra</button>
+    <div id="undoToastBar"></div>
+  </div>
+
   <!-- ===== LOGIN MODAL ===== -->
   <div id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
     <div class="login-box">
@@ -627,6 +634,32 @@
   async function loadUsersFromServer(){ const u=await dbEnsure(USERS_KEY,defaultUsers()); const _before=JSON.stringify(users); users=(u&&typeof u==='object')?u:defaultUsers(); enforceCoreUsers(); if(JSON.stringify(users)!==_before) await saveUsers(); }
 
   const THEME_CLASSES=['theme-default','theme-forest','theme-royal'];
+
+  /* ====== ÅNGRA-TOAST ====== */
+  let _undoState=null, _undoTimer=null;
+  function showUndoToast(label, restoreFn, durationMs=6000){
+    if(_undoTimer){ clearTimeout(_undoTimer); _undoTimer=null; }
+    _undoState={restoreFn};
+    const toast=document.getElementById('undoToast');
+    const msg=document.getElementById('undoToastMsg');
+    const bar=document.getElementById('undoToastBar');
+    if(!toast||!msg) return;
+    msg.textContent=label;
+    if(bar){ bar.style.animation='none'; void bar.offsetWidth; bar.style.animation=`undoBarShrink ${durationMs}ms linear forwards`; }
+    toast.classList.add('visible');
+    _undoTimer=setTimeout(hideUndoToast, durationMs);
+  }
+  function hideUndoToast(){
+    _undoState=null;
+    if(_undoTimer){ clearTimeout(_undoTimer); _undoTimer=null; }
+    document.getElementById('undoToast')?.classList.remove('visible');
+  }
+  function doUndo(){
+    if(!_undoState?.restoreFn) return;
+    const fn=_undoState.restoreFn;
+    hideUndoToast();
+    fn();
+  }
   let _displayActive=false, _suppressDisplayPush=false;
   let cart={}, cartHistory=[], totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0;
   let loggedInKey='', loggedInUser='', isAdmin=false, currentHasAccess=false, currentHasInslepp=false;
@@ -707,7 +740,7 @@
   function recordSale({time,items,sum,adult,child,seller,payType,ticketUid,ticketLabel,used,breakdown,reEntryCreated,reEntryIds}){ const date=todayStr(); const hist=loadSalesHistory(); if(!hist[date]) hist[date]={adult:0,child:0,income:0,count:0,entries:[]}; hist[date].adult+=Number(adult||0); hist[date].child+=Number(child||0); hist[date].income+=Number(sum||0); hist[date].count+=1; hist[date].entries.unshift({time:time||new Date().toLocaleTimeString(),items:Array.isArray(items)?items:[],sum:Number(sum||0),adult:Number(adult||0),child:Number(child||0),seller:seller||'—',payType:payType||'—',ticketUid:ticketUid||null,ticketLabel:ticketLabel||null,used:!!used,breakdown:breakdown||null,reEntryCreated:Number(reEntryCreated||0),reEntryIds:Array.isArray(reEntryIds)?reEntryIds:[]}); saveSalesHistory(hist); _statsDirty=true; }
   function markSaleTicketUsed(ticketUid,date=todayStr()){ if(!ticketUid) return; const hist=loadSalesHistory(); const day=hist[date]; if(!day||!Array.isArray(day.entries)) return; const e=day.entries.find(x=>x.ticketUid===ticketUid); if(e){e.used=true;saveSalesHistory(hist);_statsDirty=true;} }
 
-  function deleteStatsDay(date){ if(!isAdmin||!date) return; const pw=prompt(`BEKRÄFTELSE\n\nSkriv lösenordet för att radera statistik för:\n${date}`); if(!pw) return; const u=users[pw]; if(!u||!u.admin){alert('Fel adminlösenord.');return;} const ok=confirm(`Är du HELT säker?\n\nDetta tar bort all statistik för ${date}.\nÅtgärden kan inte ångras.`); if(!ok) return; const hist=loadSalesHistory(); if(hist[date]) delete hist[date]; saveSalesHistory(hist); _statsDirty=true; if(date===todayStr()){guestCount=0;totalIncome=0;saveDailyStats();updateLogSummary();saveOpenTickets({date:todayStr(),seq:0,items:[]});saveAdmissions({date:todayStr(),count:0,entries:[]});saveReEntry({date:todayStr(),passes:[]});cart={};discountApplied=false;renderCart();} renderCockpit();renderStats();alert('Dagen raderad.'); }
+  function deleteStatsDay(date){ if(!isAdmin||!date) return; const pw=prompt(`BEKRÄFTELSE\n\nSkriv lösenordet för att radera statistik för:\n${date}`); if(!pw) return; const u=users[pw]; if(!u||!u.admin){alert('Fel adminlösenord.');return;} const ok=confirm(`Är du HELT säker?\n\nDetta tar bort all statistik för ${date}.`); if(!ok) return; const hist=loadSalesHistory(); const savedDayHist=hist[date]?JSON.parse(JSON.stringify(hist[date])):null; if(hist[date]) delete hist[date]; saveSalesHistory(hist); _statsDirty=true; let savedDaily=null,savedTickets=null,savedAdmissions=null,savedReEntry=null; if(date===todayStr()){savedDaily={guestCount,totalIncome};savedTickets=JSON.parse(JSON.stringify(loadOpenTickets()));savedAdmissions=JSON.parse(JSON.stringify(loadAdmissions()));savedReEntry=JSON.parse(JSON.stringify(loadReEntry()));guestCount=0;totalIncome=0;saveDailyStats();updateLogSummary();saveOpenTickets({date:todayStr(),seq:0,items:[]});saveAdmissions({date:todayStr(),count:0,entries:[]});saveReEntry({date:todayStr(),passes:[]});cart={};discountApplied=false;renderCart();} renderCockpit();renderStats(); showUndoToast(`Statistik för ${date} raderad`, ()=>{ const h=loadSalesHistory(); if(savedDayHist) h[date]=savedDayHist; saveSalesHistory(h); _statsDirty=true; if(date===todayStr()&&savedDaily){guestCount=savedDaily.guestCount;totalIncome=savedDaily.totalIncome;saveDailyStats();updateLogSummary();if(savedTickets) saveOpenTickets(savedTickets);if(savedAdmissions) saveAdmissions(savedAdmissions);if(savedReEntry) saveReEntry(savedReEntry);renderCart();} renderCockpit();renderStats(); }); }
 
   function loadOpenTickets(){ let o=dbGet(OPEN_TICKETS_KEY,defaultOpenTickets()); if(!o||o.date!==todayStr()) o=defaultOpenTickets(); o.seq=Number(o.seq||0); o.items=Array.isArray(o.items)?o.items:[]; return o; }
   function saveOpenTickets(o){ const safe=o&&typeof o==='object'?o:defaultOpenTickets(); if(safe.date!==todayStr()) safe.date=todayStr(); if(!Array.isArray(safe.items)) safe.items=[]; if(typeof safe.seq!=='number') safe.seq=0; dbSet(OPEN_TICKETS_KEY,safe).catch(()=>{}); }
@@ -773,7 +806,7 @@
   function renderProductButtons(){ const wrap=document.querySelector('.products'); if(!wrap) return; wrap.innerHTML=''; loadProducts().forEach(p=>{ const btn=document.createElement('button'); btn.textContent=Number(p.price)===0?`${p.name} – gratis`:`${p.name} – ${p.price} kr`; const n=p.name.toLowerCase(); if(n.includes('vuxen')) btn.classList.add('btn-adult'); else if(n.includes('barn')) btn.classList.add('btn-child'); else if(n.includes('re')) btn.classList.add('btn-reentry'); else btn.classList.add('btn-other'); if(Number(p.price)===0) btn.classList.add('btn-free'); btn.addEventListener('click',()=>addItem(p.name,p.price)); wrap.appendChild(btn); }); const kbRows=document.getElementById('kbProductRows'); if(kbRows) kbRows.innerHTML=loadProducts().slice(0,9).map((p,i)=>`<div class="kb-row"><kbd>${i+1}</kbd><span>${escapeHtml(p.name)}</span></div>`).join(''); }
   function renderProductsManager(){ const root=document.getElementById('productsList'); if(!root) return; const prods=loadProducts(); root.innerHTML=prods.map(p=>`<div class="row" style="justify-content:space-between;gap:8px;margin:6px 0;"><div class="row" style="flex:1;"><input class="input" style="min-width:220px;" id="pname-${p.id}" value="${escapeHtml(p.name)}"><input class="input" type="number" id="pprice-${p.id}" min="0" step="1" value="${p.price}"></div><div class="row"><button class="btn" onclick="saveProduct(${p.id})">Spara</button><button class="btn btn-danger" onclick="deleteProduct(${p.id})">Ta bort</button></div></div>`).join(''); const addBtn=document.getElementById('pAddBtn'); if(addBtn&&!addBtn._bound){addBtn.addEventListener('click',()=>{ const nameEl=document.getElementById('pNewName'); const priceEl=document.getElementById('pNewPrice'); const name=(nameEl?.value||'').trim(); const price=parseInt(priceEl?.value||'0',10); if(!name||isNaN(price)||price<0){alert('Fyll i giltigt namn och pris.');return;} const list=loadProducts(); const id=list.reduce((m,x)=>Math.max(m,x.id||0),0)+1; list.push({id,name,price}); saveProducts(list); nameEl.value=''; priceEl.value=''; renderProductsManager(); renderProductButtons(); });addBtn._bound=true;} }
   function saveProduct(id){ const prods=loadProducts(); const i=prods.findIndex(p=>p.id===id); if(i===-1) return; const name=(document.getElementById('pname-'+id)?.value||'').trim(); const price=parseInt(document.getElementById('pprice-'+id)?.value||'0',10); if(!name||isNaN(price)||price<0){alert('Ogiltigt namn eller pris.');return;} prods[i].name=name; prods[i].price=price; saveProducts(prods); renderProductsManager(); renderProductButtons(); }
-  function deleteProduct(id){ saveProducts(loadProducts().filter(p=>p.id!==id)); renderProductsManager(); renderProductButtons(); }
+  function deleteProduct(id){ const removed=loadProducts().find(p=>p.id===id); if(!removed) return; saveProducts(loadProducts().filter(p=>p.id!==id)); renderProductsManager(); renderProductButtons(); showUndoToast(`"${removed.name}" borttagen`, ()=>{ const cur=loadProducts(); cur.push(removed); saveProducts(cur); renderProductsManager(); renderProductButtons(); }); }
 
   try{ loadWelcomeFAQ(); }catch(_e){}
 
@@ -1155,7 +1188,7 @@
   function intakeBucketsByHour(dateStr){ const out=Array.from({length:24},()=>0); const day=loadSalesHistory()[dateStr]||{}; const entries=Array.isArray(day.entries)?day.entries:[]; entries.forEach(e=>{const h=parseHourFromTimeStr(e.time);out[h]+=Number(e.sum||0);}); return out; }
   function guestBucketsByHour(){ const out=Array.from({length:24},()=>0); const a=loadAdmissions(); (a.entries||[]).forEach(e=>{const h=new Date(e.ts).getHours();out[h]+=Number(e.n||0);}); return out; }
 
-  function svgBars24(dataArr,maxVal,height=80,opts={}){ const pad=4,wPer=18,gap=6,yAx=32;const id=opts.id||('chart_'+Math.random().toString(36).slice(2,9));const unit=opts.unit||'';const barAreaW=dataArr.length*(wPer+gap)+pad*2-gap;const width=yAx+barAreaW+yAx;const h=height+pad*2+12;const scale=maxVal>0?height/maxVal:0;const fmt=v=>v>=1000?Math.round(v/100)/10+'k':String(v);let bars='';dataArr.forEach((v,i)=>{const barH=Math.round(v*scale);const x=yAx+pad+i*(wPer+gap);const y=pad+(height-barH);bars+=`<rect x="${x}" y="${y}" width="${wPer}" height="${barH}" rx="2" ry="2" onclick="cockpitBarClick('${id}',${(opts.startHour||0)+i},${v},'${unit}')" style="cursor:pointer" fill="currentColor" fill-opacity="0.85"></rect>`;});let labels='';const startHour=opts.startHour||0;for(let i=0;i<dataArr.length;i++){const hour=(startHour+i)%24;const x=yAx+pad+i*(wPer+gap)+Math.floor(wPer/2);labels+=`<text x="${x}" y="${h-2}" font-size="10" text-anchor="middle" fill="currentColor" fill-opacity="0.75">${String(hour).padStart(2,'0')}</text>`;}const midVal=Math.round(maxVal/2);const rightX=yAx+barAreaW+3;const yAxisL=`<text x="${yAx-3}" y="${pad+6}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.55">${fmt(maxVal)}</text><text x="${yAx-3}" y="${pad+Math.round(height/2)+3}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.4">${fmt(midVal)}</text><text x="${yAx-3}" y="${pad+height}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.35">0</text>`;const yAxisR=`<text x="${rightX}" y="${pad+6}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.55">${fmt(maxVal)}</text><text x="${rightX}" y="${pad+Math.round(height/2)+3}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.4">${fmt(midVal)}</text><text x="${rightX}" y="${pad+height}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.35">0</text>`;const grid=`<line x1="${yAx}" y1="${pad}" x2="${yAx+barAreaW}" y2="${pad}" stroke="currentColor" stroke-opacity="0.07" stroke-width="1"/><line x1="${yAx}" y1="${pad+Math.round(height/2)}" x2="${yAx+barAreaW}" y2="${pad+Math.round(height/2)}" stroke="currentColor" stroke-opacity="0.05" stroke-width="1"/>`;return `<svg id="${id}" width="${width}" height="${h}" viewBox="0 0 ${width} ${h}" style="display:block;margin:0 auto;">${grid}${bars}${labels}${yAxisL}${yAxisR}</svg>`; }
+  function svgBars24(dataArr,maxVal,height=80,opts={}){ const pad=4,wPer=18,gap=6,yAx=32;const id=opts.id||('chart_'+Math.random().toString(36).slice(2,9));const unit=opts.unit||'';const barAreaW=dataArr.length*(wPer+gap)+pad*2-gap;const width=yAx+barAreaW+yAx;const h=height+pad*2+12;const scale=maxVal>0?height/maxVal:0;const fmt=v=>v>=1000?Math.round(v/100)/10+'k':String(v);let bars='';dataArr.forEach((v,i)=>{const barH=Math.round(v*scale);const x=yAx+pad+i*(wPer+gap);const y=pad+(height-barH);const barHour=(opts.startHour||0)+i;const h0=String(barHour%24).padStart(2,'0');const h1=String((barHour+1)%24).padStart(2,'0');const tooltip=`${h0}:00–${h1}:00: ${v}${unit?' '+unit:''}`;bars+=`<rect x="${x}" y="${y}" width="${wPer}" height="${barH}" rx="2" ry="2" onclick="cockpitBarClick('${id}',${barHour},${v},'${unit}')" style="cursor:pointer" fill="currentColor" fill-opacity="0.85"><title>${tooltip}</title></rect>`;});let labels='';const startHour=opts.startHour||0;for(let i=0;i<dataArr.length;i++){const hour=(startHour+i)%24;const x=yAx+pad+i*(wPer+gap)+Math.floor(wPer/2);labels+=`<text x="${x}" y="${h-2}" font-size="10" text-anchor="middle" fill="currentColor" fill-opacity="0.75">${String(hour).padStart(2,'0')}</text>`;}const midVal=Math.round(maxVal/2);const rightX=yAx+barAreaW+3;const yAxisL=`<text x="${yAx-3}" y="${pad+6}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.55">${fmt(maxVal)}</text><text x="${yAx-3}" y="${pad+Math.round(height/2)+3}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.4">${fmt(midVal)}</text><text x="${yAx-3}" y="${pad+height}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.35">0</text>`;const yAxisR=`<text x="${rightX}" y="${pad+6}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.55">${fmt(maxVal)}</text><text x="${rightX}" y="${pad+Math.round(height/2)+3}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.4">${fmt(midVal)}</text><text x="${rightX}" y="${pad+height}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.35">0</text>`;const grid=`<line x1="${yAx}" y1="${pad}" x2="${yAx+barAreaW}" y2="${pad}" stroke="currentColor" stroke-opacity="0.07" stroke-width="1"/><line x1="${yAx}" y1="${pad+Math.round(height/2)}" x2="${yAx+barAreaW}" y2="${pad+Math.round(height/2)}" stroke="currentColor" stroke-opacity="0.05" stroke-width="1"/>`;return `<svg id="${id}" width="${width}" height="${h}" viewBox="0 0 ${width} ${h}" style="display:block;margin:0 auto;">${grid}${bars}${labels}${yAxisL}${yAxisR}</svg>`; }
   function cockpitBarClick(chartId,hour,value,unit){ const info=document.getElementById(chartId+'-info'); if(!info) return; const start=String(hour).padStart(2,'0')+':00';const end=String((hour+1)%24).padStart(2,'0')+':00'; info.textContent=`${start}–${end}: ${value} ${unit}`.trim(); info.classList.remove('muted'); }
 
   function renderCockpit(){
@@ -1282,7 +1315,7 @@
   }
   function hideDropdown(){ const dd=document.getElementById('userDropdown');if(dd) dd.style.display='none'; }
 
-  function logout(){ loggedInKey='';loggedInUser='';isAdmin=false;currentHasAccess=false;currentHasInslepp=false;_lastProfileWelcomeFor='';updateTopbar();hideAll();localStorage.removeItem(SESSION_KEY);
+  function logout(){ loggedInKey='';loggedInUser='';isAdmin=false;currentHasAccess=false;currentHasInslepp=false;_lastProfileWelcomeFor='';updateTopbar();hideAll();localStorage.removeItem(SESSION_KEY);THEME_CLASSES.forEach(c=>document.body.classList.remove(c));
     document.getElementById('welcomeMessage').style.display='flex';
     document.body.classList.add('welcome-bg-on');
     const tb=document.querySelector('.topbar');if(tb) tb.style.display='none';
@@ -1433,7 +1466,7 @@
   function ensureProfileDefaults(name){ if(!userData[name]) userData[name]={};if(!userData[name].theme) userData[name].theme='default';if(!Array.isArray(userData[name].skills)) userData[name].skills=[];if(typeof userData[name].hours!=='string') userData[name].hours='';if(typeof userData[name].task!=='string') userData[name].task=''; }
   function saveUserData(){ dbSet(STORAGE_KEY,userData||{}).catch(()=>{}); }
   async function loadUserDataFromServer(){ const u=await dbEnsure(STORAGE_KEY,{});userData=(u&&typeof u==='object')?u:{}; }
-  function applyProfileTheme(theme){ const el=document.getElementById('profileContainer');if(!el) return;THEME_CLASSES.forEach(c=>el.classList.remove(c));el.classList.add(theme==='forest'?'theme-forest':theme==='royal'?'theme-royal':'theme-default'); }
+  function applyProfileTheme(theme){ const el=document.getElementById('profileContainer');if(!el) return;THEME_CLASSES.forEach(c=>{el.classList.remove(c);document.body.classList.remove(c);});const cls=theme==='forest'?'theme-forest':theme==='royal'?'theme-royal':'theme-default';el.classList.add(cls);document.body.classList.add(cls); }
   function setThemeRadios(theme){ const sel=theme||'default';document.querySelectorAll('.theme-dot').forEach(d=>d.classList.toggle('active',d.dataset.theme===sel)); }
   function renderSkillsBadges(skills){ if(!skills||!skills.length) return '<span class="muted">–</span>';return skills.map(s=>`<span class="tag">${escapeHtml(s)}</span>`).join(''); }
 
@@ -1490,7 +1523,7 @@
     const to=toSel.value; const txt=inp.value.trim();
     if(!txt) return;
     const btn=document.getElementById('adminMsgSendBtn');
-    if(btn) btn.disabled=true;
+    if(btn){ btn.disabled=true; btn.classList.add('loading'); }
     try{
       if(to==='all'){
         await dbSet(STAFF_MSG_KEY,txt);
@@ -1507,26 +1540,49 @@
       updateMsgBadge();
       setTimeout(()=>{ _adminMsgJustSaved=false; _adminDirectMsgJustSent=false; },2500);
     }catch(e){ alert('Kunde inte skicka. Försök igen.'); }
-    finally{ if(btn) btn.disabled=false; }
+    finally{ if(btn){ btn.disabled=false; btn.classList.remove('loading'); } }
   }
   function clearStaffMsg(){
-    if(!confirm('Ta bort meddelandet till all personal?')) return;
+    const saved=loadStaffMsg();
+    if(!saved) return;
     dbSet(STAFF_MSG_KEY,'').catch(()=>{});
     renderStaffMsgSection();
     updateMsgBadge();
+    showUndoToast('Meddelande till personal borttaget', ()=>{
+      dbSet(STAFF_MSG_KEY,saved).catch(()=>{});
+      renderStaffMsgSection();
+      updateMsgBadge();
+    });
   }
   function clearStaffMessages(){
-    if(!confirm('Rensa alla meddelandetrådar?')) return;
+    const saved=loadStaffMessages();
+    if(!saved.length) return;
     dbSet(STAFF_REPLIES_KEY,[]).catch(()=>{});
     renderStaffMsgSection();
     updateMsgBadge();
+    showUndoToast('Alla meddelandetrådar rensade', ()=>{
+      dbSet(STAFF_REPLIES_KEY,saved).catch(()=>{});
+      renderStaffMsgSection();
+      updateMsgBadge();
+    });
   }
-  async function deleteStaffMessage(msgId){
-    if(!confirm('Ta bort den här tråden?')) return;
+  async function deleteStaffMessage(msgId, btn){
     const messages=loadStaffMessages();
-    await dbSet(STAFF_REPLIES_KEY,messages.filter(m=>m.id!==msgId)).catch(()=>{});
+    const removed=messages.find(m=>m.id===msgId);
+    if(!removed) return;
+    if(btn){ btn.disabled=true; btn.classList.add('loading'); }
+    try{
+      await dbSet(STAFF_REPLIES_KEY,messages.filter(m=>m.id!==msgId));
+    }catch(e){ if(btn){ btn.disabled=false; btn.classList.remove('loading'); } alert('Kunde inte ta bort tråden. Försök igen.'); return; }
     renderStaffMsgSection();
     updateMsgBadge();
+    showUndoToast(`Meddelande från ${removed.name||'?'} borttaget`, async ()=>{
+      const cur=loadStaffMessages();
+      cur.push(removed);
+      await dbSet(STAFF_REPLIES_KEY,cur).catch(()=>{});
+      renderStaffMsgSection();
+      updateMsgBadge();
+    });
   }
   function onAdminMsgToChange(){
     const to=document.getElementById('adminMsgTo')?.value;
@@ -1553,7 +1609,7 @@
     const txt=inp.value.trim(); if(!txt) return;
     const adminName=Object.values(users).find(u=>u.admin)?.name||'Casper';
     const btn=document.querySelector('[onclick="submitStaffMessage()"]');
-    if(btn) btn.disabled=true;
+    if(btn){ btn.disabled=true; btn.classList.add('loading'); }
     try{
       const messages=loadStaffMessages();
       messages.push({id:Date.now().toString(),name:loggedInUser||'?',text:txt,ts:new Date().toISOString(),replies:[],to:adminName});
@@ -1563,7 +1619,7 @@
       renderStaffMsgSection();
       updateMsgBadge();
       setTimeout(()=>{ _staffMsgJustSent=false; },2500);
-    }catch(e){ alert('Kunde inte skicka meddelandet. Kontrollera anslutningen och försök igen.'); if(btn) btn.disabled=false; }
+    }catch(e){ alert('Kunde inte skicka meddelandet. Kontrollera anslutningen och försök igen.'); if(btn){ btn.disabled=false; btn.classList.remove('loading'); } }
   }
 
   // ---- Admin svarar på meddelande ----
@@ -1571,16 +1627,16 @@
     const inp=document.getElementById('adminReplyInput_'+msgId); if(!inp) return;
     const txt=inp.value.trim(); if(!txt) return;
     const btn=document.getElementById('adminReplyBtn_'+msgId);
-    if(btn) btn.disabled=true;
+    if(btn){ btn.disabled=true; btn.classList.add('loading'); }
     try{
       const messages=loadStaffMessages();
       const m=messages.find(x=>x.id===msgId);
-      if(!m){ if(btn) btn.disabled=false; return; }
+      if(!m){ if(btn){ btn.disabled=false; btn.classList.remove('loading'); } return; }
       m.replies.push({text:txt,ts:new Date().toISOString(),name:loggedInUser});
       await dbSet(STAFF_REPLIES_KEY,messages);
       inp.value='';
       renderStaffMsgSection();
-    }catch(e){ alert('Kunde inte skicka svar. Försök igen.'); if(btn) btn.disabled=false; }
+    }catch(e){ alert('Kunde inte skicka svar. Försök igen.'); if(btn){ btn.disabled=false; btn.classList.remove('loading'); } }
   }
   function toggleAdminReplyInput(msgId){
     const row=document.getElementById('adminReplyRow_'+msgId); if(!row) return;
@@ -1640,7 +1696,7 @@
                 <span class="staff-reply-time">${_fmtReplyTime(m.ts)}</span>
                 <span class="staff-reply-text" style="flex:1;min-width:100px;">${escapeHtml(m.text)}</span>
                 <button class="btn" style="padding:3px 10px;font-size:12px;" onclick="toggleAdminReplyInput('${m.id}')">Svara</button>
-                <button class="btn btn-danger" style="padding:3px 8px;font-size:12px;" onclick="deleteStaffMessage('${m.id}')" title="Ta bort tråd">✕</button>
+                <button class="btn btn-danger" style="padding:3px 8px;font-size:12px;" onclick="deleteStaffMessage('${m.id}',this)" title="Ta bort tråd">✕</button>
               </div>
               ${repliesHtml?`<div style="margin-top:4px;">${repliesHtml}</div>`:''}
               <div id="adminReplyRow_${m.id}" class="row" style="display:none;gap:8px;margin-top:6px;padding-left:14px;">
@@ -1789,7 +1845,7 @@
     root.addEventListener('click',(e)=>{
       const t=e.target;if(!(t instanceof HTMLElement)) return;
       if(t.id==='addUserBtn'){e.preventDefault();const name=(document.getElementById('newUserName')?.value||'').trim();const pw=(document.getElementById('newUserPass')?.value||'').trim();const acc=!!document.getElementById('newUserAccessCheckbox')?.checked;const insl=!!document.getElementById('newUserInsleppCheckbox')?.checked;if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}if(users[pw]){alert('Det finns redan en användare med det lösenordet.');return;}users[pw]={name,admin:false,hasAccess:acc,hasInslepp:insl};ensureProfileDefaults(name);saveUserData();initUserSelect();alert(name+' har lagts till.');saveUsers();document.getElementById('newUserName').value='';document.getElementById('newUserPass').value='';document.getElementById('newUserAccessCheckbox').checked=false;document.getElementById('newUserInsleppCheckbox').checked=false;}
-      if(t.id==='removeUserBtn'){e.preventDefault();const name=(document.getElementById('newUserName')?.value||'').trim();const pw=(document.getElementById('newUserPass')?.value||'').trim();if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}const u=users[pw];if(!u||u.name!==name){alert('Fel namn eller lösenord.');return;}if(u.name==='Adam'||u.name==='Casper'){alert('Casper och Adam kan inte tas bort.');return;}delete users[pw];if(loggedInKey===pw) logout();initUserSelect();alert(name+' har tagits bort.');saveUsers();document.getElementById('newUserName').value='';document.getElementById('newUserPass').value='';document.getElementById('newUserAccessCheckbox').checked=false;}
+      if(t.id==='removeUserBtn'){e.preventDefault();const name=(document.getElementById('newUserName')?.value||'').trim();const pw=(document.getElementById('newUserPass')?.value||'').trim();if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}const u=users[pw];if(!u||u.name!==name){alert('Fel namn eller lösenord.');return;}if(u.name==='Adam'||u.name==='Casper'){alert('Casper och Adam kan inte tas bort.');return;}const savedUser={...u};const savedPw=pw;const wasSelf=(loggedInKey===pw);delete users[pw];if(wasSelf) logout();initUserSelect();saveUsers();document.getElementById('newUserName').value='';document.getElementById('newUserPass').value='';document.getElementById('newUserAccessCheckbox').checked=false;showUndoToast(`${name} borttagen`, ()=>{ users[savedPw]=savedUser; saveUsers(); initUserSelect(); });}
     });
     root._boundUserMgmt=true;
   })();
@@ -1987,7 +2043,7 @@
 
     const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:REVIEWS_KEY,fallback:[]}];
     // Bara nycklar som ändras löpande — hämtas vid periodisk refresh
-    const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]}];
+    const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()}];
 
     persistCacheHydrate(BOOT_KEYS);
     openingHours=loadOpeningHours();queueTime=loadQueue();
@@ -2055,6 +2111,7 @@
       try{
         await dbRefreshMany(REFRESH_KEYS);await loadUsersFromServer();
         userData=dbGet(STORAGE_KEY,{})||{};
+        loadDailyStats();loadDailyCosts();loadDailyForecast();
         refreshCockpitIfOpen();
         if(document.getElementById('profileContainer')?.style.display==='block'&&loggedInUser) loadProfile();
         updateMsgBadge();
