@@ -734,4 +734,3 @@
     @keyframes btnSpin { to { transform: translateY(-50%) rotate(360deg); } }
     .btn.loading { pointer-events: none; opacity: 0.6; padding-right: 30px; position: relative; }
     .btn.loading::after { content: ''; position: absolute; right: 9px; top: 50%; transform: translateY(-50%); width: 11px; height: 11px; border-radius: 50%; border: 2px solid rgba(232,224,208,0.18); border-top-color: rgba(232,224,208,0.75); animation: btnSpin 0.7s linear infinite; }
-
