@@ -107,44 +107,33 @@
         <p class="welcome-tagline" id="welcomeTagline"></p>
       </div>
 
-      <!-- Flikar -->
-      <div class="ws-tabs">
-        <button class="ws-tab active" data-tab="idag" onclick="showWelcomeTab('idag')">Idag</button>
-        <button class="ws-tab" data-tab="priser" onclick="showWelcomeTab('priser')">Priser</button>
-        <button class="ws-tab" data-tab="info" onclick="showWelcomeTab('info')">Info</button>
-        <button class="ws-tab" data-tab="kontakt" onclick="showWelcomeTab('kontakt')">Kontakt</button>
+      <!-- Status – alltid synlig ovanför flikarna -->
+      <div class="welcome-status-row" id="welcomeStatusRow">
+        <div class="welcome-status-card">
+          <span class="welcome-status-label">Kötid</span>
+          <span class="welcome-status-value" id="queueTimeDisplay">
+            <span class="status-dot dead"></span>Ingen info
+          </span>
+        </div>
+        <div class="welcome-status-card">
+          <span class="welcome-status-label">Öppet idag</span>
+          <span class="welcome-status-value" id="welcomeOpenHoursText">Ingen info</span>
+        </div>
+      </div>
+      <div id="welcomeAdminBar">
+        <span onclick="maybeEditQueueTime(event)">✎ kötid</span>
+        <span onclick="maybeEditHours(event)">✎ öppettider</span>
       </div>
 
-      <!-- Panel: Idag -->
-      <div class="ws-panel" id="panel-idag">
+      <!-- Välkomsttext & recensioner – ovanför flikarna -->
+      <div id="welcomeInfoText"></div>
+      <div id="welcomeReviews" style="display:none;"></div>
 
-        <!-- Stor statusindikator -->
-        <div class="wt-status-big">
-          <span class="wt-open-badge is-closed" id="wtOpenBadge">Stängt</span>
-          <span class="wt-hours-text" id="wtHoursText"></span>
-        </div>
-
-        <!-- Kötid (visas bara när öppet) -->
-        <div class="welcome-status-row" id="welcomeStatusRow">
-          <div class="welcome-status-card">
-            <span class="welcome-status-label">Kötid</span>
-            <span class="welcome-status-value" id="queueTimeDisplay">
-              <span class="status-dot dead"></span>Ingen info
-            </span>
-          </div>
-          <!-- Dold – behålls för JS-kompatibilitet -->
-          <div style="display:none;">
-            <span id="welcomeOpenHoursText"></span>
-          </div>
-        </div>
-
-        <div id="welcomeAdminBar">
-          <span onclick="maybeEditQueueTime(event)">✎ kötid</span>
-          <span onclick="maybeEditHours(event)">✎ öppettider</span>
-        </div>
-        <div id="welcomeInfoText"></div>
-        <div class="welcome-divider"></div>
-        <div id="welcomeReviews" style="display:none;"></div>
+      <!-- Flikar -->
+      <div class="ws-tabs">
+        <button class="ws-tab active" data-tab="info" onclick="showWelcomeTab('info')">Info</button>
+        <button class="ws-tab" data-tab="priser" onclick="showWelcomeTab('priser')">Priser</button>
+        <button class="ws-tab" data-tab="kontakt" onclick="showWelcomeTab('kontakt')">Kontakt</button>
       </div>
 
       <!-- Panel: Priser -->
@@ -381,8 +370,7 @@
         </div>
         <hr class="admin-divider">
         <h4>FAQ</h4>
-        <div class="tiny muted" style="margin-bottom:6px;">Använd <strong>{{PRICE_ADULT}}</strong> och <strong>{{PRICE_CHILD}}</strong> för att infoga biljettpriser automatiskt.</div>
-        <textarea id="welcomeFaqInput" class="admin-textarea" rows="10" placeholder="Skriv FAQ…"></textarea>
+        <textarea id="welcomeFaqInput" class="admin-textarea" rows="10" placeholder="Skriv frågor och svar – separera varje par med en tom rad.&#10;&#10;Hur gammal måste man vara?&#10;Man måste vara minst 15 år.&#10;&#10;Kan man boka i förväg?&#10;Nej, vi tar bara drop-in."></textarea>
         <div class="row" style="justify-content:flex-end; margin-top:8px;">
           <button id="saveWelcomeFaqBtn" class="btn btn-green">Spara FAQ</button>
           <button id="clearWelcomeFaqBtn" class="btn btn-danger">Ta bort FAQ</button>
@@ -714,9 +702,8 @@
   function saveOpenStatsDays(arr){ try{ localStorage.setItem(STATS_OPEN_DAYS_KEY,JSON.stringify((arr||[]).slice(0,20))); }catch(_e){} }
   function rememberStatsDayOpen(date,isOpen){ const cur=loadOpenStatsDays(); const has=cur.includes(date); const next=isOpen?(has?cur:[date,...cur]):cur.filter(d=>d!==date); saveOpenStatsDays(next); }
 
-  function getTicketPricesFromProducts(){ const prods=loadProducts(); let adult=null,child=null; prods.forEach(p=>{ const n=String(p.name||'').toLowerCase(); if(adult===null&&n.includes('vuxen')) adult=Number(p.price||0); if(child===null&&n.includes('barn')) child=Number(p.price||0); }); return {adult:(adult===null?'—':adult),child:(child===null?'—':child)}; }
 
-  function setWelcomeFAQText(raw){ const box=document.getElementById('welcomeFaqContent'); const panel=document.getElementById('welcomeInfoPanel'); if(!box) return; const txt=(raw||'').trim(); if(!txt){ box.innerHTML=''; if(panel) panel.style.display='none'; return; } if(panel) panel.style.display='block'; const prices=getTicketPricesFromProducts(); const qShown=(openingHours==='Stängt')?'Stängt':(queueTime||'Ingen info'); const rendered=txt.replaceAll('{{VUXEN}}',String(prices.adult)).replaceAll('{{BARN}}',String(prices.child)).replaceAll('{{QUEUE}}',String(qShown)); box.innerHTML=escapeHtml(rendered).replace(/\n/g,'<br>'); }
+  function setWelcomeFAQText(raw){ const box=document.getElementById('welcomeFaqContent'); const panel=document.getElementById('welcomeInfoPanel'); if(!box) return; const txt=(raw||'').trim(); if(!txt){ box.innerHTML=''; if(panel) panel.style.display='none'; return; } if(panel) panel.style.display='block'; const blocks=txt.split(/\n{2,}/).map(b=>b.trim()).filter(Boolean); box.innerHTML=blocks.map(block=>{ const lines=block.split('\n'); const q=escapeHtml(lines[0].trim()); const a=lines.slice(1).join('\n').trim(); if(!a) return `<details class="faq-item"><summary class="faq-q">${q}</summary></details>`; return `<details class="faq-item"><summary class="faq-q">${q}</summary><div class="faq-a">${escapeHtml(a).replace(/\n/g,'<br>')}</div></details>`; }).join(''); }
 
   function saveOpeningHours(v){ const hrs=String(v||'Stängt'); const r=dbSet(OPENING_KEY,hrs); const hist=loadSalesHistory();const day=ensureHistDay(hist,todayStr());if(hrs!=='Stängt') day.hours=hrs;else if(!day.hours||day.hours==='Stängt') day.hours=hrs;saveSalesHistory(hist); return r; }
   function loadOpenDates(){ const v=dbGet(OPEN_DATES_KEY,[]); return Array.isArray(v)?v:[]; }
@@ -1303,7 +1290,7 @@
     if(wQueueCard) wQueueCard.style.display=isClosed?'none':'';
 
     if(!isClosed&&wQueueEl){
-      const dotCls=(shownQueue==='Stängt för kvällen'||shownQueue==='Tillfälligt Stängt')?'dead':'live';
+      const dotCls=(shownQueue==='Stängt för kvällen'||shownQueue==='Tillfälligt Stängt'||shownQueue==='Stängt')?'dead':'live';
       wQueueEl.innerHTML=`<span class="status-dot ${dotCls}"></span>${escapeHtml(shownQueue)}`;
       wQueueEl.className='welcome-status-value '+(dotCls==='live'?'is-open':'is-closed');
       if(wQueueCard) wQueueCard.className='welcome-status-card '+(dotCls==='live'?'queue-live':'queue-dim');
@@ -1324,10 +1311,6 @@
     const wHoursLabel=wHoursEl?.previousElementSibling;
     if(wHoursLabel) wHoursLabel.textContent=isClosed?'Idag':'Öppet idag';
 
-    const wtBadge=document.getElementById('wtOpenBadge');
-    const wtHours=document.getElementById('wtHoursText');
-    if(wtBadge){ wtBadge.textContent=isClosed?'Stängt':'Öppet'; wtBadge.className='wt-open-badge '+(isClosed?'is-closed':'is-open'); }
-    if(wtHours){ if(isClosed){ const nd=getNextOpenDate(); const nl=nd?formatNextOpen(nd):null; wtHours.textContent=nl?`Öppnar ${nl}`:''; }else{ wtHours.textContent=openingHours||''; } }
 
     const adminBar=document.getElementById('welcomeAdminBar');
     if(adminBar) adminBar.style.display=(loggedInUser&&isAdmin)?'block':'none';
@@ -2105,7 +2088,7 @@
     }catch(_e){}
 
     enforceCoreUsers();
-    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();renderWelcomePrices();showWelcomeTab('idag');bindWelcomeControls();
+    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();renderWelcomePrices();showWelcomeTab('info');bindWelcomeControls();
     hideAll();
 
     if(loggedInUser){ try{const _t=localStorage.getItem('userTheme_'+loggedInUser);if(_t) applyProfileTheme(_t);}catch(_e){} selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership(); }

@@ -362,13 +362,13 @@
       z-index: 2;
     }
 
-    .welcome-hero { width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 60px 20px 80px; text-align: center; position: relative; z-index: 2; }
+    .welcome-hero { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px 20px 20px; text-align: center; position: relative; z-index: 2; }
     #welcomeKorpenLogo { max-width: 280px; width: 70%; height: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6)) drop-shadow(0 0 20px rgba(139,26,26,0.28)); animation: wFadeUp 0.7s ease both; }
     .welcome-hotel-name { font-family: 'IM Fell English SC', serif; font-size: clamp(1.4rem, 4.5vw, 2.2rem); letter-spacing: 4px; color: #f0ebe2; margin: 0; text-shadow: 0 2px 16px rgba(139,26,26,0.35); line-height: 1.2; animation: wFadeUp 0.7s ease 0.1s both; transition: opacity 0.38s ease; }
     #welcomeMessage h1 { font-family: 'IM Fell English', serif; font-style: italic; font-weight: 400; font-size: clamp(1.05rem, 2.6vw, 1.3rem); line-height: 1.55; color: rgba(232,224,208,0.75); letter-spacing: 0.2px; margin: 0; animation: wFadeUp 0.7s ease 0.2s both; transition: opacity 0.38s ease; }
     .welcome-tagline { font-family: 'IM Fell English', serif; font-style: italic; font-size: clamp(0.82rem, 1.8vw, 0.95rem); color: rgba(232,224,208,0.38); letter-spacing: 0.3px; margin: 0; line-height: 1.5; animation: wFadeUp 0.7s ease 0.3s both; transition: opacity 0.38s ease; }
 
-    .welcome-status-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; animation: wFadeUp 0.7s ease 0.2s both; }
+    .welcome-status-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; animation: wFadeUp 0.7s ease 0.2s both; }
     .welcome-status-card { background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.1); border-radius: 40px; padding: 8px 18px; display: flex; align-items: center; gap: 9px; transition: background 0.4s, border-color 0.4s, box-shadow 0.4s; }
     .welcome-status-card.queue-live { background: rgba(92,184,92,0.1); border-color: rgba(92,184,92,0.28); box-shadow: 0 0 14px rgba(92,184,92,0.1); }
     .welcome-status-card.queue-dim  { background: rgba(200,70,50,0.06); border-color: rgba(200,70,50,0.18); }
@@ -387,7 +387,7 @@
 
     #welcomeInfoText { display: none; font-family: 'IM Fell English', serif; font-style: italic; font-size: 1em; color: rgba(232,224,208,0.62); line-height: 1.75; margin: 0 0 20px; text-align: center; }
 
-    .welcome-divider { width: 48px; height: 1px; background: linear-gradient(90deg, transparent, rgba(232,224,208,0.18), transparent); margin: 4px auto 28px; }
+    .welcome-divider { width: 48px; height: 1px; background: linear-gradient(90deg, transparent, rgba(232,224,208,0.18), transparent); margin: 4px auto 16px; }
     .welcome-info-panel { width: 100%; max-width: 440px; margin: 0 auto 8px; animation: wFadeUp 0.7s ease 0.35s both; }
     #welcomeFaqContent { font-family: "IM Fell English", serif; font-size: 14px; line-height: 1.9; color: rgba(232,224,208,0.72); text-align: center; }
     #welcomeFaqContent strong { color: #d4a854; font-style: normal; }
@@ -414,7 +414,7 @@
     .wt-hours-text { display: block; font-family: 'IM Fell English SC', serif; font-size: 15px; letter-spacing: 0.6px; color: rgba(232,224,208,0.45); margin-top: 4px; }
 
     /* Flikar på välkomstsidan */
-    .ws-tabs { display: flex; gap: 0; justify-content: center; flex-wrap: wrap; margin: 4px 0 28px; border-bottom: 1px solid rgba(255,255,255,0.08); width: 100%; }
+    .ws-tabs { display: flex; gap: 0; justify-content: center; flex-wrap: wrap; margin: 4px 0 16px; border-bottom: 1px solid rgba(255,255,255,0.08); width: 100%; }
     .ws-tab { background: transparent; border: none; border-bottom: 2px solid transparent; padding: 10px 20px; color: rgba(232,224,208,0.42); font-family: 'IM Fell English SC', serif; font-size: 14px; letter-spacing: 0.8px; cursor: pointer; transition: color 0.15s, border-color 0.15s; margin-bottom: -1px; }
     .ws-tab:hover { color: rgba(232,224,208,0.78); }
     .ws-tab.active { color: #e8e0d0; border-bottom-color: rgba(212,135,42,0.8); }
@@ -435,6 +435,25 @@
     #ws-idag .welcome-status-row { margin-bottom: 0; }
     #ws-idag #welcomeAdminBar { margin: 16px 0 0; }
 
+    /* Prislista i välkomstläget – mindre än storskärm */
+    #wsPrices .ds-price-name { font-size: 1rem; }
+    #wsPrices .ds-price-val  { font-size: 1.05rem; text-shadow: none; }
+    #wsPrices .ds-price-row  { padding: 0.3em 0.5em; }
+    #wsPrices .ds-prices     { gap: 0; }
+
+    /* Info-panel – gästguide-känsla */
+    #welcomeFaqContent {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 15px;
+      font-style: normal;
+      line-height: 1.85;
+      color: rgba(232,224,208,0.78);
+      text-align: left;
+      max-width: 420px;
+      margin: 0 auto;
+    }
+    #welcomeFaqContent strong { color: #d4a854; font-family: 'IM Fell English SC', serif; font-size: 11px; letter-spacing: 2px; display: block; margin: 18px 0 4px; }
+
     /* Priskort */
     .ws-prices { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
     .ws-price-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 8px; padding: 20px 24px; text-align: center; min-width: 120px; transition: background 0.2s, border-color 0.2s; }
@@ -442,6 +461,15 @@
     .ws-price-name { display: block; font-family: 'IM Fell English SC', serif; font-size: 13px; letter-spacing: 0.4px; color: rgba(232,224,208,0.55); margin-bottom: 10px; }
     .ws-price-val { font-family: 'IM Fell English SC', serif; font-size: 30px; color: #d4a854; line-height: 1; }
     .ws-price-kr { font-size: 15px; color: rgba(212,168,84,0.65); margin-left: 3px; }
+
+    /* FAQ accordion */
+    .faq-item { border-bottom: 1px solid rgba(232,224,208,0.1); }
+    .faq-item:last-child { border-bottom: none; }
+    .faq-q { cursor: pointer; font-family: 'IM Fell English SC', serif; font-size: 13px; letter-spacing: 0.5px; color: rgba(232,224,208,0.85); padding: 11px 4px; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px; user-select: none; }
+    .faq-q::-webkit-details-marker { display: none; }
+    .faq-q::after { content: '+'; font-size: 18px; font-family: serif; color: rgba(232,224,208,0.35); flex-shrink: 0; transition: transform 0.2s; }
+    .faq-item[open] > .faq-q::after { content: '−'; }
+    .faq-a { font-size: 14px; color: rgba(232,224,208,0.65); line-height: 1.75; padding: 2px 4px 13px; }
 
     /* FAQ-innehåll i ny layout */
     #ws-faq #welcomeFaqContent { text-align: left; max-width: 520px; margin: 0 auto; }
