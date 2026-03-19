@@ -459,7 +459,7 @@
     <div class="modal">
       <h3 id="payTitle">Välj betalningsmetod</h3>
       <div id="paySum" class="tiny" style="margin-bottom:8px;"></div>
-      <input id="ticketLabelInput" class="input" placeholder="Biljettnamn (vid köp av biljett)" style="width:100%; margin:6px 0 10px;">
+      <input id="ticketLabelInput" class="input" placeholder="Biljettnamn" style="width:100%; margin:6px 0 10px;">
       <div class="row" style="gap:12px; margin-bottom:8px;">
         <label class="pill"><input type="radio" name="payModal" value="Swish" checked> Swish</label>
         <label class="pill"><input type="radio" name="payModal" value="Kort"> Kort</label>
@@ -536,6 +536,35 @@
       <div class="actions" style="margin-top:18px;">
         <button class="btn" onclick="exportDay(window._daySummaryDate,'copy')">Kopiera som text</button>
         <button class="btn" onclick="closeDaySummaryModal()">Stäng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RADERA DAG-MODAL ===== -->
+  <div id="deleteDayModal" class="modal-overlay" role="dialog" aria-modal="true" onclick="if(event.target===this)closeDeleteDayModal()" onkeydown="if(event.key==='Escape'){closeDeleteDayModal();}else if(event.key==='Enter'&&document.getElementById('deleteDayStep2').style.display!=='none'){event.preventDefault();executeDayDeletion();}">
+    <div class="modal" style="width:min(380px,96vw);">
+      <!-- Steg 1: lösenord -->
+      <div id="deleteDayStep1">
+        <h3 style="margin:0 0 6px;font-family:'IM Fell English SC',serif;">Radera dag</h3>
+        <p id="deleteDayLabel" class="tiny muted" style="margin:0 0 16px;"></p>
+        <div class="login-field">
+          <label class="login-label" for="deleteDayPassInput">Adminlösenord</label>
+          <input type="password" id="deleteDayPassInput" class="input" placeholder="• • • • • •" autocomplete="current-password" autocorrect="off" autocapitalize="none" spellcheck="false" style="width:100%;" onkeydown="if(event.key==='Enter'){event.stopPropagation();confirmDeleteDay();}">
+        </div>
+        <div id="deleteDayError" style="color:#e05c5c;font-size:12px;min-height:18px;margin-top:4px;"></div>
+        <div class="actions" style="margin-top:14px;">
+          <button class="btn" onclick="closeDeleteDayModal()">Avbryt</button>
+          <button class="btn btn-danger" onclick="confirmDeleteDay()">Radera</button>
+        </div>
+      </div>
+      <!-- Steg 2: bekräftelse -->
+      <div id="deleteDayStep2" style="display:none;">
+        <h3 style="margin:0 0 10px;font-family:'IM Fell English SC',serif;">Är du säker?</h3>
+        <p id="deleteDayConfirmLabel" class="tiny muted" style="margin:0 0 20px;"></p>
+        <div class="actions">
+          <button class="btn" onclick="closeDeleteDayModal()">Avbryt</button>
+          <button class="btn btn-danger" onclick="executeDayDeletion()">Ja, radera</button>
+        </div>
       </div>
     </div>
   </div>
@@ -757,7 +786,10 @@
   function recordSale({time,items,sum,adult,child,seller,payType,ticketUid,ticketLabel,used,breakdown,reEntryCreated,reEntryIds}){ const date=todayStr(); const hist=loadSalesHistory(); if(!hist[date]) hist[date]={adult:0,child:0,income:0,count:0,entries:[]}; hist[date].adult+=Number(adult||0); hist[date].child+=Number(child||0); hist[date].income+=Number(sum||0); hist[date].count+=1; hist[date].entries.unshift({time:time||new Date().toLocaleTimeString(),items:Array.isArray(items)?items:[],sum:Number(sum||0),adult:Number(adult||0),child:Number(child||0),seller:seller||'—',payType:payType||'—',ticketUid:ticketUid||null,ticketLabel:ticketLabel||null,used:!!used,breakdown:breakdown||null,reEntryCreated:Number(reEntryCreated||0),reEntryIds:Array.isArray(reEntryIds)?reEntryIds:[]}); saveSalesHistory(hist); _statsDirty=true; }
   function markSaleTicketUsed(ticketUid,date=todayStr()){ if(!ticketUid) return; const hist=loadSalesHistory(); const day=hist[date]; if(!day||!Array.isArray(day.entries)) return; const e=day.entries.find(x=>x.ticketUid===ticketUid); if(e){e.used=true;saveSalesHistory(hist);_statsDirty=true;} }
 
-  function deleteStatsDay(date){ if(!isAdmin||!date) return; const pw=prompt(`BEKRÄFTELSE\n\nSkriv lösenordet för att radera statistik för:\n${date}`); if(!pw) return; const u=users[pw]; if(!u||!u.admin){alert('Fel adminlösenord.');return;} const ok=confirm(`Är du HELT säker?\n\nDetta tar bort all statistik för ${date}.`); if(!ok) return; const hist=loadSalesHistory(); const savedDayHist=hist[date]?JSON.parse(JSON.stringify(hist[date])):null; if(hist[date]) delete hist[date]; saveSalesHistory(hist); _statsDirty=true; let savedDaily=null,savedTickets=null,savedAdmissions=null,savedReEntry=null; if(date===todayStr()){savedDaily={guestCount,totalIncome};savedTickets=JSON.parse(JSON.stringify(loadOpenTickets()));savedAdmissions=JSON.parse(JSON.stringify(loadAdmissions()));savedReEntry=JSON.parse(JSON.stringify(loadReEntry()));guestCount=0;totalIncome=0;saveDailyStats();updateLogSummary();saveOpenTickets({date:todayStr(),seq:0,items:[]});saveAdmissions({date:todayStr(),count:0,entries:[]});saveReEntry({date:todayStr(),passes:[]});cart={};discountApplied=false;renderCart();} renderCockpit();renderStats(); showUndoToast(`Statistik för ${date} raderad`, ()=>{ const h=loadSalesHistory(); if(savedDayHist) h[date]=savedDayHist; saveSalesHistory(h); _statsDirty=true; if(date===todayStr()&&savedDaily){guestCount=savedDaily.guestCount;totalIncome=savedDaily.totalIncome;saveDailyStats();updateLogSummary();if(savedTickets) saveOpenTickets(savedTickets);if(savedAdmissions) saveAdmissions(savedAdmissions);if(savedReEntry) saveReEntry(savedReEntry);renderCart();} renderCockpit();renderStats(); }); }
+  function deleteStatsDay(date){ if(!isAdmin||!date) return; window._deletingDate=date; const lbl=document.getElementById('deleteDayLabel'); if(lbl) lbl.textContent=`All statistik för ${date} kommer att tas bort.`; const err=document.getElementById('deleteDayError'); if(err) err.textContent=''; const inp=document.getElementById('deleteDayPassInput'); if(inp) inp.value=''; const m=document.getElementById('deleteDayModal'); if(m) m.style.display='flex'; setTimeout(()=>inp?.focus(),80); }
+  function closeDeleteDayModal(){ const m=document.getElementById('deleteDayModal'); if(m) m.style.display='none'; window._deletingDate=null; document.getElementById('deleteDayStep1').style.display=''; document.getElementById('deleteDayStep2').style.display='none'; }
+  function confirmDeleteDay(){ const date=window._deletingDate; if(!date) return; const pw=(document.getElementById('deleteDayPassInput')?.value||'').trim(); const u=users[pw]; if(!u||!u.admin){ const err=document.getElementById('deleteDayError'); if(err) err.textContent='Fel lösenord.'; document.getElementById('deleteDayPassInput')?.select(); return; } document.getElementById('deleteDayStep1').style.display='none'; const s2=document.getElementById('deleteDayStep2'); s2.style.display=''; const lbl=document.getElementById('deleteDayConfirmLabel'); if(lbl) lbl.textContent=`All statistik för ${date} tas bort permanent.`; setTimeout(()=>s2.querySelector('button.btn-danger')?.focus(),50); }
+  function executeDayDeletion(){ const date=window._deletingDate; if(!date) return; closeDeleteDayModal(); const hist=loadSalesHistory(); const savedDayHist=hist[date]?JSON.parse(JSON.stringify(hist[date])):null; if(hist[date]) delete hist[date]; saveSalesHistory(hist); _statsDirty=true; let savedDaily=null,savedTickets=null,savedAdmissions=null,savedReEntry=null; if(date===todayStr()){savedDaily={guestCount,totalIncome};savedTickets=JSON.parse(JSON.stringify(loadOpenTickets()));savedAdmissions=JSON.parse(JSON.stringify(loadAdmissions()));savedReEntry=JSON.parse(JSON.stringify(loadReEntry()));guestCount=0;totalIncome=0;saveDailyStats();updateLogSummary();saveOpenTickets({date:todayStr(),seq:0,items:[]});saveAdmissions({date:todayStr(),count:0,entries:[]});saveReEntry({date:todayStr(),passes:[]});cart={};discountApplied=false;renderCart();} renderCockpit();renderStats(); showUndoToast(`Statistik för ${date} raderad`, ()=>{ const h=loadSalesHistory(); if(savedDayHist) h[date]=savedDayHist; saveSalesHistory(h); _statsDirty=true; if(date===todayStr()&&savedDaily){guestCount=savedDaily.guestCount;totalIncome=savedDaily.totalIncome;saveDailyStats();updateLogSummary();if(savedTickets) saveOpenTickets(savedTickets);if(savedAdmissions) saveAdmissions(savedAdmissions);if(savedReEntry) saveReEntry(savedReEntry);renderCart();} renderCockpit();renderStats(); }); }
 
   function loadOpenTickets(){ let o=dbGet(OPEN_TICKETS_KEY,defaultOpenTickets()); if(!o||o.date!==todayStr()) o=defaultOpenTickets(); o.seq=Number(o.seq||0); o.items=Array.isArray(o.items)?o.items:[]; return o; }
   function saveOpenTickets(o){ const safe=o&&typeof o==='object'?o:defaultOpenTickets(); if(safe.date!==todayStr()) safe.date=todayStr(); if(!Array.isArray(safe.items)) safe.items=[]; if(typeof safe.seq!=='number') safe.seq=0; dbSet(OPEN_TICKETS_KEY,safe).catch(()=>{}); }
@@ -925,6 +957,8 @@
   function openPayModal(){
     if(!Object.keys(cart).length) return;
     document.getElementById('paySum').textContent=`Summa: ${cartFinalSum()} kr${discountApplied?' (50% rabatt)':''}`;
+    const needsLabel=Object.keys(cart).some(n=>{ const l=n.toLowerCase(); return /biljett|entr/.test(l)||l.includes('vuxen')||l.includes('barn')||/(re[-\s]?entry|återinträde|rep\b)/i.test(n); });
+    const li=document.getElementById('ticketLabelInput'); if(li){ li.style.display=needsLabel?'':'none'; if(!needsLabel) li.value=''; }
     document.getElementById('payModal').style.display='flex';
   }
   function closePayModal(){
@@ -1056,7 +1090,7 @@
     html+=`<br><span class="tiny">Betalning: ${escapeHtml(payType||'—')} • Säljare: ${escapeHtml(loggedInUser||'—')}</span>`;
     entry.innerHTML=html; safePrepend(logWrap,entry);
     try{ recordSale({time:nowStr,items:lines,sum:finalSum,adult,child,seller:loggedInUser||'—',payType:payType||'—',ticketUid:newOpenTicket?.createdAt||null,ticketLabel:newOpenTicket?.label||(newOpenTicket?.id?`#${newOpenTicket.id}`:null),used:false,breakdown,reEntryCreated:reEntryCount,reEntryIds:createdReEntryIds}); _statsDirty=true; }catch(_e){}
-    const _tackGuestName=newOpenTicket?.label||label||'';
+    const _tackGuestName=newOpenTicket?.label||'';
     _suppressDisplayPush=true;
     cart={}; cartHistory=[]; discountApplied=false;
     const db=document.getElementById('discountBtn'); if(db){db.classList.remove('applied');db.textContent='50% rabatt (1 gång)';}
