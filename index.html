@@ -98,6 +98,8 @@
   <!-- ===== VÄLKOMST ===== -->
   <div class="welcome-message" id="welcomeMessage">
     <div class="welcome-inner">
+
+      <!-- Hero -->
       <div class="welcome-hero">
         <img id="welcomeKorpenLogo" src="korpen.png" alt="Spökhotellet Korpen" onerror="this.style.display='none'">
         <p class="welcome-hotel-name" id="welcomeHotelName">Välkommen</p>
@@ -105,6 +107,7 @@
         <p class="welcome-tagline" id="welcomeTagline"></p>
       </div>
 
+      <!-- Status – alltid synlig ovanför flikarna -->
       <div class="welcome-status-row" id="welcomeStatusRow">
         <div class="welcome-status-card">
           <span class="welcome-status-label">Kötid</span>
@@ -117,36 +120,52 @@
           <span class="welcome-status-value" id="welcomeOpenHoursText">Ingen info</span>
         </div>
       </div>
-
       <div id="welcomeAdminBar">
         <span onclick="maybeEditQueueTime(event)">✎ kötid</span>
         <span onclick="maybeEditHours(event)">✎ öppettider</span>
       </div>
 
+      <!-- Välkomsttext & recensioner – ovanför flikarna -->
       <div id="welcomeInfoText"></div>
-
-      <div class="welcome-divider"></div>
-
       <div id="welcomeReviews" style="display:none;"></div>
 
-      <div class="welcome-info-panel" id="welcomeInfoPanel" style="display:none;">
-        <div id="welcomeFaqContent"></div>
+      <!-- Flikar -->
+      <div class="ws-tabs">
+        <button class="ws-tab active" data-tab="info" onclick="showWelcomeTab('info')">Info</button>
+        <button class="ws-tab" data-tab="priser" onclick="showWelcomeTab('priser')">Priser</button>
+        <button class="ws-tab" data-tab="kontakt" onclick="showWelcomeTab('kontakt')">Kontakt</button>
       </div>
 
-      <div class="welcome-social" id="welcomeSocial">
-        <a id="socialIgBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
-          Instagram
-        </a>
-        <a id="socialFbBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-          Facebook
-        </a>
+      <!-- Panel: Priser -->
+      <div class="ws-panel" id="panel-priser" style="display:none;">
+        <div class="ws-prices" id="wsPrices"></div>
+      </div>
+
+      <!-- Panel: Info -->
+      <div class="ws-panel" id="panel-info" style="display:none;">
+        <div class="welcome-info-panel" id="welcomeInfoPanel">
+          <div id="welcomeFaqContent"></div>
+        </div>
+      </div>
+
+      <!-- Panel: Kontakt -->
+      <div class="ws-panel" id="panel-kontakt" style="display:none;">
+        <div class="welcome-social" id="welcomeSocial">
+          <a id="socialIgBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+            Instagram
+          </a>
+          <a id="socialFbBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            Facebook
+          </a>
+        </div>
       </div>
 
       <button class="welcome-staff-btn" onclick="openLoginModal()">
         — Personalinloggning —
       </button>
+
     </div>
   </div>
 
@@ -351,8 +370,7 @@
         </div>
         <hr class="admin-divider">
         <h4>FAQ</h4>
-        <div class="tiny muted" style="margin-bottom:6px;">Använd <strong>{{PRICE_ADULT}}</strong> och <strong>{{PRICE_CHILD}}</strong> för att infoga biljettpriser automatiskt.</div>
-        <textarea id="welcomeFaqInput" class="admin-textarea" rows="10" placeholder="Skriv FAQ…"></textarea>
+        <textarea id="welcomeFaqInput" class="admin-textarea" rows="10" placeholder="Skriv frågor och svar – separera varje par med en tom rad.&#10;&#10;Hur gammal måste man vara?&#10;Man måste vara minst 15 år.&#10;&#10;Kan man boka i förväg?&#10;Nej, vi tar bara drop-in."></textarea>
         <div class="row" style="justify-content:flex-end; margin-top:8px;">
           <button id="saveWelcomeFaqBtn" class="btn btn-green">Spara FAQ</button>
           <button id="clearWelcomeFaqBtn" class="btn btn-danger">Ta bort FAQ</button>
@@ -684,9 +702,8 @@
   function saveOpenStatsDays(arr){ try{ localStorage.setItem(STATS_OPEN_DAYS_KEY,JSON.stringify((arr||[]).slice(0,20))); }catch(_e){} }
   function rememberStatsDayOpen(date,isOpen){ const cur=loadOpenStatsDays(); const has=cur.includes(date); const next=isOpen?(has?cur:[date,...cur]):cur.filter(d=>d!==date); saveOpenStatsDays(next); }
 
-  function getTicketPricesFromProducts(){ const prods=loadProducts(); let adult=null,child=null; prods.forEach(p=>{ const n=String(p.name||'').toLowerCase(); if(adult===null&&n.includes('vuxen')) adult=Number(p.price||0); if(child===null&&n.includes('barn')) child=Number(p.price||0); }); return {adult:(adult===null?'—':adult),child:(child===null?'—':child)}; }
 
-  function setWelcomeFAQText(raw){ const box=document.getElementById('welcomeFaqContent'); const panel=document.getElementById('welcomeInfoPanel'); if(!box) return; const txt=(raw||'').trim(); if(!txt){ box.innerHTML=''; if(panel) panel.style.display='none'; return; } if(panel) panel.style.display='block'; const prices=getTicketPricesFromProducts(); const qShown=(openingHours==='Stängt')?'Stängt':(queueTime||'Ingen info'); const rendered=txt.replaceAll('{{VUXEN}}',String(prices.adult)).replaceAll('{{BARN}}',String(prices.child)).replaceAll('{{QUEUE}}',String(qShown)); box.innerHTML=escapeHtml(rendered).replace(/\n/g,'<br>'); }
+  function setWelcomeFAQText(raw){ const box=document.getElementById('welcomeFaqContent'); const panel=document.getElementById('welcomeInfoPanel'); if(!box) return; const txt=(raw||'').trim(); if(!txt){ box.innerHTML=''; if(panel) panel.style.display='none'; return; } if(panel) panel.style.display='block'; const blocks=txt.split(/\n{2,}/).map(b=>b.trim()).filter(Boolean); box.innerHTML=blocks.map(block=>{ const lines=block.split('\n'); const q=escapeHtml(lines[0].trim()); const a=lines.slice(1).join('\n').trim(); if(!a) return `<details class="faq-item"><summary class="faq-q">${q}</summary></details>`; return `<details class="faq-item"><summary class="faq-q">${q}</summary><div class="faq-a">${escapeHtml(a).replace(/\n/g,'<br>')}</div></details>`; }).join(''); }
 
   function saveOpeningHours(v){ const hrs=String(v||'Stängt'); const r=dbSet(OPENING_KEY,hrs); const hist=loadSalesHistory();const day=ensureHistDay(hist,todayStr());if(hrs!=='Stängt') day.hours=hrs;else if(!day.hours||day.hours==='Stängt') day.hours=hrs;saveSalesHistory(hist); return r; }
   function loadOpenDates(){ const v=dbGet(OPEN_DATES_KEY,[]); return Array.isArray(v)?v:[]; }
@@ -1273,7 +1290,7 @@
     if(wQueueCard) wQueueCard.style.display=isClosed?'none':'';
 
     if(!isClosed&&wQueueEl){
-      const dotCls=(shownQueue==='Stängt för kvällen'||shownQueue==='Tillfälligt Stängt')?'dead':'live';
+      const dotCls=(shownQueue==='Stängt för kvällen'||shownQueue==='Tillfälligt Stängt'||shownQueue==='Stängt')?'dead':'live';
       wQueueEl.innerHTML=`<span class="status-dot ${dotCls}"></span>${escapeHtml(shownQueue)}`;
       wQueueEl.className='welcome-status-value '+(dotCls==='live'?'is-open':'is-closed');
       if(wQueueCard) wQueueCard.className='welcome-status-card '+(dotCls==='live'?'queue-live':'queue-dim');
@@ -1293,6 +1310,7 @@
 
     const wHoursLabel=wHoursEl?.previousElementSibling;
     if(wHoursLabel) wHoursLabel.textContent=isClosed?'Idag':'Öppet idag';
+
 
     const adminBar=document.getElementById('welcomeAdminBar');
     if(adminBar) adminBar.style.display=(loggedInUser&&isAdmin)?'block':'none';
@@ -2027,6 +2045,17 @@
     if(wm) obs.observe(wm,{attributes:true,attributeFilter:['style']});
   }
 
+  /* ============================== VÄLKOMSTFLIKAR ============================== */
+  function showWelcomeTab(name){
+    document.querySelectorAll('.ws-panel').forEach(p=>p.style.display='none');
+    document.querySelectorAll('.ws-tab').forEach(t=>t.classList.remove('active'));
+    const panel=document.getElementById('panel-'+name);
+    if(panel) panel.style.display='';
+    const tab=document.querySelector(`.ws-tab[data-tab="${name}"]`);
+    if(tab) tab.classList.add('active');
+  }
+  function renderWelcomePrices(){ const c=document.getElementById('wsPrices'); if(!c) return; const prods=loadProducts().filter(p=>Number(p.price)>0); c.innerHTML=`<div class="ds-prices" style="max-width:420px;margin:0 auto;">${prods.map((p,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.08+0.08}s"><span class="ds-price-name">${escapeHtml(p.name)}</span><span class="ds-price-dots"></span><span class="ds-price-val">${p.price} kr</span></div>`).join('')}</div>`; }
+
   /* ============================== BOOT ============================== */
   // Nödutgång: tryck Escape 3 ggr snabbt för att rensa overlay-läge
   (function(){let n=0,t=null;document.addEventListener('keydown',function(e){if(e.key!=='Escape') return;n++;clearTimeout(t);t=setTimeout(()=>{n=0;},800);if(n>=3){localStorage.removeItem('overlayModeV1');location.href=location.href.split('?')[0];}});})();
@@ -2059,7 +2088,7 @@
     }catch(_e){}
 
     enforceCoreUsers();
-    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();bindWelcomeControls();
+    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();renderWelcomePrices();showWelcomeTab('info');bindWelcomeControls();
     hideAll();
 
     if(loggedInUser){ try{const _t=localStorage.getItem('userTheme_'+loggedInUser);if(_t) applyProfileTheme(_t);}catch(_e){} selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership(); }
@@ -2098,7 +2127,7 @@
         openingHours=loadOpeningHours();queueTime=loadQueue();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
-        loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();
+        loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();renderWelcomePrices();
         updateTopbar();refreshCockpitIfOpen();
         syncDisplayOwnership();
         if(document.getElementById('kassaContainer')?.style.display==='block'){renderProductButtons();renderCart();}
