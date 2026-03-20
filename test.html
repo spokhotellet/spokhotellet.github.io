@@ -26,11 +26,6 @@
   <!-- Offline indicator -->
   <div id="offlineBanner">Ingen serveranslutning — visar cachad data</div>
 
-  <!-- Auto-logout warning -->
-  <div id="autoLogoutWarn">
-    <span id="autoLogoutMsg"></span>
-    <button onclick="resetAutoLogout()" style="margin-left:12px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:10px;color:inherit;padding:3px 10px;cursor:pointer;font-family:'IM Fell English SC',serif;font-size:12px;">Fortsätt</button>
-  </div>
 
   <!-- ===== ÅNGRA-TOAST ===== -->
   <div id="undoToast" role="status" aria-live="polite">
@@ -269,6 +264,7 @@
         <div class="admin-field">
           <label class="admin-label" for="newUserPass">Lösenord</label>
           <input id="newUserPass" class="input" placeholder="Lösenord" style="width:100%;">
+          <div id="newUserPassWarn" style="display:none; color:rgba(220,100,80,0.9); font-family:'IM Fell English',serif; font-style:italic; font-size:12px; margin-top:4px;"></div>
         </div>
         <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="newUserAccessCheckbox"> Kassa-access</label>
         <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="newUserInsleppCheckbox"> Insläpp-access</label>
@@ -421,23 +417,31 @@
     <div id="staffMsgSection"></div>
   </div>
 
-  <!-- ===== KASSA ===== -->
-  <div id="kassaContainer">
-    <h1><button id="displayBtn" onclick="toggleDisplayBtn()" title="Koppla kundskärm" aria-label="Koppla kundskärm"><svg width="13" height="11" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="1" width="24" height="16" rx="2"/><path d="M9 21h8M13 17v4"/></svg></button>Spökhotellet Korpen<button id="kbHelpBtn" onclick="document.getElementById('kbHelp').toggleAttribute('hidden')" title="Tangentbordsgenvägar" aria-label="Visa tangentbordsgenvägar">?</button></h1>
-    <div id="kbHelp" hidden>
+  <!-- ===== TANGENTBORDS-OVERLAY ===== -->
+  <div id="kbHelp" hidden aria-label="Tangentbordsgenvägar">
+    <div class="kb-col">
       <div class="kb-section">Kassa</div>
       <div id="kbProductRows"></div>
       <div class="kb-row"><kbd>+</kbd><span>50% rabatt</span></div>
       <div class="kb-row"><kbd>⌫</kbd><span>Ångra senaste</span></div>
       <div class="kb-row"><kbd>Esc</kbd><span>Töm kassan</span></div>
+      <div class="kb-row"><kbd>⇧ Esc</kbd><span>Lås kassan</span></div>
       <div class="kb-row"><kbd>Enter</kbd><span>Genomför köp</span></div>
-      <div class="kb-section" style="margin-top:10px;">Betalning</div>
+    </div>
+    <div class="kb-divider"></div>
+    <div class="kb-col">
+      <div class="kb-section">Betalning</div>
       <div class="kb-row"><kbd>1</kbd><span>Swish</span></div>
       <div class="kb-row"><kbd>2</kbd><span>Kort</span></div>
       <div class="kb-row"><kbd>3</kbd><span>Kontant</span></div>
       <div class="kb-row"><kbd>Enter</kbd><span>Bekräfta</span></div>
       <div class="kb-row"><kbd>Esc</kbd><span>Avbryt</span></div>
     </div>
+  </div>
+
+  <!-- ===== KASSA ===== -->
+  <div id="kassaContainer">
+    <h1><button id="displayBtn" onclick="toggleDisplayBtn()" title="Koppla kundskärm" aria-label="Koppla kundskärm"><svg width="13" height="11" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="1" width="24" height="16" rx="2"/><path d="M9 21h8M13 17v4"/></svg></button>Spökhotellet Korpen<button id="kassaLockBtn" onclick="lockKassa()" title="Lås kassan" aria-label="Lås kassan"><svg width="11" height="13" viewBox="0 0 22 26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="16" height="13" rx="2"/><path d="M7 11V7a4 4 0 0 1 8 0v4"/></svg></button><button id="kbHelpBtn" onclick="toggleKbHelp()" title="Tangentbordsgenvägar" aria-label="Visa tangentbordsgenvägar">?</button></h1>
     <div id="closedMessage">Kassan är stängd</div>
     <div class="products"></div>
     <button id="discountBtn" title="Använd 50% rabatt en gång på denna kund">50% rabatt (1 gång)</button>
@@ -452,6 +456,21 @@
     <div id="logSummary"></div>
     <div id="logEntries"></div>
 
+  </div>
+
+  <!-- ===== KASSA LOCK SCREEN ===== -->
+  <div id="kassaLockModal" role="dialog" aria-modal="true" aria-label="Kassan är låst">
+    <div class="kassa-lock-box">
+      <div class="kassa-lock-icon"><svg width="28" height="32" viewBox="0 0 22 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="16" height="13" rx="2"/><path d="M7 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      <p class="kassa-lock-label">Kassan är låst</p>
+      <div class="kassa-lock-user-row">
+        <button class="kassa-lock-user-btn" id="kassaLockUserName" onclick="toggleLockUserSwitch()" title="Byt personal">Namn <svg width="10" height="7" viewBox="0 0 10 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg></button>
+      </div>
+      <div id="kassaLockSwitchList" class="kassa-lock-switch-list" style="display:none;"></div>
+      <input type="password" id="kassaLockPw" class="login-input" placeholder="• • • • • •" autocomplete="current-password" autocorrect="off" autocapitalize="none" spellcheck="false" style="margin-top:14px;">
+      <div class="login-error" id="kassaLockError" role="alert"></div>
+      <button class="login-submit" onclick="submitLockUnlock()">Lås upp</button>
+    </div>
   </div>
 
   <!-- ===== BETALA-MODAL ===== -->
@@ -631,6 +650,92 @@
   document.getElementById('loginNameInput')?.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('loginPasswordInput')?.focus(); } if(e.key === 'Escape'){ closeLoginModal(); } });
   document.getElementById('loginPasswordInput')?.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); submitLogin(); } if(e.key === 'Escape'){ closeLoginModal(); } });
   function promptPassword(){ openLoginModal(); }
+
+  /* ============================== TANGENTBORDS-HJÄLP ============================== */
+  function toggleKbHelp(){
+    const el = document.getElementById('kbHelp');
+    if(!el) return;
+    if(el.hidden){ el.removeAttribute('hidden'); } else { el.setAttribute('hidden',''); }
+  }
+  function closeKbHelp(){ document.getElementById('kbHelp')?.setAttribute('hidden',''); }
+  document.addEventListener('click', function(e){
+    const el = document.getElementById('kbHelp');
+    const btn = document.getElementById('kbHelpBtn');
+    if(el && !el.hidden && !el.contains(e.target) && !(btn && btn.contains(e.target))) closeKbHelp();
+  });
+
+  /* ============================== KASSA LOCK SCREEN ============================== */
+  let kassaLockTargetUser = ''; // name of the user we're asking a password for
+
+  function lockKassa(){
+    kassaLockTargetUser = loggedInUser;
+    const nameBtn = document.getElementById('kassaLockUserName');
+    if(nameBtn) nameBtn.firstChild.textContent = kassaLockTargetUser + ' ';
+    const switchList = document.getElementById('kassaLockSwitchList');
+    if(switchList){ switchList.style.display = 'none'; switchList.innerHTML = ''; }
+    const pw = document.getElementById('kassaLockPw');
+    if(pw) pw.value = '';
+    const err = document.getElementById('kassaLockError');
+    if(err) err.textContent = '';
+    document.getElementById('kassaLockModal').classList.add('active');
+    setTimeout(() => document.getElementById('kassaLockPw')?.focus(), 80);
+  }
+
+  function toggleLockUserSwitch(){
+    const list = document.getElementById('kassaLockSwitchList');
+    if(!list) return;
+    if(list.style.display === 'flex' || list.style.display === 'block'){
+      list.style.display = 'none'; return;
+    }
+    const kassaUsers = Object.values(users).filter(u => u.hasAccess || u.name === 'Adam' || u.name === 'Casper');
+    list.innerHTML = kassaUsers.map(u =>
+      `<button class="lock-switch-user${u.name === kassaLockTargetUser ? ' active-user' : ''}" onclick="pickLockUser('${u.name.replace(/'/g, "\\'")}')">${u.name}</button>`
+    ).join('');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+  }
+
+  function pickLockUser(name){
+    kassaLockTargetUser = name;
+    const nameBtn = document.getElementById('kassaLockUserName');
+    if(nameBtn) nameBtn.firstChild.textContent = kassaLockTargetUser + ' ';
+    const list = document.getElementById('kassaLockSwitchList');
+    if(list){ list.style.display = 'none'; list.innerHTML = ''; }
+    const pw = document.getElementById('kassaLockPw');
+    if(pw){ pw.value = ''; pw.focus(); }
+    const err = document.getElementById('kassaLockError');
+    if(err) err.textContent = '';
+  }
+
+  function submitLockUnlock(){
+    const pw = (document.getElementById('kassaLockPw')?.value || '').trim();
+    const u = users[pw];
+    const errEl = document.getElementById('kassaLockError');
+    const inp = document.getElementById('kassaLockPw');
+    if(!u || u.name !== kassaLockTargetUser){
+      if(errEl) errEl.textContent = 'Fel lösenord — försök igen';
+      if(inp){ inp.classList.add('shake'); inp.addEventListener('animationend', () => inp.classList.remove('shake'), {once:true}); inp.select(); }
+      return;
+    }
+    // Log in as the unlocking user
+    loggedInKey = pw;
+    loggedInUser = u.name;
+    isAdmin = (pw === 'spök123') ? true : !!u.admin;
+    currentHasAccess = !!u.hasAccess || u.name === 'Adam' || u.name === 'Casper';
+    currentHasInslepp = !!u.hasInslepp || u.name === 'Casper';
+    updateTopbar();
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ pw: loggedInKey }));
+    if(_displayActive){ const _dispBtn=document.getElementById('displayBtn'); if(_dispBtn) _dispBtn.classList.add('loading'); apiSet(CUSTOMER_DISPLAY_OWNER_KEY, loggedInUser).then(()=>{ updateDisplayBtn(); }).catch(()=>{}).finally(()=>{ if(_dispBtn) _dispBtn.classList.remove('loading'); }); }
+    document.getElementById('kassaLockModal').classList.remove('active');
+    kassaLockTargetUser = '';
+    renderProductButtons();
+    renderCart();
+  }
+
+  document.getElementById('kassaLockPw')?.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); submitLockUnlock(); }
+  });
+  document.getElementById('kassaLockPw')?.addEventListener('input', function(){ const pw=(this.value||'').trim(); if(pw&&users[pw]?.name===kassaLockTargetUser) submitLockUnlock(); });
 
   /* ============================== API / DB ============================== */
   const API_URL = 'https://script.google.com/macros/s/AKfycbx54qTF1ymnSm8t_qmjiHh7f2smc_Dk6gCxZXF12eALYR-ly6GKdVQjNhkCKu3WOzLiIQ/exec';
@@ -864,7 +969,7 @@
   function incItem(name){ if(cart[name]){cart[name].qty+=1;renderCart();} }
   function decItem(name){ if(cart[name]){cart[name].qty-=1;if(cart[name].qty<=0){delete cart[name];}renderCart();} }
 
-  function isAnyModalOpen(){ const pay=document.getElementById('payModal'); const appr=document.getElementById('approveModal'); const login=document.getElementById('loginModal'); return (pay&&pay.style.display==='flex')||(appr&&appr.style.display==='flex')||(login&&login.classList.contains('active')); }
+  function isAnyModalOpen(){ const pay=document.getElementById('payModal'); const appr=document.getElementById('approveModal'); const login=document.getElementById('loginModal'); const lock=document.getElementById('kassaLockModal'); return (pay&&pay.style.display==='flex')||(appr&&appr.style.display==='flex')||(login&&login.classList.contains('active'))||(lock&&lock.classList.contains('active')); }
   function isTypingContext(){ const a=document.activeElement; if(!a) return false; const tag=(a.tagName||'').toLowerCase(); return tag==='input'||tag==='textarea'||a.isContentEditable; }
   function addProductByNameMatch(regex){ const prods=loadProducts(); const p=prods.find(x=>regex.test(String(x.name||'').toLowerCase())); if(!p) return false; const kassaOpen=document.getElementById('kassaContainer')?.style.display==='block'; const closed=(openingHours==='Stängt'&&!isAdmin); if(!kassaOpen||closed) return false; addItem(p.name,p.price); return true; }
   function addProductByIndex(idx){ const prods=loadProducts(); const p=prods[idx]; if(!p) return false; const kassaOpen=document.getElementById('kassaContainer')?.style.display==='block'; const closed=(openingHours==='Stängt'&&!isAdmin); if(!kassaOpen||closed) return false; addItem(p.name,p.price); return true; }
@@ -1899,6 +2004,13 @@
       if(t.id==='addUserBtn'){e.preventDefault();const name=(document.getElementById('newUserName')?.value||'').trim();const pw=(document.getElementById('newUserPass')?.value||'').trim();const acc=!!document.getElementById('newUserAccessCheckbox')?.checked;const insl=!!document.getElementById('newUserInsleppCheckbox')?.checked;if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}if(users[pw]){alert('Det finns redan en användare med det lösenordet.');return;}users[pw]={name,admin:false,hasAccess:acc,hasInslepp:insl};ensureProfileDefaults(name);saveUserData();initUserSelect();alert(name+' har lagts till.');saveUsers();document.getElementById('newUserName').value='';document.getElementById('newUserPass').value='';document.getElementById('newUserAccessCheckbox').checked=false;document.getElementById('newUserInsleppCheckbox').checked=false;}
       if(t.id==='removeUserBtn'){e.preventDefault();const name=(document.getElementById('newUserName')?.value||'').trim();const pw=(document.getElementById('newUserPass')?.value||'').trim();if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}const u=users[pw];if(!u||u.name!==name){alert('Fel namn eller lösenord.');return;}if(u.name==='Adam'||u.name==='Casper'){alert('Casper och Adam kan inte tas bort.');return;}const savedUser={...u};const savedPw=pw;const wasSelf=(loggedInKey===pw);delete users[pw];if(wasSelf) logout();initUserSelect();saveUsers();document.getElementById('newUserName').value='';document.getElementById('newUserPass').value='';document.getElementById('newUserAccessCheckbox').checked=false;showUndoToast(`${name} borttagen`, ()=>{ users[savedPw]=savedUser; saveUsers(); initUserSelect(); });}
     });
+    document.getElementById('newUserPass')?.addEventListener('input', function(){
+      const pw = this.value.trim();
+      const warn = document.getElementById('newUserPassWarn');
+      if(!warn) return;
+      if(pw && users[pw]){ warn.textContent = 'Det lösenordet används redan av någon annan.'; warn.style.display = 'block'; }
+      else { warn.textContent = ''; warn.style.display = 'none'; }
+    });
     root._boundUserMgmt=true;
   })();
 
@@ -2034,6 +2146,8 @@
   function setPayChoice(choice){ const input=document.querySelector(`input[name="payModal"][value="${choice}"]`);if(input) input.checked=true; }
   document.addEventListener('keydown',(e)=>{
     if(e.repeat) return;
+    closeKbHelp();
+    if(e.key==='Escape'&&e.shiftKey){e.preventDefault();if(loggedInUser&&!isAnyModalOpen()&&document.getElementById('kassaContainer')?.style.display==='block') lockKassa();return;}
     if(isPayModalOpen()){ const labelInput=document.getElementById('ticketLabelInput');if(e.key==='1'){setPayChoice('Swish');e.preventDefault();return;}if(e.key==='2'){setPayChoice('Kort');e.preventDefault();return;}if(e.key==='3'){setPayChoice('Kontant');e.preventDefault();return;}if(e.key==='Enter'){e.preventDefault();if(document.activeElement!==labelInput){labelInput?.focus();return;}document.getElementById('payConfirm')?.click();return;}if(e.key==='Escape'){e.preventDefault();document.getElementById('payCancel')?.click();return;}return;}
     if(isApproveModalOpen()){if(e.key==='Enter'){e.preventDefault();document.getElementById('approveYes')?.click();return;}if(e.key==='Escape'){e.preventDefault();document.getElementById('approveNo')?.click();return;}return;}
     const kontantEl=document.getElementById('kontantModal');if(kontantEl&&kontantEl.style.display==='flex'){if(e.key==='Enter'){e.preventDefault();handleKontantYes();return;}if(e.key==='Escape'){e.preventDefault();handleKontantNo();return;}return;}
@@ -2189,36 +2303,20 @@
     document.addEventListener('visibilitychange',()=>{ if(!document.hidden) _doRefresh?.(); });
   }
 
-  /* ============================== AUTO-LOGOUT ============================== */
-  const AUTO_LOGOUT_MS   = 60 * 60 * 1000; // 60 minuter
-  const AUTO_LOGOUT_WARN = 2  * 60 * 1000; // varna 2 min innan
+  /* ============================== AUTO-LÅS ============================== */
+  const AUTO_LOCK_MS = 10 * 60 * 1000; // 10 minuter
   let _lastActivity = Date.now();
-  let _warnShown = false;
-
-  function resetAutoLogout(){
-    _lastActivity = Date.now();
-    _warnShown = false;
-    document.getElementById('autoLogoutWarn')?.classList.remove('visible');
-  }
 
   ['mousemove','keydown','click','touchstart','scroll'].forEach(ev =>
-    document.addEventListener(ev, resetAutoLogout, { passive: true })
+    document.addEventListener(ev, () => { _lastActivity = Date.now(); }, { passive: true })
   );
 
   setInterval(() => {
     if(!loggedInUser) return;
-    if(document.querySelector('.field-view')) return;  // insläppsvyn = aktiv, hoppa över
-    if(document.querySelector('.display-view')) return; // kötidsdisplay (kod 00) = aktiv, hoppa över
-    const idle = Date.now() - _lastActivity;
-    if(idle >= AUTO_LOGOUT_MS){ logout(); return; }
-    if(idle >= AUTO_LOGOUT_MS - AUTO_LOGOUT_WARN && !_warnShown){
-      _warnShown = true;
-      const minsLeft = Math.ceil((AUTO_LOGOUT_MS - idle) / 60000);
-      const msg = document.getElementById('autoLogoutMsg');
-      if(msg) msg.textContent = `Du loggas ut om ${minsLeft} min — tryck Fortsätt för att stanna.`;
-      document.getElementById('autoLogoutWarn')?.classList.add('visible');
-    }
-  }, 15000);
+    if(document.getElementById('kassaContainer')?.style.display !== 'block') return;
+    if(document.getElementById('kassaLockModal')?.classList.contains('active')) return;
+    if(Date.now() - _lastActivity >= AUTO_LOCK_MS) lockKassa();
+  }, 30000);
 
   /* ============================== KUNDSKÄRM ============================== */
   function saveSwishNumber(){
