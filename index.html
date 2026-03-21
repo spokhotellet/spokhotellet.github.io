@@ -332,6 +332,15 @@
           <button class="btn btn-green" onclick="saveDisplayTicker()">Spara</button>
         </div>
         <div id="displayTickerConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
+        <h4 style="margin-top:16px;">Bildslides (kötidsdisplay)</h4>
+        <div class="tiny muted" style="margin-bottom:6px;">En bild-URL per rad. Bilderna visas som helskärmsslides i displayen.</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <textarea id="displayImagesInput" class="admin-textarea" rows="4" placeholder="https://example.com/bild1.jpg&#10;https://example.com/bild2.png"></textarea>
+          <div style="display:flex;justify-content:flex-end;">
+            <button class="btn btn-green" onclick="saveDisplayImages()">Spara</button>
+          </div>
+        </div>
+        <div id="displayImagesConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
       </div>
     </div>
 
@@ -742,7 +751,7 @@
   async function apiGet(key){ const r = await fetch(`${API_URL}?key=${encodeURIComponent(key)}&_=${Date.now()}`, { cache: 'no-store' }); const j = await r.json(); return j.value; }
   async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
-  const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1'; const DISPLAY_TICKER_KEY='displayTickerTextV1';
+  const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1'; const DISPLAY_TICKER_KEY='displayTickerTextV1'; const DISPLAY_IMAGES_KEY='displayImagesV1';
   const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1';
 
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
@@ -1480,6 +1489,7 @@
   }
 
   function saveDisplayTicker(){ const val=(document.getElementById('displayTickerInput')?.value||'').trim(); localStorage.setItem(DISPLAY_TICKER_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayTickerConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} }
+  function saveDisplayImages(){ const val=(document.getElementById('displayImagesInput')?.value||'').trim(); localStorage.setItem(DISPLAY_IMAGES_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayImagesConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} }
 
   function computeDisplayTextAndState(){ const q=String(queueTime||'').trim();const qLower=q.toLowerCase();const isClosed=openingHours==='Stängt'||qLower.includes('stängt');let text='Ingen info';if(qLower==='stängt för kvällen') text='Stängt för kvällen';else if(qLower==='tillfälligt stängt') text='Tillfälligt stängt';else if(openingHours==='Stängt'||qLower==='stängt') text='Stängt';else if(q) text=q;return {text,isClosed}; }
 
@@ -1488,12 +1498,13 @@
     const scan=document.createElement('div'); scan.className='scanlines'; o.appendChild(scan);
     const panel=document.createElement('div'); panel.className='ds-panel'; o.appendChild(panel);
 
-    function buildSlides(){ const content=[]; const prods=loadProducts().filter(p=>Number(p.price)>0); if(prods.length) content.push({type:'prices',prods}); const custom=(localStorage.getItem(DISPLAY_TICKER_KEY)||'').trim(); if(custom) custom.split('|').forEach(s=>{s=s.trim();if(s) content.push({type:'info',text:s});}); if(!content.length) return [{type:'queue'}]; const result=[]; content.forEach(s=>{result.push({type:'queue'});result.push(s);}); return result; }
+    function buildSlides(){ const content=[]; const prods=loadProducts().filter(p=>Number(p.price)>0); if(prods.length) content.push({type:'prices',prods}); const custom=(localStorage.getItem(DISPLAY_TICKER_KEY)||'').trim(); if(custom) custom.split('|').forEach(s=>{s=s.trim();if(s) content.push({type:'info',text:s});}); const imgs=(localStorage.getItem(DISPLAY_IMAGES_KEY)||'').trim(); if(imgs) imgs.split('\n').forEach(u=>{u=u.trim();if(u) content.push({type:'image',url:u});}); if(!content.length) return [{type:'queue'}]; const result=[]; content.forEach(s=>{result.push({type:'queue'});result.push(s);}); return result; }
 
     function renderSlide(slide){ const {text,isClosed}=computeDisplayTextAndState(); o.className='display-view '+(isClosed?'state-closed':'state-open');
       if(slide.type==='queue') return `<div class="ds-inner"><div id="displayLabel">Beräknad kötid</div><div id="displayQueue">${escapeHtml(text)}</div><div id="displayHours">${(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${escapeHtml(openingHours)}`:'Stängt idag'}</div></div>`;
       if(slide.type==='prices') return `<div class="ds-inner"><img src="korpen.png" class="ds-logo" onerror="this.style.display='none'" alt=""><div class="ds-title">Priser</div><div class="ds-ornament">— ✦ —</div><div class="ds-prices">${slide.prods.map((p,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.1+0.15}s"><span class="ds-price-name">${escapeHtml(p.name)}</span><span class="ds-price-dots"></span><span class="ds-price-val">${p.price} kr</span></div>`).join('')}</div></div>`;
       if(slide.type==='info') return `<div class="ds-inner"><img src="korpen.png" class="ds-logo" onerror="this.style.display='none'" alt=""><div class="ds-ornament">— ✦ —</div><div class="ds-info-text">${escapeHtml(slide.text)}</div></div>`;
+      if(slide.type==='image') return `<div class="ds-image-slide"><img src="${escapeHtml(slide.url)}" alt="" onerror="this.style.display='none'"></div>`;
       return ''; }
 
     let slides=buildSlides(); let idx=0;
@@ -2428,6 +2439,8 @@
     if(inp) inp.value=getSwishNumber();
     const tickerInp=document.getElementById('displayTickerInput');
     if(tickerInp) tickerInp.value=localStorage.getItem(DISPLAY_TICKER_KEY)||'';
+    const imagesInp=document.getElementById('displayImagesInput');
+    if(imagesInp) imagesInp.value=localStorage.getItem(DISPLAY_IMAGES_KEY)||'';
     const statusEl=document.getElementById('displayAdminStatus');
     const btn=document.getElementById('displayAdminDisconnectBtn');
     if(!statusEl) return;
