@@ -449,20 +449,30 @@
 
         <hr class="admin-divider">
 
-        <h4>Beräkna löner</h4>
-        <div class="row" style="gap:16px; flex-wrap:wrap; align-items:flex-end;">
-          <div>
-            <div style="font-size:11px; color:rgba(232,224,208,0.4); margin-bottom:3px;">Från</div>
-            <input type="date" id="lonFromDate" class="input">
-          </div>
-          <div>
-            <div style="font-size:11px; color:rgba(232,224,208,0.4); margin-bottom:3px;">Till (valfritt)</div>
-            <input type="date" id="lonToDate" class="input">
-          </div>
-          <button class="btn btn-green" onclick="renderLon()">Beräkna</button>
+        <div style="display:flex;gap:0;border-bottom:1px solid rgba(232,224,208,0.12);margin-bottom:16px;">
+          <button id="lonTab_berakna" onclick="selectLonTab('berakna')" style="background:none;border:none;border-bottom:2px solid #d4872a;color:#f0ebe2;font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Beräkna</button>
+          <button id="lonTab_historik" onclick="selectLonTab('historik')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Historik</button>
         </div>
-        <div class="tiny muted" style="margin-top:6px;">Driftansvarig räknas som 1,5× vid fördelning. Övriga roller räknas lika.</div>
-        <div id="lonResult"></div>
+
+        <div id="lonPanel_berakna">
+          <div class="row" style="gap:16px; flex-wrap:wrap; align-items:flex-end;">
+            <div>
+              <div style="font-size:11px; color:rgba(232,224,208,0.4); margin-bottom:3px;">Från</div>
+              <input type="date" id="lonFromDate" class="input">
+            </div>
+            <div>
+              <div style="font-size:11px; color:rgba(232,224,208,0.4); margin-bottom:3px;">Till (valfritt)</div>
+              <input type="date" id="lonToDate" class="input">
+            </div>
+            <button class="btn btn-green" onclick="renderLon()">Beräkna</button>
+          </div>
+          <div class="tiny muted" style="margin-top:6px;">Driftansvarig räknas som 1,5× vid fördelning. Övriga roller räknas lika.</div>
+          <div id="lonResult"></div>
+        </div>
+
+        <div id="lonPanel_historik" style="display:none;">
+          <div id="lonHistorikList"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -524,6 +534,7 @@
   <!-- ===== KASSA ===== -->
   <div id="kassaContainer">
     <h1><button id="displayBtn" onclick="toggleDisplayBtn()" title="Koppla kundskärm" aria-label="Koppla kundskärm"><svg width="13" height="11" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="1" width="24" height="16" rx="2"/><path d="M9 21h8M13 17v4"/></svg></button>Spökhotellet Korpen<button id="kassaLockBtn" onclick="lockKassa()" title="Lås kassan" aria-label="Lås kassan"><svg width="11" height="13" viewBox="0 0 22 26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="16" height="13" rx="2"/><path d="M7 11V7a4 4 0 0 1 8 0v4"/></svg></button><button id="kbHelpBtn" onclick="toggleKbHelp()" title="Tangentbordsgenvägar" aria-label="Visa tangentbordsgenvägar">?</button></h1>
+    <div style="text-align:center;margin:-10px 0 12px;"><span id="kassaClock" style="font-family:monospace;font-size:13px;opacity:0.35;letter-spacing:0.5px;"></span></div>
     <div id="closedMessage">Kassan är stängd</div>
     <div class="products"></div>
     <button id="discountBtn" title="Använd 50% rabatt en gång på denna kund">50% rabatt (1 gång)</button>
@@ -750,6 +761,7 @@
   let kassaLockTargetUser = ''; // name of the user we're asking a password for
 
   function lockKassa(){
+    localStorage.setItem('kassaLockedV1','1');
     kassaLockTargetUser = loggedInUser;
     const nameBtn = document.getElementById('kassaLockUserName');
     if(nameBtn) nameBtn.firstChild.textContent = kassaLockTargetUser + ' ';
@@ -808,6 +820,7 @@
     updateTopbar();
     localStorage.setItem(SESSION_KEY, JSON.stringify({ pw: loggedInKey }));
     if(_displayActive){ const _dispBtn=document.getElementById('displayBtn'); if(_dispBtn) _dispBtn.classList.add('loading'); apiSet(CUSTOMER_DISPLAY_OWNER_KEY, loggedInUser).then(()=>{ updateDisplayBtn(); }).catch(()=>{}).finally(()=>{ if(_dispBtn) _dispBtn.classList.remove('loading'); }); }
+    localStorage.removeItem('kassaLockedV1');
     document.getElementById('kassaLockModal').classList.remove('active');
     kassaLockTargetUser = '';
     renderProductButtons();
@@ -984,7 +997,7 @@
   function getLonTotalIncomeForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); total+=Number((hist[ds]||{}).income||0); d.setDate(d.getDate()+1); } return total; }
   function getLonOpeningHrsForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const today=todayStr(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); const hoursStr=ds===today?(loadOpeningHours()||''):(hist[ds]||{}).hours||''; total+=parseWorkHoursStr(hoursStr); d.setDate(d.getDate()+1); } return total; }
 
-  function snapshotStaffHoursToday(){ const hist=loadSalesHistory(); const day=ensureHistDay(hist,todayStr()); if(!day.staffHours) day.staffHours={}; Object.keys(userData).forEach(name=>{ if(userData[name]&&typeof userData[name].hours==='string') day.staffHours[name]={hours:userData[name].hours||'',task:userData[name].task||''}; }); saveSalesHistory(hist); }
+  function snapshotStaffHoursToday(){ const hist=loadSalesHistory(); const day=ensureHistDay(hist,todayStr()); if(!day.staffHours) day.staffHours={}; Object.keys(userData).forEach(name=>{ if(userData[name]&&typeof userData[name].hours==='string') day.staffHours[name]={hours:userData[name].hours||'',task:userData[name].task||''}; }); if(openingHours&&openingHours!=='Stängt') day.openingHrs=parseWorkHoursStr(openingHours); saveSalesHistory(hist); }
 
   function toggleUpcomingShifts(){ const list=document.getElementById('upcomingShiftsList'); const chevron=document.getElementById('upcomingChevron'); if(!list) return; const open=list.style.display!=='none'; list.style.display=open?'none':''; if(chevron) chevron.style.transform=open?'rotate(180deg)':'rotate(0deg)'; localStorage.setItem('upcomingShiftsOpen',String(!open)); }
   function loadShiftPlan(){ const v=dbGet(SHIFT_PLAN_KEY,null); return (v&&typeof v==='object')?v:{}; }
@@ -1089,6 +1102,58 @@
   function getLonDaysBetween(fromDate,toDate){ const d1=new Date(fromDate+'T12:00:00'); const d2=new Date(toDate+'T12:00:00'); return Math.max(1,Math.round((d2-d1)/86400000)+1); }
 
   function saveLonSettings(){ const bassumma=Number(String(document.getElementById('lonBassumma')?.value||'0').replace(',','.')); const verk=Number(String(document.getElementById('lonVerksamhet')?.value||'0').replace(',','.')); if(!Number.isFinite(bassumma)||bassumma<0||!Number.isFinite(verk)||verk<0||verk>100){alert('Kontrollera värdena.');return;} saveWageSettings({bassumma:Math.round(bassumma),verksamhetsandel:Math.round(verk)}); const c=document.getElementById('lonSettingsConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} renderLon(); }
+
+  function selectLonTab(tab){
+    document.getElementById('lonPanel_berakna').style.display=tab==='berakna'?'':'none';
+    document.getElementById('lonPanel_historik').style.display=tab==='historik'?'':'none';
+    const base='background:none;border:none;font-family:\'IM Fell English SC\',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;';
+    document.getElementById('lonTab_berakna').style.cssText=base+(tab==='berakna'?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);');
+    document.getElementById('lonTab_historik').style.cssText=base+(tab==='historik'?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);');
+    if(tab==='historik') renderLonHistorik();
+  }
+
+  function renderLonHistorik(){
+    const el=document.getElementById('lonHistorikList'); if(!el) return;
+    const hist=loadSalesHistory();
+    const today=todayStr();
+    const days=Object.keys(hist).filter(d=>d<today&&Number((hist[d]||{}).income||0)>0).sort((a,b)=>b.localeCompare(a));
+    if(!days.length){ el.innerHTML='<div class="muted" style="margin-top:8px;">Inga tidigare öppna dagar med inkomst hittades.</div>'; return; }
+    const settings=loadWageSettings();
+    const bassumma=Math.max(0,Number(settings.bassumma||0));
+    const verkAndel=Math.max(0,Math.min(100,Number(settings.verksamhetsandel||0)))/100;
+    el.innerHTML=days.map(date=>{
+      const day=hist[date]||{};
+      const income=Number(day.income||0);
+      const verkDel=Math.round(income*verkAndel);
+      const lonPott=income-verkDel;
+      const hasSnap=!!(day.staffHours&&Object.keys(day.staffHours).length);
+      let staffHtml='';
+      if(hasSnap){
+        const staffRaw=Object.entries(day.staffHours).map(([name,v])=>({name,hours:(v.hours||''),task:(v.task||'—')}));
+        const staff=staffRaw.map(s=>({...s,hrs:parseWorkHoursStr(s.hours)})).filter(s=>s.hrs>0);
+        const openHrs=Number((day.openingHrs||0));
+        staff.forEach(s=>{ s.vikt=getLonRollvikt(s.task); s.tackning=openHrs>0?s.hrs/openHrs:0; s.poang=+(s.tackning*s.vikt).toFixed(4); });
+        const totalPoang=staff.reduce((a,s)=>a+s.poang,0);
+        const totalBas=bassumma*staff.length;
+        const deln=Math.max(0,lonPott-totalBas);
+        staffHtml=staff.map(s=>{ const andel=totalPoang>0?s.poang/totalPoang:0; const totalt=bassumma+Math.round(andel*deln); return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(232,224,208,0.06);font-size:12px;"><span>${escapeHtml(s.name)} <span style="color:rgba(232,224,208,0.4);">${escapeHtml(s.task)}</span></span><span style="font-family:'IM Fell English SC',serif;">${totalt} kr</span></div>`; }).join('');
+      } else {
+        staffHtml=`<div class="tiny muted">Inga sparade arbetstider för detta datum.</div>`;
+      }
+      const shortDate=date.slice(5).replace('-','/');
+      return `<div style="margin-bottom:8px;border:1px solid rgba(232,224,208,0.08);border-radius:6px;overflow:hidden;">
+        <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none';this.querySelector('.lon-chevron').textContent=this.nextElementSibling.style.display===''?'▴':'▾';" style="width:100%;background:rgba(255,255,255,0.03);border:none;padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-family:'IM Fell English SC',serif;font-size:13px;color:rgba(232,224,208,0.85);text-align:left;">
+          <span>${shortDate}${hasSnap?'':' <span style="color:rgba(220,180,80,0.5);font-size:11px;">saknar arbetstider</span>'}</span>
+          <span style="display:flex;gap:16px;align-items:center;"><span style="font-size:12px;color:rgba(232,224,208,0.5);">${income} kr</span><span class="lon-chevron" style="font-size:10px;">▾</span></span>
+        </button>
+        <div style="display:none;padding:10px 14px;font-family:'IM Fell English',serif;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(232,224,208,0.5);margin-bottom:6px;"><span>Lönepott (efter ${Math.round(verkAndel*100)}% verksamhet)</span><span>${lonPott} kr</span></div>
+          ${staffHtml}
+          <div style="margin-top:8px;text-align:right;"><button class="btn" style="font-size:11px;padding:4px 10px;" onclick="document.getElementById('lonFromDate').value='${date}';document.getElementById('lonToDate').value='${date}';selectLonTab('berakna');renderLon();">Öppna i Beräkna →</button></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
 
   function initLonPanel(){ const s=loadWageSettings(); const b=document.getElementById('lonBassumma'); const v=document.getElementById('lonVerksamhet'); if(b) b.value=s.bassumma; if(v) v.value=s.verksamhetsandel; const today=todayStr(); const fd=document.getElementById('lonFromDate'); const td=document.getElementById('lonToDate'); if(fd&&!fd.value) fd.value=today; if(td&&!td.value) td.value=today; renderLon(); }
   function refreshLonIfOpen(){ const el=document.getElementById('lonContent'); if(!el||el.style.display!=='block') return; renderLon(); }
@@ -1733,7 +1798,7 @@
   }
   function hideDropdown(){ const dd=document.getElementById('userDropdown');if(dd) dd.style.display='none'; }
 
-  function logout(){ loggedInKey='';loggedInUser='';isAdmin=false;currentHasAccess=false;currentHasInslepp=false;_lastProfileWelcomeFor='';updateTopbar();hideAll();localStorage.removeItem(SESSION_KEY);THEME_CLASSES.forEach(c=>document.body.classList.remove(c));
+  function logout(){ loggedInKey='';loggedInUser='';isAdmin=false;currentHasAccess=false;currentHasInslepp=false;_lastProfileWelcomeFor='';updateTopbar();hideAll();localStorage.removeItem(SESSION_KEY);localStorage.removeItem('kassaLockedV1');THEME_CLASSES.forEach(c=>document.body.classList.remove(c));
     document.getElementById('welcomeMessage').style.display='flex';
     document.body.classList.add('welcome-bg-on');
     const tb=document.querySelector('.topbar');if(tb) tb.style.display='none';
@@ -2550,7 +2615,11 @@
     loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();renderWelcomePrices();showWelcomeTab('info');bindWelcomeControls();
     hideAll();
 
-    if(loggedInUser){ try{const _t=localStorage.getItem('userTheme_'+loggedInUser);if(_t) applyProfileTheme(_t);}catch(_e){} selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership(); }
+    if(loggedInUser && localStorage.getItem('kassaLockedV1')){
+      try{const _t=localStorage.getItem('userTheme_'+loggedInUser);if(_t) applyProfileTheme(_t);}catch(_e){}
+      selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership();
+      lockKassa();
+    } else if(loggedInUser){ try{const _t=localStorage.getItem('userTheme_'+loggedInUser);if(_t) applyProfileTheme(_t);}catch(_e){} selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership(); }
     else{
       document.getElementById('welcomeMessage').style.display='flex';
       if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');
@@ -2563,6 +2632,17 @@
     if(localStorage.getItem('overlayModeV1')==='pos') setTimeout(startCustomerDisplayMode, 0);
     setupLiveStatus();
     initEmbers();
+    (function tickClock(){
+      const el=document.getElementById('kassaClock');
+      if(el){
+        const n=new Date(); el.textContent=n.toLocaleTimeString('sv-SE');
+        const remaining = AUTO_LOCK_MS - (Date.now() - _lastActivity);
+        if(remaining < 10000){ el.style.color='rgba(200,80,60,0.85)'; el.style.opacity='0.9'; }
+        else if(remaining < 30000){ el.style.color='rgba(210,160,50,0.85)'; el.style.opacity='0.8'; }
+        else { el.style.color=''; el.style.opacity='0.35'; }
+      }
+      setTimeout(tickClock,1000);
+    })();
 
     function updateQueueWarnDot(){ const dot=document.getElementById('queueWarnDot'); if(!dot) return; const threshold=(() => { const q=String(queueTime||''); const nums=q.match(/\d+/g); if(!nums||!nums.length) return null; return Math.max(...nums.map(Number)); })(); if(threshold===null){ dot.style.display='none'; return; } const tickets=loadOpenTickets(); const unused=(tickets.items||[]).filter(it=>!it.used&&(Number(it.adult||0)+Number(it.child||0))>0); const anyOver=unused.some(it=>{ const ms=Date.now()-Date.parse(it.createdAt||''); return !isNaN(ms)&&ms>threshold*60*1000; }); dot.style.display=anyOver?'inline':'none'; }
     updateQueueWarnDot();
