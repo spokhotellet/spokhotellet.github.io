@@ -1805,8 +1805,8 @@
     const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';
   }
 
-  function saveDisplayTicker(){ const val=(document.getElementById('displayTickerInput')?.value||'').trim(); localStorage.setItem(DISPLAY_TICKER_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayTickerConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} }
-  function saveDisplayImages(){ const val=(document.getElementById('displayImagesInput')?.value||'').trim(); localStorage.setItem(DISPLAY_IMAGES_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayImagesConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} }
+  function saveDisplayTicker(){ const val=(document.getElementById('displayTickerInput')?.value||'').trim(); localStorage.setItem(DISPLAY_TICKER_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayTickerConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} apiSet(DISPLAY_TICKER_KEY,val).catch(()=>{}); }
+  function saveDisplayImages(){ const val=(document.getElementById('displayImagesInput')?.value||'').trim(); localStorage.setItem(DISPLAY_IMAGES_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayImagesConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} apiSet(DISPLAY_IMAGES_KEY,val).catch(()=>{}); }
 
   function computeDisplayTextAndState(){ const q=String(queueTime||'').trim();const qLower=q.toLowerCase();const isClosed=openingHours==='Stängt'||qLower.includes('stängt');let text='Ingen info';if(qLower==='stängt för kvällen') text='Stängt för kvällen';else if(qLower==='tillfälligt stängt') text='Tillfälligt stängt';else if(openingHours==='Stängt'||qLower==='stängt') text='Stängt';else if(q) text=q;return {text,isClosed}; }
 
@@ -1814,6 +1814,7 @@
     const o=document.createElement('div'); o.className='display-view'; document.body.appendChild(o);
     const scan=document.createElement('div'); scan.className='scanlines'; o.appendChild(scan);
     const panel=document.createElement('div'); panel.className='ds-panel'; o.appendChild(panel);
+    (async()=>{ try{ const [t,i]=await Promise.all([apiGet(DISPLAY_TICKER_KEY),apiGet(DISPLAY_IMAGES_KEY)]); if(t!=null) localStorage.setItem(DISPLAY_TICKER_KEY,t); if(i!=null) localStorage.setItem(DISPLAY_IMAGES_KEY,i); if(o._rebuildSlides) o._rebuildSlides(); }catch(_e){} })();
 
     function buildSlides(){ const content=[]; const prods=loadProducts().filter(p=>Number(p.price)>0&&!p.internal); if(prods.length) content.push({type:'prices',prods}); const custom=(localStorage.getItem(DISPLAY_TICKER_KEY)||'').trim(); if(custom) custom.split('|').forEach(s=>{s=s.trim();if(s) content.push({type:'info',text:s});}); const imgs=(localStorage.getItem(DISPLAY_IMAGES_KEY)||'').trim(); if(imgs) imgs.split('\n').forEach(u=>{u=u.trim();if(u) content.push({type:'image',url:u});}); if(!content.length) return [{type:'queue'}]; const result=[]; content.forEach(s=>{result.push({type:'queue'});result.push(s);}); return result; }
 
@@ -2818,8 +2819,13 @@
     const inp=document.getElementById('swishNumberInput');
     if(inp) inp.value=getSwishNumber();
     const tickerInp=document.getElementById('displayTickerInput');
-    if(tickerInp) tickerInp.value=localStorage.getItem(DISPLAY_TICKER_KEY)||'';
     const imagesInp=document.getElementById('displayImagesInput');
+    try{
+      const [serverTicker,serverImages]=await Promise.all([apiGet(DISPLAY_TICKER_KEY),apiGet(DISPLAY_IMAGES_KEY)]);
+      if(serverTicker!=null){ localStorage.setItem(DISPLAY_TICKER_KEY,serverTicker); }
+      if(serverImages!=null){ localStorage.setItem(DISPLAY_IMAGES_KEY,serverImages); }
+    }catch(_e){}
+    if(tickerInp) tickerInp.value=localStorage.getItem(DISPLAY_TICKER_KEY)||'';
     if(imagesInp) imagesInp.value=localStorage.getItem(DISPLAY_IMAGES_KEY)||'';
     const statusEl=document.getElementById('displayAdminStatus');
     const btn=document.getElementById('displayAdminDisconnectBtn');
@@ -2981,9 +2987,10 @@
         </div>
       </div>
       <div id="cdSwish" style="display:none; flex-direction:column;">
-        <div style="font-size:1rem; color:rgba(232,224,208,0.5); letter-spacing:1px; margin-bottom:16px;">Betala med Swish</div>
-        <img id="cdSwishQr" src="" alt="Swish QR" style="width:240px; height:240px; border-radius:12px; display:block;">
-        <div id="cdSwishAmount" style="font-size:2rem; margin-top:20px; letter-spacing:1px;"></div>
+        <div style="font-size:1rem; color:rgba(232,224,208,0.5); letter-spacing:1px; margin-bottom:20px;">Betala med Swish</div>
+        <img id="cdSwishQr" src="" alt="Swish QR" style="width:320px; height:320px; border-radius:12px; display:block;">
+        <div id="cdSwishAmount" style="font-size:2.4rem; margin-top:20px; letter-spacing:1px;"></div>
+        <div style="margin-top:14px; font-size:0.85rem; color:rgba(232,224,208,0.4); letter-spacing:0.5px;">Öppna Swish-appen → scanna QR-koden</div>
       </div>
     </div>
 
