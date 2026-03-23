@@ -288,25 +288,30 @@
     </div>
 
     <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('catalogContent', this)">Visa Kompetenser &amp; uppgifter</button>
+      <button class="disclosure" type="button" onclick="adminAccordion('catalogContent', this); selectCatalogTab('kompetenser')">Visa Kompetenser &amp; uppgifter</button>
       <div id="catalogContent" class="content">
-        <div class="row" style="gap:24px; align-items:flex-start; flex-wrap:wrap;">
-          <div style="flex:1; min-width:240px;">
-            <h4>Kompetenser</h4>
-            <div id="skillCatalogList"></div>
-            <div class="row" style="margin-top:8px;">
-              <input id="newSkillInput" class="input" placeholder="Ny kompetens…" style="flex:1;">
-              <button id="addSkillBtn" class="btn btn-green">Lägg till</button>
-            </div>
+        <div style="display:flex;gap:0;border-bottom:1px solid rgba(232,224,208,0.12);margin-bottom:14px;">
+          <button id="catTab_kompetenser" onclick="selectCatalogTab('kompetenser')" style="background:none;border:none;border-bottom:2px solid #d4872a;color:#f0ebe2;font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Kompetenser</button>
+          <button id="catTab_uppgifter" onclick="selectCatalogTab('uppgifter')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Uppgifter</button>
+          <button id="catTab_beskrivningar" onclick="selectCatalogTab('beskrivningar')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Beskrivningar</button>
+        </div>
+        <div id="catPanel_kompetenser">
+          <div id="skillCatalogList"></div>
+          <div class="row" style="margin-top:10px;">
+            <input id="newSkillInput" class="input" placeholder="Ny kompetens…" style="flex:1;">
+            <button id="addSkillBtn" class="btn btn-green">Lägg till</button>
           </div>
-          <div style="flex:1; min-width:240px;">
-            <h4>Uppgifter</h4>
-            <div id="taskCatalogList"></div>
-            <div class="row" style="margin-top:8px;">
-              <input id="newTaskInput" class="input" placeholder="Ny uppgift…" style="flex:1;">
-              <button id="addTaskBtn" class="btn btn-green">Lägg till</button>
-            </div>
+        </div>
+        <div id="catPanel_uppgifter" style="display:none;">
+          <div id="taskCatalogList"></div>
+          <div class="row" style="margin-top:10px;">
+            <input id="newTaskInput" class="input" placeholder="Ny uppgift…" style="flex:1;">
+            <button id="addTaskBtn" class="btn btn-green">Lägg till</button>
           </div>
+        </div>
+        <div id="catPanel_beskrivningar" style="display:none;">
+          <div class="tiny muted" style="margin-bottom:10px;">Beskrivningarna visas på personalens Min sida under deras uppgift.</div>
+          <div id="taskDescList"></div>
         </div>
       </div>
     </div>
@@ -430,31 +435,23 @@
     <div class="section">
       <button class="disclosure" type="button" onclick="adminAccordion('lonContent', this); initLonPanel()">Visa Löner</button>
       <div id="lonContent" class="content">
-        <h4>Inställningar</h4>
-        <div class="row" style="gap:16px; flex-wrap:wrap;">
-          <div style="flex:1; min-width:150px;">
-            <label class="admin-label" for="lonBassumma">Bassumma per person (kr)</label>
-            <input id="lonBassumma" type="number" min="0" step="50" class="input" style="width:100%;" placeholder="200">
-          </div>
-          <div style="flex:1; min-width:150px;">
-            <label class="admin-label" for="lonVerksamhet">Verksamhetsandel (%)</label>
-            <input id="lonVerksamhet" type="number" min="0" max="100" step="1" class="input" style="width:100%;" placeholder="20">
-          </div>
-        </div>
-        <div class="tiny muted" style="margin-top:6px;">Verksamhetsandelen reserveras för kostnader och nästa event. Resten delas ut som lön.</div>
-        <div class="row" style="margin-top:10px; justify-content:flex-end;">
-          <button class="btn btn-green" onclick="saveLonSettings()">Spara inställningar</button>
-        </div>
-        <div id="lonSettingsConfirm" style="display:none; color:#6f6; font-style:italic; font-size:12px; margin-top:4px; font-family:'IM Fell English',serif;">Sparat!</div>
-
-        <hr class="admin-divider">
-
         <div style="display:flex;gap:0;border-bottom:1px solid rgba(232,224,208,0.12);margin-bottom:16px;">
-          <button id="lonTab_berakna" onclick="selectLonTab('berakna')" style="background:none;border:none;border-bottom:2px solid #d4872a;color:#f0ebe2;font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Beräkna</button>
+          <button id="lonTab_idag" onclick="selectLonTab('idag')" style="background:none;border:none;border-bottom:2px solid #d4872a;color:#f0ebe2;font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Idag</button>
           <button id="lonTab_historik" onclick="selectLonTab('historik')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Historik</button>
+          <button id="lonTab_berakna" onclick="selectLonTab('berakna')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Beräkna</button>
+          <button id="lonTab_installningar" onclick="selectLonTab('installningar')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Inställningar</button>
         </div>
 
-        <div id="lonPanel_berakna">
+        <div id="lonPanel_idag">
+          <div class="tiny muted" style="margin-bottom:10px;">Driftansvarig räknas som 1,5× vid fördelning. Övriga roller räknas lika.</div>
+          <div id="lonResultIdag"></div>
+        </div>
+
+        <div id="lonPanel_historik" style="display:none;">
+          <div id="lonHistorikList"></div>
+        </div>
+
+        <div id="lonPanel_berakna" style="display:none;">
           <div class="row" style="gap:16px; flex-wrap:wrap; align-items:flex-end;">
             <div>
               <div style="font-size:11px; color:rgba(232,224,208,0.4); margin-bottom:3px;">Från</div>
@@ -470,8 +467,45 @@
           <div id="lonResult"></div>
         </div>
 
-        <div id="lonPanel_historik" style="display:none;">
-          <div id="lonHistorikList"></div>
+        <div id="lonPanel_installningar" style="display:none;">
+          <div class="row" style="gap:16px; flex-wrap:wrap; margin-top:4px;">
+            <div style="flex:1; min-width:150px;">
+              <label class="admin-label" for="lonBassumma">Bassumma per person (kr)</label>
+              <input id="lonBassumma" type="number" min="0" step="50" class="input" style="width:100%;" placeholder="200">
+            </div>
+            <div style="flex:1; min-width:150px;">
+              <label class="admin-label" for="lonVerksamhet">Verksamhetsandel (%)</label>
+              <input id="lonVerksamhet" type="number" min="0" max="100" step="1" class="input" style="width:100%;" placeholder="20">
+            </div>
+          </div>
+          <div class="tiny muted" style="margin-top:6px;">Verksamhetsandelen reserveras för kostnader och nästa event. Resten delas ut som lön.</div>
+
+          <hr style="border:none;border-top:1px solid rgba(232,224,208,0.1);margin:14px 0;">
+          <div style="font-size:12px;color:rgba(232,224,208,0.7);margin-bottom:8px;font-family:'IM Fell English SC',serif;letter-spacing:0.5px;">Rollvikter</div>
+          <div class="row" style="gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+            <div style="flex:1; min-width:130px;">
+              <label class="admin-label" for="lonViktDrift">Driftansvarig</label>
+              <input id="lonViktDrift" type="number" min="0.1" max="10" step="0.1" class="input" style="width:100%;" placeholder="2.0">
+            </div>
+            <div style="flex:1; min-width:130px;">
+              <label class="admin-label" for="lonViktAnsvarig">Ansvarig (nyckelord)</label>
+              <input id="lonViktAnsvarig" type="number" min="0.1" max="10" step="0.1" class="input" style="width:100%;" placeholder="1.5">
+            </div>
+            <div style="flex:1; min-width:130px;">
+              <label class="admin-label" for="lonViktStandard">Standard</label>
+              <input id="lonViktStandard" type="number" min="0.1" max="10" step="0.1" class="input" style="width:100%;" placeholder="1.0">
+            </div>
+            <div style="flex:1; min-width:130px;">
+              <label class="admin-label" for="lonViktMedarbetare">Medarbetare (bas)</label>
+              <input id="lonViktMedarbetare" type="number" min="0.1" max="10" step="0.1" class="input" style="width:100%;" placeholder="0.5">
+            </div>
+          </div>
+          <div class="tiny muted" style="margin-bottom:10px;">Roller med "ansvarig" i namnet får ansvarig-vikt automatiskt. "Driftansvarig" tar alltid prioritet. Medarbetare boostar proportionellt via kassaregistreringar (max standard-vikt).</div>
+
+          <div class="row" style="justify-content:flex-end;">
+            <button class="btn btn-green" onclick="saveLonSettings()">Spara</button>
+          </div>
+          <div id="lonSettingsConfirm" style="display:none; color:#6f6; font-style:italic; font-size:12px; margin-top:4px; font-family:'IM Fell English',serif;">Sparat!</div>
         </div>
       </div>
     </div>
@@ -481,32 +515,47 @@
   <div id="profileContainer" class="theme-default">
     <h2 id="welcomeUser">Välkommen</h2>
 
-    <!-- Dagens status — fylls av loadProfile -->
-    <div id="todayWorkSection" style="margin-top:12px;">
-      <p><strong style="font-family:'IM Fell English SC',serif;">Arbetstid:</strong> <span id="myHours">–</span></p>
-      <p><strong style="font-family:'IM Fell English SC',serif;">Uppgift:</strong> <span id="myTask">–</span></p>
+    <div class="profile-columns">
+      <div class="profile-col-left">
+        <!-- Dagens status — fylls av loadProfile -->
+        <div id="todayWorkSection" class="profile-block">
+          <div class="profile-row">
+            <span class="profile-label">Arbetstid</span>
+            <span class="profile-value" id="myHours">–</span>
+          </div>
+          <div class="profile-row">
+            <span class="profile-label">Uppgift</span>
+            <span class="profile-value" id="myTask">–</span>
+          </div>
+          <p id="myTaskDesc" style="display:none;" class="profile-task-desc"></p>
+        </div>
+        <p id="myLedigMsg" style="display:none;" class="profile-ledig">Ledig idag</p>
+
+        <!-- Kommande pass — fylls av loadProfile -->
+        <div id="upcomingShiftsSection"></div>
+      </div>
+
+      <div class="profile-col-right">
+        <div id="skillsSection" class="profile-block">
+          <div class="profile-row">
+            <span class="profile-label">Kompetenser</span>
+            <span id="skillsList" class="row muted">–</span>
+          </div>
+        </div>
+      </div>
     </div>
-    <p id="myLedigMsg" style="display:none; margin-top:16px; font-family:'IM Fell English SC',serif; font-size:20px; color:rgba(232,224,208,0.85); letter-spacing:0.5px;">Ledig idag</p>
 
-    <div id="skillsSection">
-      <p><strong style="font-family:'IM Fell English SC',serif;">Kompetenser:</strong> <span id="skillsList" class="row muted">–</span></p>
-    </div>
+    <!-- Meddelandesektion — fylls av JS beroende på roll -->
+    <div id="staffMsgSection"></div>
 
-    <!-- Kommande pass — fylls av loadProfile -->
-    <div id="upcomingShiftsSection"></div>
-
-    <div id="themePicker" style="margin-top:20px;">
-      <h4 style="margin:8px 0 8px;font-family:'IM Fell English SC',serif;">Bakgrundsfärg</h4>
+    <div id="themePicker" class="profile-theme-row">
+      <span class="profile-label">Bakgrundsfärg</span>
       <div class="theme-dots">
         <button type="button" class="theme-dot" data-theme="default" title="Standard"></button>
         <button type="button" class="theme-dot" data-theme="forest" title="Grön"></button>
         <button type="button" class="theme-dot" data-theme="royal" title="Lila"></button>
       </div>
-      <div class="muted" style="margin-top:8px;">Välj en bakgrundsfärg för just din sida!</div>
     </div>
-
-    <!-- Meddelandesektion (längst ned) — fylls av JS beroende på roll -->
-    <div id="staffMsgSection"></div>
   </div>
 
   <!-- ===== TANGENTBORDS-OVERLAY ===== -->
@@ -838,12 +887,12 @@
   async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
   const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1'; const DISPLAY_TICKER_KEY='displayTickerTextV1'; const DISPLAY_IMAGES_KEY='displayImagesV1';
-  const SHIFT_PLAN_KEY='shiftPlanV1'; const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1'; const WAGE_SETTINGS_KEY='wageSettingsV1';
+  const SHIFT_PLAN_KEY='shiftPlanV1'; const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1'; const WAGE_SETTINGS_KEY='wageSettingsV1'; const TASK_DESCRIPTIONS_KEY='taskDescriptionsV1';
 
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
   function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode === 'intake' ? 'intake' : 'guests'); }
 
-  const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY]);
+  const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY,TASK_DESCRIPTIONS_KEY]);
 
   const _db = { cache: new Map(), loaded: new Set(), inflight: new Map() };
   const PERSIST_CACHE_PREFIX = 'dbcache_v1__';
@@ -987,15 +1036,15 @@
   function markSaleTicketUsed(ticketUid,date=todayStr()){ if(!ticketUid) return; const hist=loadSalesHistory(); const day=hist[date]; if(!day||!Array.isArray(day.entries)) return; const e=day.entries.find(x=>x.ticketUid===ticketUid); if(e){e.used=true;saveSalesHistory(hist);_statsDirty=true;} }
 
   // ===== LÖNER =====
-  function defaultWageSettings(){ return {bassumma:200,verksamhetsandel:20}; }
+  function defaultWageSettings(){ return {bassumma:200,verksamhetsandel:20,vikt_driftansvarig:2.0,vikt_ansvarig:1.5,vikt_standard:1.0,vikt_medarbetare:0.5}; }
   function loadWageSettings(){ const s=dbGet(WAGE_SETTINGS_KEY,null); return (s&&typeof s==='object')?{...defaultWageSettings(),...s}:defaultWageSettings(); }
   function saveWageSettings(s){ return dbSet(WAGE_SETTINGS_KEY,s||defaultWageSettings()).catch(()=>{}); }
-
   function parseWorkHoursStr(s){ if(!s) return 0; const m=s.match(/(\d{1,2}):(\d{2})\s*[–\-]\s*(\d{1,2}):(\d{2})/); if(!m) return 0; const start=parseInt(m[1])+parseInt(m[2])/60; const end=parseInt(m[3])+parseInt(m[4])/60; const diff=end-start; return diff>0?diff:0; }
-  function getLonRollvikt(task){ return task==='Driftansvarig'?1.5:1.0; }
+  function getLonRollvikt(task,settings){ const t=(task||'').toLowerCase(); const s=settings||loadWageSettings(); if(t.includes('driftansvarig')) return Number(s.vikt_driftansvarig||2.0); if(t.includes('ansvarig')) return Number(s.vikt_ansvarig||1.5); if(t.includes('medarbetare')) return Number(s.vikt_medarbetare||0.5); return Number(s.vikt_standard||1.0); }
+  function getLonTransaktionerForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const counts={}; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); const entries=(hist[ds]||{}).entries||[]; entries.forEach(e=>{ const s=e.seller||''; if(s&&s!=='—') counts[s]=(counts[s]||0)+1; }); d.setDate(d.getDate()+1); } return counts; }
 
   function getLonTotalIncomeForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); total+=Number((hist[ds]||{}).income||0); d.setDate(d.getDate()+1); } return total; }
-  function getLonOpeningHrsForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const today=todayStr(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); const hoursStr=ds===today?(loadOpeningHours()||''):(hist[ds]||{}).hours||''; total+=parseWorkHoursStr(hoursStr); d.setDate(d.getDate()+1); } return total; }
+  function getLonOpeningHrsForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const today=todayStr(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); let hoursStr; if(ds===today){ const live=loadOpeningHours()||''; hoursStr=(live&&live!=='Stängt')?live:((hist[ds]||{}).hours||''); } else { hoursStr=(hist[ds]||{}).hours||''; } total+=parseWorkHoursStr(hoursStr); d.setDate(d.getDate()+1); } return total; }
 
   function snapshotStaffHoursToday(){ const hist=loadSalesHistory(); const day=ensureHistDay(hist,todayStr()); if(!day.staffHours) day.staffHours={}; Object.keys(userData).forEach(name=>{ if(userData[name]&&typeof userData[name].hours==='string') day.staffHours[name]={hours:userData[name].hours||'',task:userData[name].task||''}; }); if(openingHours&&openingHours!=='Stängt') day.openingHrs=parseWorkHoursStr(openingHours); saveSalesHistory(hist); }
 
@@ -1101,15 +1150,14 @@
 
   function getLonDaysBetween(fromDate,toDate){ const d1=new Date(fromDate+'T12:00:00'); const d2=new Date(toDate+'T12:00:00'); return Math.max(1,Math.round((d2-d1)/86400000)+1); }
 
-  function saveLonSettings(){ const bassumma=Number(String(document.getElementById('lonBassumma')?.value||'0').replace(',','.')); const verk=Number(String(document.getElementById('lonVerksamhet')?.value||'0').replace(',','.')); if(!Number.isFinite(bassumma)||bassumma<0||!Number.isFinite(verk)||verk<0||verk>100){alert('Kontrollera värdena.');return;} saveWageSettings({bassumma:Math.round(bassumma),verksamhetsandel:Math.round(verk)}); const c=document.getElementById('lonSettingsConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} renderLon(); }
+  function saveLonSettings(){ const bassumma=Number(String(document.getElementById('lonBassumma')?.value||'0').replace(',','.')); const verk=Number(String(document.getElementById('lonVerksamhet')?.value||'0').replace(',','.')); if(!Number.isFinite(bassumma)||bassumma<0||!Number.isFinite(verk)||verk<0||verk>100){alert('Kontrollera värdena.');return;} const vDrift=Number(String(document.getElementById('lonViktDrift')?.value||'2').replace(',','.')); const vAnsv=Number(String(document.getElementById('lonViktAnsvarig')?.value||'1.5').replace(',','.')); const vStd=Number(String(document.getElementById('lonViktStandard')?.value||'1').replace(',','.')); const vMed=Number(String(document.getElementById('lonViktMedarbetare')?.value||'0.5').replace(',','.')); saveWageSettings({bassumma:Math.round(bassumma),verksamhetsandel:Math.round(verk),vikt_driftansvarig:vDrift,vikt_ansvarig:vAnsv,vikt_standard:vStd,vikt_medarbetare:vMed}); const c=document.getElementById('lonSettingsConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} renderLon(); renderLonIdag(); }
 
   function selectLonTab(tab){
-    document.getElementById('lonPanel_berakna').style.display=tab==='berakna'?'':'none';
-    document.getElementById('lonPanel_historik').style.display=tab==='historik'?'':'none';
+    ['idag','historik','berakna','installningar'].forEach(t=>{ const p=document.getElementById('lonPanel_'+t); if(p) p.style.display=tab===t?'':'none'; });
     const base='background:none;border:none;font-family:\'IM Fell English SC\',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;';
-    document.getElementById('lonTab_berakna').style.cssText=base+(tab==='berakna'?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);');
-    document.getElementById('lonTab_historik').style.cssText=base+(tab==='historik'?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);');
+    ['idag','historik','berakna','installningar'].forEach(t=>{ const b=document.getElementById('lonTab_'+t); if(b) b.style.cssText=base+(tab===t?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);'); });
     if(tab==='historik') renderLonHistorik();
+    if(tab==='idag') renderLonIdag();
   }
 
   function renderLonHistorik(){
@@ -1132,7 +1180,9 @@
         const staffRaw=Object.entries(day.staffHours).map(([name,v])=>({name,hours:(v.hours||''),task:(v.task||'—')}));
         const staff=staffRaw.map(s=>({...s,hrs:parseWorkHoursStr(s.hours)})).filter(s=>s.hrs>0);
         const openHrs=Number((day.openingHrs||0));
-        staff.forEach(s=>{ s.vikt=getLonRollvikt(s.task); s.tackning=openHrs>0?s.hrs/openHrs:0; s.poang=+(s.tackning*s.vikt).toFixed(4); });
+        const dayTrans=(day.entries||[]).reduce((acc,e)=>{ const sel=e.seller||''; if(sel&&sel!=='—') acc[sel]=(acc[sel]||0)+1; return acc; },{});
+        const dayTotalTrans=Object.values(dayTrans).reduce((a,b)=>a+b,0);
+        staff.forEach(s=>{ const baseVikt=getLonRollvikt(s.task,settings); const t=(s.task||'').toLowerCase(); if(t.includes('medarbetare')&&dayTotalTrans>0){ const sv=Number(settings.vikt_standard||1.0); s.vikt=Math.min(sv,+(baseVikt+(((dayTrans[s.name]||0)/dayTotalTrans)*(sv-baseVikt))).toFixed(3)); } else { s.vikt=baseVikt; } s.tackning=openHrs>0?s.hrs/openHrs:0; s.poang=+(s.tackning*s.vikt).toFixed(4); });
         const totalPoang=staff.reduce((a,s)=>a+s.poang,0);
         const totalBas=bassumma*staff.length;
         const deln=Math.max(0,lonPott-totalBas);
@@ -1155,13 +1205,16 @@
     }).join('');
   }
 
-  function initLonPanel(){ const s=loadWageSettings(); const b=document.getElementById('lonBassumma'); const v=document.getElementById('lonVerksamhet'); if(b) b.value=s.bassumma; if(v) v.value=s.verksamhetsandel; const today=todayStr(); const fd=document.getElementById('lonFromDate'); const td=document.getElementById('lonToDate'); if(fd&&!fd.value) fd.value=today; if(td&&!td.value) td.value=today; renderLon(); }
-  function refreshLonIfOpen(){ const el=document.getElementById('lonContent'); if(!el||el.style.display!=='block') return; renderLon(); }
+  function initLonPanel(){ const s=loadWageSettings(); const b=document.getElementById('lonBassumma'); const v=document.getElementById('lonVerksamhet'); if(b) b.value=s.bassumma; if(v) v.value=s.verksamhetsandel; const vd=document.getElementById('lonViktDrift'); const va=document.getElementById('lonViktAnsvarig'); const vs=document.getElementById('lonViktStandard'); const vm=document.getElementById('lonViktMedarbetare'); if(vd) vd.value=s.vikt_driftansvarig??2.0; if(va) va.value=s.vikt_ansvarig??1.5; if(vs) vs.value=s.vikt_standard??1.0; if(vm) vm.value=s.vikt_medarbetare??0.5; const today=todayStr(); const fd=document.getElementById('lonFromDate'); const td=document.getElementById('lonToDate'); if(fd&&!fd.value) fd.value=today; if(td&&!td.value) td.value=today; selectLonTab('idag'); }
+  function refreshLonIfOpen(){ const el=document.getElementById('lonContent'); if(!el||el.style.display!=='block') return; if(document.getElementById('lonPanel_idag')?.style.display!=='none') renderLonIdag(); else renderLon(); }
 
-  function renderLon(){
-    const fromVal=document.getElementById('lonFromDate').value;
-    const toVal=document.getElementById('lonToDate').value||fromVal;
-    const el=document.getElementById('lonResult');
+  function renderLon(opts){
+    opts=opts||{};
+    const fromVal=opts.fromVal||document.getElementById('lonFromDate').value;
+    const toVal=opts.toVal||(document.getElementById('lonToDate').value||fromVal);
+    const elId=opts.targetElId||'lonResult';
+    const el=document.getElementById(elId);
+    if(!el) return;
     if(!fromVal){el.innerHTML='<div class="muted" style="margin-top:10px;">Välj ett datum.</div>';return;}
     const settings=loadWageSettings();
     const bassumma=Math.max(0,Number(settings.bassumma||0));
@@ -1172,8 +1225,14 @@
     const lonPott=totalIncome-verkDel;
     const totalOpeningHrs=getLonOpeningHrsForPeriod(fromVal,toVal);
     const {staff:staffData,hasMissingSnapshot}=getLonStaffDataForPeriod(fromVal,toVal);
+    const transaktioner=getLonTransaktionerForPeriod(fromVal,toVal);
+    const totalTrans=Object.values(transaktioner).reduce((a,b)=>a+b,0);
     staffData.forEach(s=>{
-      s.vikt=getLonRollvikt(s.task);
+      const baseVikt=getLonRollvikt(s.task,settings);
+      const t=(s.task||'').toLowerCase();
+      s.personTrans=transaktioner[s.name]||0;
+      if(t.includes('medarbetare')&&totalTrans>0){ const sv=Number(settings.vikt_standard||1.0); s.vikt=Math.min(sv,+(baseVikt+((s.personTrans/totalTrans)*(sv-baseVikt))).toFixed(3)); s.kassaBoost=true; }
+      else { s.vikt=baseVikt; s.kassaBoost=false; }
       s.tackning=totalOpeningHrs>0?s.totalHrs/totalOpeningHrs:0;
       s.poang=+(s.tackning*s.vikt).toFixed(4);
     });
@@ -1204,7 +1263,10 @@
     rows.forEach(r=>{
       html+=`<tr style="border-bottom:1px solid rgba(232,224,208,0.07);">`;
       html+=`<td style="padding:8px;">${escapeHtml(r.name)}</td>`;
-      html+=`<td style="padding:8px;">${escapeHtml(r.task)}${r.vikt>1?` <span style="color:#d4872a;font-size:11px;">×${r.vikt}</span>`:''}</td>`;
+      const sv=Number(settings.vikt_standard||1.0);
+      const viktLabel=r.vikt!==sv?` <span style="color:#d4872a;font-size:11px;">×${r.vikt.toFixed(1)}</span>`:'';
+      const transLabel=r.kassaBoost&&r.personTrans>0?` <span style="color:rgba(232,224,208,0.35);font-size:10px;">${r.personTrans} trans.</span>`:'';
+      html+=`<td style="padding:8px;">${escapeHtml(r.task)}${viktLabel}${transLabel}</td>`;
       const hrsLabel=totalOpeningHrs>0?`${r.totalHrs}h / ${totalOpeningHrs}h`:`${r.totalHrs}h`;
       html+=`<td style="text-align:center;padding:8px;">${hrsLabel}</td>`;
       html+=`<td style="text-align:center;padding:8px;color:rgba(232,224,208,0.6);">${(r.andel*100).toFixed(0)}%</td>`;
@@ -1216,6 +1278,9 @@
     if(hasMissingSnapshot) html+=`<div class="tiny muted" style="margin-top:4px;color:rgba(220,180,80,0.6);">Obs: vissa datum saknar sparade arbetstider — nuvarande inställningar används som ersättning.</div>`;
     el.innerHTML=html;
   }
+
+  function renderLonIdag(){ const today=todayStr(); renderLon({fromVal:today,toVal:today,targetElId:'lonResultIdag'}); }
+
 
   function deleteStatsDay(date){ if(!isAdmin||!date) return; window._deletingDate=date; const lbl=document.getElementById('deleteDayLabel'); if(lbl) lbl.textContent=`All statistik för ${date} kommer att tas bort.`; const err=document.getElementById('deleteDayError'); if(err) err.textContent=''; const inp=document.getElementById('deleteDayPassInput'); if(inp) inp.value=''; const m=document.getElementById('deleteDayModal'); if(m) m.style.display='flex'; setTimeout(()=>inp?.focus(),80); }
   function closeDeleteDayModal(){ const m=document.getElementById('deleteDayModal'); if(m) m.style.display='none'; window._deletingDate=null; document.getElementById('deleteDayStep1').style.display=''; document.getElementById('deleteDayStep2').style.display='none'; }
@@ -2293,6 +2358,7 @@
     document.getElementById('myLedigMsg').style.display=isLedig?'':'none';
     document.getElementById('myHours').textContent=hours||'–';
     document.getElementById('myTask').textContent=task||'–';
+    const _taskDescEl=document.getElementById('myTaskDesc'); if(_taskDescEl){ const _desc=(loadTaskDescriptions()[task]||'').trim(); _taskDescEl.textContent=_desc; _taskDescEl.style.display=_desc?'':'none'; }
     const sk=document.getElementById('skillsList');if(sk) sk.innerHTML=renderSkillsBadges(userData[name].skills);
     // Kommande pass
     const upsEl=document.getElementById('upcomingShiftsSection');
@@ -2328,8 +2394,10 @@
   function saveSkillCatalog(list){ dbSet(SKILL_CATALOG_KEY,(list||[]).filter(Boolean)).catch(()=>{}); }
   function loadTaskCatalog(){ const arr=dbGet(TASK_CATALOG_KEY,null);if(Array.isArray(arr)&&arr.length) return arr;const seed=defaultTaskCatalog();dbSet(TASK_CATALOG_KEY,seed).catch(()=>{});return seed; }
   function saveTaskCatalog(list){ dbSet(TASK_CATALOG_KEY,(list||[]).filter(Boolean)).catch(()=>{}); }
+  function loadTaskDescriptions(){ const d=dbGet(TASK_DESCRIPTIONS_KEY,null); return (d&&typeof d==='object')?d:{}; }
+  function saveTaskDescriptions(d){ dbSet(TASK_DESCRIPTIONS_KEY,d||{}).catch(()=>{}); }
 
-  function renderCatalogList(rootEl,list,kind){ if(!rootEl) return;if(!Array.isArray(list)||!list.length){rootEl.innerHTML='<div class="muted">Inga poster.</div>';return;}rootEl.innerHTML=list.map((name,idx)=>`<div class="row" style="justify-content:space-between;gap:8px;margin:6px 0;"><input class="input ${kind}-name" data-index="${idx}" value="${escapeHtml(name)}" style="flex:1;min-width:220px;"><div class="row"><button class="btn save-${kind}" data-index="${idx}">Spara</button><button class="btn btn-danger del-${kind}" data-index="${idx}">Ta bort</button></div></div>`).join(''); }
+  function renderCatalogList(rootEl,list,kind){ if(!rootEl) return;if(!Array.isArray(list)||!list.length){rootEl.innerHTML='<div class="muted">Inga poster.</div>';return;} rootEl.innerHTML=list.map((name,idx)=>`<div style="margin:6px 0;"><div class="row" style="justify-content:space-between;gap:8px;"><input class="input ${kind}-name" data-index="${idx}" value="${escapeHtml(name)}" style="flex:1;min-width:180px;"><div class="row"><button class="btn save-${kind}" data-index="${idx}">Spara</button><button class="btn btn-danger del-${kind}" data-index="${idx}">Ta bort</button></div></div></div>`).join(''); }
 
   function renderCatalogManager(){
     const skills=loadSkillCatalog();const tasks=loadTaskCatalog();
@@ -2337,7 +2405,22 @@
     renderCatalogList(document.getElementById('taskCatalogList'),tasks,'task');
     const addSkill=document.getElementById('addSkillBtn');if(addSkill&&!addSkill._bound){addSkill.addEventListener('click',()=>{const inp=document.getElementById('newSkillInput');const val=(inp?.value||'').trim();if(!val) return;const list=loadSkillCatalog();if(list.includes(val)){alert('Finns redan.');return;}list.push(val);saveSkillCatalog(list);inp.value='';renderCatalogManager();if(isAdmin&&document.getElementById('adminSettings').style.display==='block') initUserSelect();});addSkill._bound=true;}
     const addTask=document.getElementById('addTaskBtn');if(addTask&&!addTask._bound){addTask.addEventListener('click',()=>{const inp=document.getElementById('newTaskInput');const val=(inp?.value||'').trim();if(!val) return;const list=loadTaskCatalog();if(list.includes(val)){alert('Finns redan.');return;}list.push(val);saveTaskCatalog(list);inp.value='';renderCatalogManager();if(isAdmin&&document.getElementById('adminSettings').style.display==='block') initUserSelect();});addTask._bound=true;}
-    const catRoot=document.getElementById('catalogContent');if(catRoot&&!catRoot._bound){catRoot.addEventListener('click',(e)=>{const t=e.target;if(!(t instanceof HTMLElement)) return;if(t.classList.contains('save-skill')){const idx=+t.dataset.index;const list=loadSkillCatalog();const input=catRoot.querySelector(`.skill-name[data-index="${idx}"]`);const val=(input?.value||'').trim();if(!val){alert('Tomt namn.');return;}list[idx]=val;saveSkillCatalog(list);renderCatalogManager();initUserSelect();}if(t.classList.contains('del-skill')){const idx=+t.dataset.index;const list=loadSkillCatalog();const removed=list.splice(idx,1)[0];saveSkillCatalog(list);Object.keys(userData||{}).forEach(u=>{const arr=userData[u]?.skills;if(Array.isArray(arr)){const i=arr.indexOf(removed);if(i>-1) arr.splice(i,1);}});saveUserData();renderCatalogManager();initUserSelect();}if(t.classList.contains('save-task')){const idx=+t.dataset.index;const list=loadTaskCatalog();const input=catRoot.querySelector(`.task-name[data-index="${idx}"]`);const val=(input?.value||'').trim();if(!val){alert('Tomt namn.');return;}list[idx]=val;saveTaskCatalog(list);renderCatalogManager();initUserSelect();}if(t.classList.contains('del-task')){const idx=+t.dataset.index;const list=loadTaskCatalog();list.splice(idx,1);saveTaskCatalog(list);renderCatalogManager();initUserSelect();}});catRoot._bound=true;}
+    const catRoot=document.getElementById('catalogContent');if(catRoot&&!catRoot._bound){catRoot.addEventListener('click',(e)=>{const t=e.target;if(!(t instanceof HTMLElement)) return;if(t.classList.contains('save-skill')){const idx=+t.dataset.index;const list=loadSkillCatalog();const input=catRoot.querySelector(`.skill-name[data-index="${idx}"]`);const val=(input?.value||'').trim();if(!val){alert('Tomt namn.');return;}list[idx]=val;saveSkillCatalog(list);renderCatalogManager();initUserSelect();}if(t.classList.contains('del-skill')){const idx=+t.dataset.index;const list=loadSkillCatalog();const removed=list.splice(idx,1)[0];saveSkillCatalog(list);Object.keys(userData||{}).forEach(u=>{const arr=userData[u]?.skills;if(Array.isArray(arr)){const i=arr.indexOf(removed);if(i>-1) arr.splice(i,1);}});saveUserData();renderCatalogManager();initUserSelect();}if(t.classList.contains('save-task')){const idx=+t.dataset.index;const list=loadTaskCatalog();const input=catRoot.querySelector(`.task-name[data-index="${idx}"]`);const val=(input?.value||'').trim();if(!val){alert('Tomt namn.');return;}const oldName=list[idx];list[idx]=val;saveTaskCatalog(list);const descInput=catRoot.querySelector(`.task-desc[data-index="${idx}"]`);if(descInput){const descs=loadTaskDescriptions();if(oldName!==val){descs[val]=descs[oldName]||'';delete descs[oldName];}descs[val]=(descInput.value||'').trim();saveTaskDescriptions(descs);}renderCatalogManager();initUserSelect();}if(t.classList.contains('del-task')){const idx=+t.dataset.index;const list=loadTaskCatalog();const removed=list.splice(idx,1)[0];saveTaskCatalog(list);if(removed){const descs=loadTaskDescriptions();delete descs[removed];saveTaskDescriptions(descs);}renderCatalogManager();initUserSelect();}});catRoot._bound=true;}
+  }
+
+  function selectCatalogTab(tab){
+    ['kompetenser','uppgifter','beskrivningar'].forEach(t=>{ const p=document.getElementById('catPanel_'+t); if(p) p.style.display=tab===t?'':'none'; });
+    const base='background:none;border:none;font-family:\'IM Fell English SC\',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;';
+    ['kompetenser','uppgifter','beskrivningar'].forEach(t=>{ const b=document.getElementById('catTab_'+t); if(b) b.style.cssText=base+(tab===t?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);'); });
+    if(tab==='beskrivningar') renderTaskDescriptionsPanel();
+  }
+
+  function renderTaskDescriptionsPanel(){
+    const el=document.getElementById('taskDescList'); if(!el) return;
+    const tasks=loadTaskCatalog(); const descs=loadTaskDescriptions();
+    if(!tasks.length){ el.innerHTML='<div class="muted">Inga uppgifter tillagda än.</div>'; return; }
+    el.innerHTML=tasks.map((name,idx)=>`<div style="margin-bottom:12px;"><div style="font-family:'IM Fell English SC',serif;font-size:13px;margin-bottom:4px;">${escapeHtml(name)}</div><div class="row" style="gap:8px;"><input class="input taskdesc-input" data-task="${escapeHtml(name)}" value="${escapeHtml(descs[name]||'')}" placeholder="Beskrivning som visas på Min sida…" style="flex:1;font-size:12px;"><button class="btn save-taskdesc" data-task="${escapeHtml(name)}">Spara</button></div></div>`).join('');
+    if(!el._bound){ el.addEventListener('click',e=>{ const t=e.target; if(!(t instanceof HTMLElement)||!t.classList.contains('save-taskdesc')) return; const taskName=t.dataset.task; const inp=el.querySelector(`.taskdesc-input[data-task="${CSS.escape(taskName)}"]`); if(!inp) return; const descs=loadTaskDescriptions(); descs[taskName]=(inp.value||'').trim(); saveTaskDescriptions(descs); t.textContent='Sparat!'; setTimeout(()=>t.textContent='Spara',1500); }); el._bound=true; }
   }
 
   function buildAdminSkillsOptions(userName){ const wrap=document.getElementById('adminSkillsOptions');if(!wrap) return;wrap.innerHTML='';const catalog=loadSkillCatalog();ensureProfileDefaults(userName);const selected=userData[userName].skills||[];catalog.forEach(s=>{const checked=selected.includes(s)?'checked':'';const lbl=document.createElement('label');lbl.className='row';lbl.innerHTML=`<input type="checkbox" class="admin-skill" value="${escapeHtml(s)}" ${checked}> ${escapeHtml(s)}`;wrap.appendChild(lbl);}); }
@@ -2595,7 +2678,7 @@
     if(lo) lo.style.display='none';if(li) li.style.display='inline-block';
     loadWelcomeBg();
 
-    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:REVIEWS_KEY,fallback:[]},{key:WAGE_SETTINGS_KEY,fallback:defaultWageSettings()},{key:SHIFT_PLAN_KEY,fallback:{}}];
+    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:REVIEWS_KEY,fallback:[]},{key:WAGE_SETTINGS_KEY,fallback:defaultWageSettings()},{key:SHIFT_PLAN_KEY,fallback:{}},{key:TASK_DESCRIPTIONS_KEY,fallback:{}}];
     // Bara nycklar som ändras löpande — hämtas vid periodisk refresh
     const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()}];
 
