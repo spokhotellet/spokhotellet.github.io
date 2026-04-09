@@ -645,8 +645,12 @@
           <label style="white-space:nowrap; font-size:14px;">Mottaget (kr)</label>
           <input id="kontantReceivedInput" class="input" type="number" min="0" step="1" placeholder="0" style="width:120px; text-align:right; font-size:1.1rem;" oninput="updateKontantChange()">
         </div>
-        <div style="display:flex; justify-content:space-between; font-size:1.3rem; border-top:1px solid rgba(232,224,208,0.15); padding-top:8px;">
-          <span>Växel</span><strong id="kontantChange" style="min-width:80px; text-align:right;">–</strong>
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:1.3rem; border-top:1px solid rgba(232,224,208,0.15); padding-top:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span id="kontantChangeLabel">Växel</span>
+            <button id="dricksToggleBtn" onclick="toggleDricksMode()" style="display:none; font-size:11px; padding:2px 8px; background:rgba(255,200,80,0.12); border:1px solid rgba(255,200,80,0.35); color:rgba(255,200,80,0.85); border-radius:4px; cursor:pointer; font-family:inherit;">Gästen ger dricks</button>
+          </div>
+          <strong id="kontantChange" style="min-width:80px; text-align:right;">–</strong>
         </div>
       </div>
       <div class="row" style="justify-content:flex-end; gap:10px; margin-top:16px;">
@@ -963,6 +967,8 @@
   let _pendingPayChoice = null;
   let _pendingPaySumText = '';
   let _pendingKontantChange = 0;
+  let _pendingKontantDricks = 0;
+  let _dricksMode = false;
   let _pendingKontantLabel = '';
   let _doRefresh = null;
 
@@ -1438,9 +1444,36 @@
     const received=parseFloat(inp?.value)||0;
     const total=cartFinalSum();
     const change=received-total;
-    if(received<=0){ el.textContent='–'; el.style.color=''; if(_displayActive) pushDisplayCart(); return; }
-    if(change<0){ el.style.color='#f66'; el.textContent=`Saknas ${Math.abs(change)} kr`; if(_displayActive) pushDisplayCart(); }
-    else{ el.style.color='#6f6'; el.textContent=`${change} kr`; if(_displayActive) pushKontantDisplay(change); }
+    _dricksMode=false;
+    const label=document.getElementById('kontantChangeLabel');
+    const btn=document.getElementById('dricksToggleBtn');
+    if(label) label.textContent='Växel';
+    if(btn) btn.textContent='Gästen ger dricks';
+    if(received<=0){ el.textContent='–'; el.style.color=''; if(btn) btn.style.display='none'; if(_displayActive) pushDisplayCart(); return; }
+    if(change<0){ el.style.color='#f66'; el.textContent=`Saknas ${Math.abs(change)} kr`; if(btn) btn.style.display='none'; if(_displayActive) pushDisplayCart(); }
+    else{ el.style.color='#6f6'; el.textContent=`${change} kr`; if(btn) btn.style.display=(change>0?'inline-block':'none'); if(_displayActive) pushKontantDisplay(change); }
+  }
+
+  function toggleDricksMode(){
+    _dricksMode=!_dricksMode;
+    const inp=document.getElementById('kontantReceivedInput');
+    const received=parseFloat(inp?.value)||0;
+    const total=cartFinalSum();
+    const change=Math.max(0,received-total);
+    const label=document.getElementById('kontantChangeLabel');
+    const btn=document.getElementById('dricksToggleBtn');
+    const el=document.getElementById('kontantChange');
+    if(_dricksMode){
+      if(label) label.textContent='Dricks';
+      if(el){ el.style.color='rgba(255,200,80,0.9)'; el.textContent=`${change} kr`; }
+      if(btn) btn.textContent='Ge tillbaka växeln';
+      if(_displayActive) pushKontantDisplay(0);
+    } else {
+      if(label) label.textContent='Växel';
+      if(el){ el.style.color='#6f6'; el.textContent=`${change} kr`; }
+      if(btn) btn.textContent='Gästen ger dricks';
+      if(_displayActive) pushKontantDisplay(change);
+    }
   }
 
   function pushKontantDisplay(change){
@@ -1478,11 +1511,12 @@
   function handleApproveYes(){
     const choice=_pendingPayChoice||'Swish';
     _pendingPayChoice=null; _pendingPaySumText=''; _pendingKontantChange=0;
+    const tips=_pendingKontantDricks; _pendingKontantDricks=0;
     closeApproveModal();
-    performCheckout(choice);
+    performCheckout(choice,tips);
   }
   function handleApproveNo(){
-    _pendingPayChoice=null; _pendingPaySumText=''; _pendingKontantChange=0;
+    _pendingPayChoice=null; _pendingPaySumText=''; _pendingKontantChange=0; _pendingKontantDricks=0;
     closeApproveModal();
     if(_displayActive) pushDisplayCart();
   }
@@ -1490,14 +1524,22 @@
     const received=parseFloat(document.getElementById('kontantReceivedInput')?.value)||0;
     const total=cartFinalSum();
     const change=Math.max(0,received-total);
-    _pendingKontantChange=change;
+    if(_dricksMode){
+      _pendingKontantChange=0;
+      _pendingKontantDricks=change;
+      _pendingPaySumText=`Totalt: ${total} kr • Mottaget: ${received} kr • Dricks: ${change} kr`;
+    } else {
+      _pendingKontantChange=change;
+      _pendingKontantDricks=0;
+      _pendingPaySumText=`Totalt: ${total} kr • Mottaget: ${received} kr • Växel: ${change} kr`;
+    }
+    _dricksMode=false;
     _pendingPayChoice='Kontant';
-    _pendingPaySumText=`Totalt: ${total} kr • Mottaget: ${received} kr • Växel: ${change} kr`;
     closeKontantModal();
     openApproveModal();
   }
   function handleKontantNo(){
-    _pendingPayChoice=null; _pendingPaySumText='';
+    _pendingPayChoice=null; _pendingPaySumText=''; _pendingKontantDricks=0; _dricksMode=false;
     closeKontantModal();
     if(_displayActive) pushDisplayCart();
   }
@@ -1552,7 +1594,7 @@
   }
   function closeVaxelModal(){ const el=document.getElementById('vaxelModal'); if(el) el.style.display='none'; }
 
-  function performCheckout(payType){
+  function performCheckout(payType,tips=0){
     if(!Object.keys(cart).length) return;
     let sumRaw=0,guests=0,lines=[],adult=0,child=0,reEntryCount=0,createdReEntryIds=[];
     let incomeAdult=0,incomeChild=0,incomeReEntry=0,incomeOther=0;
@@ -1571,7 +1613,9 @@
     const factor=(sumRaw>0)?(finalSum/sumRaw):1;
     const breakdown={adult:Math.round(incomeAdult*factor),child:Math.round(incomeChild*factor),reEntry:Math.round(incomeReEntry*factor),other:Math.round(incomeOther*factor)};
     let diff=finalSum-(breakdown.adult+breakdown.child+breakdown.reEntry+breakdown.other); if(diff!==0) breakdown.other+=diff;
-    guestCount=Number(guestCount||0)+guests; totalIncome=Number(totalIncome||0)+finalSum;
+    if(tips>0){ lines.push(`Dricks x 1 = ${tips} kr`); breakdown.other+=tips; }
+    const totalWithTips=finalSum+tips;
+    guestCount=Number(guestCount||0)+guests; totalIncome=Number(totalIncome||0)+totalWithTips;
     updateTopbar(); updateLogSummary(); saveDailyStats();
     let newOpenTicket=null;
     try{
@@ -1585,10 +1629,10 @@
     const entry=document.createElement('div'); entry.className='log-entry';
     let html=`<strong>${nowStr}<br></strong>${lines.join('<br>')}`;
     if(discountAmount>0) html+=`<br><span style="color:rgba(150,255,150,0.8);">Rabatt: -${discountAmount} kr</span>`;
-    html+=`<br><em>Summa: ${finalSum} kr</em>`;
+    html+=`<br><em>Summa: ${totalWithTips} kr</em>`;
     html+=`<br><span class="tiny">Betalning: ${escapeHtml(payType||'—')} • Säljare: ${escapeHtml(loggedInUser||'—')}</span>`;
     entry.innerHTML=html; safePrepend(logWrap,entry);
-    try{ recordSale({time:nowStr,items:lines,sum:finalSum,adult,child,seller:loggedInUser||'—',payType:payType||'—',ticketUid:newOpenTicket?.createdAt||null,ticketLabel:newOpenTicket?.label||(newOpenTicket?.id?`#${newOpenTicket.id}`:null),used:false,breakdown,reEntryCreated:reEntryCount,reEntryIds:createdReEntryIds}); _statsDirty=true; }catch(_e){}
+    try{ recordSale({time:nowStr,items:lines,sum:totalWithTips,adult,child,seller:loggedInUser||'—',payType:payType||'—',ticketUid:newOpenTicket?.createdAt||null,ticketLabel:newOpenTicket?.label||(newOpenTicket?.id?`#${newOpenTicket.id}`:null),used:false,breakdown,reEntryCreated:reEntryCount,reEntryIds:createdReEntryIds}); _statsDirty=true; }catch(_e){}
     const _tackGuestName=newOpenTicket?.label||'';
     _suppressDisplayPush=true;
     cart={}; cartHistory=[]; discountApplied=false;
