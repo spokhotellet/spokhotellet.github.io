@@ -227,15 +227,20 @@
       <div id="personalContent" class="content">
 
         <!-- Medarbetarval — alltid synligt -->
-        <h4>Välj medarbetare</h4>
-        <select id="userSelect"></select>
-        <div class="admin-password">
-          <span class="label">Lösenord</span>
-          <span id="selectedUserPassword" class="value">–</span>
+        <div id="userSelectSection">
+          <h4>Välj medarbetare</h4>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <select id="userSelect" style="width:auto; max-width:180px;"></select>
+            <button id="addUserPlusBtn" class="btn btn-green" onclick="openAddUserPanel()" style="padding:4px 12px; font-size:18px; line-height:1; flex-shrink:0;" title="Lägg till medarbetare">+</button>
+          </div>
+          <div class="admin-password">
+            <span class="label">Lösenord</span>
+            <span id="selectedUserPassword" class="value">–</span>
+          </div>
         </div>
 
         <!-- Underflikar -->
-        <div style="display:flex; gap:0; margin-top:14px; margin-bottom:16px; border-bottom:1px solid rgba(232,224,208,0.12);">
+        <div id="persTabRow" style="display:flex; gap:0; margin-top:14px; margin-bottom:16px; border-bottom:1px solid rgba(232,224,208,0.12);">
           <button id="persTab_idag" onclick="selectPersonalTab('idag')" style="background:none;border:none;border-bottom:2px solid #d4872a;color:#f0ebe2;font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Allmänt</button>
           <button id="persTab_schema" onclick="selectPersonalTab('schema')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Schema</button>
         </div>
@@ -247,10 +252,13 @@
           <small id="adamNote" style="display:none; color:#9f9;"></small>
           <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="insleppCheckbox"> Insläpp-access</label>
           <small id="insleppNote" style="display:none; color:#9f9;"></small>
+          <h4>Lön</h4>
+          <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="voluntarCheckbox"> Volontär (ingen bassumma)</label>
           <h4>Kompetenser</h4>
           <div id="adminSkillsOptions" class="row"></div>
           <button id="saveAdminBtn" class="btn btn-green" style="margin-top:12px;">Spara ändringar</button>
           <div id="adminConfirm" style="display:none;color:#6f6;margin-top:10px;font-family:'IM Fell English',serif;font-style:italic;"></div>
+          <button id="deleteUserBtn" class="btn btn-danger" style="margin-top:16px; width:100%; display:none;" onclick="openDeleteUserModal()">Ta bort medarbetare</button>
         </div>
 
         <!-- Panel: Schema -->
@@ -262,28 +270,26 @@
           <div id="schemaSavedConfirm" style="display:none; color:#6f6; font-style:italic; font-size:12px; margin-top:6px; font-family:'IM Fell English',serif;">Sparat!</div>
         </div>
 
-      </div>
-    </div>
+        <!-- Panel: Lägg till ny medarbetare -->
+        <div id="persPanel_laggTill" style="display:none;">
+          <h4>Ny medarbetare</h4>
+          <div class="admin-field">
+            <label class="admin-label" for="newUserName">Användarnamn</label>
+            <input id="newUserName" class="input" placeholder="Användarnamn" style="width:100%;" autocomplete="off">
+          </div>
+          <div class="admin-field">
+            <label class="admin-label" for="newUserPass">Lösenord</label>
+            <input id="newUserPass" class="input" placeholder="Lösenord" style="width:100%;" autocomplete="off">
+            <div id="newUserPassWarn" style="display:none; color:rgba(220,100,80,0.9); font-family:'IM Fell English',serif; font-style:italic; font-size:12px; margin-top:4px;"></div>
+          </div>
+          <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="newUserAccessCheckbox"> Kassa-access</label>
+          <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="newUserInsleppCheckbox"> Insläpp-access</label>
+          <div class="row" style="gap:8px;">
+            <button id="addUserBtn" class="btn btn-primary">Lägg till</button>
+            <button class="btn" onclick="closeAddUserPanel()">Avbryt</button>
+          </div>
+        </div>
 
-    <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('manageUserContent', this)">Visa Lägg till / ta bort medarbetare</button>
-      <div id="manageUserContent" class="content">
-        <div class="admin-field">
-          <label class="admin-label" for="newUserName">Användarnamn</label>
-          <input id="newUserName" class="input" placeholder="Användarnamn" style="width:100%;">
-        </div>
-        <div class="admin-field">
-          <label class="admin-label" for="newUserPass">Lösenord</label>
-          <input id="newUserPass" class="input" placeholder="Lösenord" style="width:100%;">
-          <div id="newUserPassWarn" style="display:none; color:rgba(220,100,80,0.9); font-family:'IM Fell English',serif; font-style:italic; font-size:12px; margin-top:4px;"></div>
-        </div>
-        <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="newUserAccessCheckbox"> Kassa-access</label>
-        <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="newUserInsleppCheckbox"> Insläpp-access</label>
-        <div class="row" style="gap:8px;">
-          <button id="addUserBtn" class="btn btn-primary">Lägg till</button>
-          <button id="removeUserBtn" class="btn btn-danger">Ta bort</button>
-        </div>
-        <div class="tiny" style="margin-top:8px;">För att ta bort krävs korrekt namn <em>och</em> lösenord. Casper &amp; Adam kan inte tas bort.</div>
       </div>
     </div>
 
@@ -481,26 +487,9 @@
           <div class="tiny muted" style="margin-top:6px;">Verksamhetsandelen reserveras för kostnader och nästa event. Resten delas ut som lön.</div>
 
           <hr style="border:none;border-top:1px solid rgba(232,224,208,0.1);margin:14px 0;">
-          <div style="font-size:12px;color:rgba(232,224,208,0.7);margin-bottom:8px;font-family:'IM Fell English SC',serif;letter-spacing:0.5px;">Rollvikter</div>
-          <div class="row" style="gap:12px; flex-wrap:wrap; margin-bottom:10px;">
-            <div style="flex:1; min-width:130px;">
-              <label class="admin-label" for="lonViktDrift">Driftansvarig</label>
-              <input id="lonViktDrift" type="number" min="0.1" max="10" step="0.1" class="input" style="width:100%;" placeholder="2.0">
-            </div>
-            <div style="flex:1; min-width:130px;">
-              <label class="admin-label" for="lonViktAnsvarig">Ansvarig (nyckelord)</label>
-              <input id="lonViktAnsvarig" type="number" min="0.1" max="10" step="0.1" class="input" style="width:100%;" placeholder="1.5">
-            </div>
-            <div style="flex:1; min-width:130px;">
-              <label class="admin-label" for="lonViktStandard">Standard</label>
-              <input id="lonViktStandard" type="number" min="0.1" max="10" step="0.1" class="input" style="width:100%;" placeholder="1.0">
-            </div>
-            <div style="flex:1; min-width:130px;">
-              <label class="admin-label" for="lonViktMedarbetare">Medarbetare (bas)</label>
-              <input id="lonViktMedarbetare" type="number" min="0.1" max="10" step="0.1" class="input" style="width:100%;" placeholder="0.5">
-            </div>
-          </div>
-          <div class="tiny muted" style="margin-bottom:10px;">Roller med "ansvarig" i namnet får ansvarig-vikt automatiskt. "Driftansvarig" tar alltid prioritet. Medarbetare boostar proportionellt via kassaregistreringar (max standard-vikt).</div>
+          <div style="font-size:12px;color:rgba(232,224,208,0.7);margin-bottom:4px;font-family:'IM Fell English SC',serif;letter-spacing:0.5px;">Rollvikter</div>
+          <div class="tiny muted" style="margin-bottom:10px;">Vikt per uppgift. Tomt = 1.0.</div>
+          <div id="lonTaskVikterList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
 
           <div class="row" style="justify-content:flex-end;">
             <button class="btn btn-green" onclick="saveLonSettings()">Spara</button>
@@ -730,6 +719,18 @@
           <button class="btn" onclick="closeDeleteDayModal()">Avbryt</button>
           <button class="btn btn-danger" onclick="executeDayDeletion()">Ja, radera</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TA BORT MEDARBETARE-MODAL ===== -->
+  <div id="deleteUserModal" class="modal-overlay" role="dialog" aria-modal="true" onclick="if(event.target===this)closeDeleteUserModal()" onkeydown="if(event.key==='Escape')closeDeleteUserModal();else if(event.key==='Enter'){event.preventDefault();executeDeleteUser();}">
+    <div class="modal" style="width:min(360px,96vw);">
+      <h3 style="margin:0 0 10px;font-family:'IM Fell English SC',serif;">Är du säker?</h3>
+      <p id="deleteUserModalMsg" class="tiny muted" style="margin:0 0 20px;"></p>
+      <div class="actions">
+        <button class="btn" onclick="closeDeleteUserModal()">Avbryt</button>
+        <button class="btn btn-danger" onclick="executeDeleteUser()">Ja, ta bort</button>
       </div>
     </div>
   </div>
@@ -1043,11 +1044,11 @@
   function reactivateTicketFromHistory(key){ const data=(window._reactivateTickets||{})[key]; if(!data){alert('Kunde inte hitta biljettdata.');return;} const pw=prompt('Ange lösenord för att lägga tillbaka biljetten i aktiva biljetter:'); if(pw===null) return; if(!pw||!users[pw]){alert('Fel lösenord.');return;} const o=loadOpenTickets(); if((o.items||[]).some(x=>x.createdAt===data.ticketUid)){alert('Biljetten finns redan i aktiva biljetter.');return;} o.items.unshift({id:null,label:data.label||null,time:new Date().toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'}),createdAt:data.ticketUid||new Date().toISOString(),adult:Number(data.adult||0),child:Number(data.child||0),sum:Number(data.sum||0)}); saveOpenTickets(o); alert('Biljetten är nu återlagd i aktiva biljetter.'); }
 
   // ===== LÖNER =====
-  function defaultWageSettings(){ return {bassumma:200,verksamhetsandel:20,vikt_driftansvarig:2.0,vikt_ansvarig:1.5,vikt_standard:1.0,vikt_medarbetare:0.5}; }
-  function loadWageSettings(){ const s=dbGet(WAGE_SETTINGS_KEY,null); return (s&&typeof s==='object')?{...defaultWageSettings(),...s}:defaultWageSettings(); }
+  function defaultWageSettings(){ return {bassumma:200,verksamhetsandel:20,task_vikter:{},task_kassaboost:{}}; }
+  function loadWageSettings(){ const s=dbGet(WAGE_SETTINGS_KEY,null); const def=defaultWageSettings(); if(s&&typeof s==='object'){ return {...def,...s,task_vikter:{...def.task_vikter,...(s.task_vikter||{})},task_kassaboost:{...def.task_kassaboost,...(s.task_kassaboost||{})}}; } return def; }
   function saveWageSettings(s){ return dbSet(WAGE_SETTINGS_KEY,s||defaultWageSettings()).catch(()=>{}); }
   function parseWorkHoursStr(s){ if(!s) return 0; const m=s.match(/(\d{1,2}):(\d{2})\s*[–\-]\s*(\d{1,2}):(\d{2})/); if(!m) return 0; const start=parseInt(m[1])+parseInt(m[2])/60; const end=parseInt(m[3])+parseInt(m[4])/60; const diff=end-start; return diff>0?diff:0; }
-  function getLonRollvikt(task,settings){ const t=(task||'').toLowerCase(); const s=settings||loadWageSettings(); if(t.includes('driftansvarig')) return Number(s.vikt_driftansvarig||2.0); if(t.includes('ansvarig')) return Number(s.vikt_ansvarig||1.5); if(t.includes('medarbetare')) return Number(s.vikt_medarbetare||0.5); return Number(s.vikt_standard||1.0); }
+  function getLonRollvikt(task,settings){ const s=settings||loadWageSettings(); const v=Number((s.task_vikter||{})[task||'']); return (v&&v>0)?v:1.0; }
   function getLonTransaktionerForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const counts={}; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); const entries=(hist[ds]||{}).entries||[]; entries.forEach(e=>{ const s=e.seller||''; if(s&&s!=='—') counts[s]=(counts[s]||0)+1; }); d.setDate(d.getDate()+1); } return counts; }
 
   function getLonTotalIncomeForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); total+=Number((hist[ds]||{}).income||0); d.setDate(d.getDate()+1); } return total; }
@@ -1159,7 +1160,7 @@
 
   function getLonDaysBetween(fromDate,toDate){ const d1=new Date(fromDate+'T12:00:00'); const d2=new Date(toDate+'T12:00:00'); return Math.max(1,Math.round((d2-d1)/86400000)+1); }
 
-  function saveLonSettings(){ const bassumma=Number(String(document.getElementById('lonBassumma')?.value||'0').replace(',','.')); const verk=Number(String(document.getElementById('lonVerksamhet')?.value||'0').replace(',','.')); if(!Number.isFinite(bassumma)||bassumma<0||!Number.isFinite(verk)||verk<0||verk>100){alert('Kontrollera värdena.');return;} const vDrift=Number(String(document.getElementById('lonViktDrift')?.value||'2').replace(',','.')); const vAnsv=Number(String(document.getElementById('lonViktAnsvarig')?.value||'1.5').replace(',','.')); const vStd=Number(String(document.getElementById('lonViktStandard')?.value||'1').replace(',','.')); const vMed=Number(String(document.getElementById('lonViktMedarbetare')?.value||'0.5').replace(',','.')); saveWageSettings({bassumma:Math.round(bassumma),verksamhetsandel:Math.round(verk),vikt_driftansvarig:vDrift,vikt_ansvarig:vAnsv,vikt_standard:vStd,vikt_medarbetare:vMed}); const c=document.getElementById('lonSettingsConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} renderLon(); renderLonIdag(); }
+  function saveLonSettings(){ const bassumma=Number(String(document.getElementById('lonBassumma')?.value||'0').replace(',','.')); const verk=Number(String(document.getElementById('lonVerksamhet')?.value||'0').replace(',','.')); if(!Number.isFinite(bassumma)||bassumma<0||!Number.isFinite(verk)||verk<0||verk>100){alert('Kontrollera värdena.');return;} const task_vikter={}; document.querySelectorAll('#lonTaskVikterList .lon-task-vikt').forEach(inp=>{ const task=inp.dataset.task; const val=Number(String(inp.value||'').replace(',','.')); if(task&&val>0) task_vikter[task]=val; }); const task_kassaboost={}; document.querySelectorAll('#lonTaskVikterList .lon-task-boost').forEach(chk=>{ if(chk.dataset.task&&chk.checked) task_kassaboost[chk.dataset.task]=true; }); saveWageSettings({bassumma:Math.round(bassumma),verksamhetsandel:Math.round(verk),task_vikter,task_kassaboost}); const c=document.getElementById('lonSettingsConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} renderLon(); renderLonIdag(); }
 
   function selectLonTab(tab){
     ['idag','historik','berakna','installningar'].forEach(t=>{ const p=document.getElementById('lonPanel_'+t); if(p) p.style.display=tab===t?'':'none'; });
@@ -1191,11 +1192,12 @@
         const openHrs=Number((day.openingHrs||0));
         const dayTrans=(day.entries||[]).reduce((acc,e)=>{ const sel=e.seller||''; if(sel&&sel!=='—') acc[sel]=(acc[sel]||0)+1; return acc; },{});
         const dayTotalTrans=Object.values(dayTrans).reduce((a,b)=>a+b,0);
-        staff.forEach(s=>{ const baseVikt=getLonRollvikt(s.task,settings); const t=(s.task||'').toLowerCase(); if(t.includes('medarbetare')&&dayTotalTrans>0){ const sv=Number(settings.vikt_standard||1.0); s.vikt=Math.min(sv,+(baseVikt+(((dayTrans[s.name]||0)/dayTotalTrans)*(sv-baseVikt))).toFixed(3)); } else { s.vikt=baseVikt; } s.tackning=openHrs>0?s.hrs/openHrs:0; s.poang=+(s.tackning*s.vikt).toFixed(4); });
+        const isVoluntarH=(name)=>Object.values(users).some(u=>u.name===name&&u.isVoluntar);
+        staff.forEach(s=>{ s.isVoluntar=isVoluntarH(s.name); const baseVikt=getLonRollvikt(s.task,settings); if((settings.task_kassaboost||{})[s.task||'']&&dayTotalTrans>0){ s.vikt=Math.min(1.0,+(baseVikt+(((dayTrans[s.name]||0)/dayTotalTrans)*(1.0-baseVikt))).toFixed(3)); } else { s.vikt=baseVikt; } s.tackning=openHrs>0?s.hrs/openHrs:0; s.poang=+(s.tackning*s.vikt).toFixed(4); });
         const totalPoang=staff.reduce((a,s)=>a+s.poang,0);
-        const totalBas=bassumma*staff.length;
+        const totalBas=bassumma*staff.filter(s=>!s.isVoluntar).length;
         const deln=Math.max(0,lonPott-totalBas);
-        staffHtml=staff.map(s=>{ const andel=totalPoang>0?s.poang/totalPoang:0; const totalt=bassumma+Math.round(andel*deln); return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(232,224,208,0.06);font-size:12px;"><span>${escapeHtml(s.name)} <span style="color:rgba(232,224,208,0.4);">${escapeHtml(s.task)}</span></span><span style="font-family:'IM Fell English SC',serif;">${totalt} kr</span></div>`; }).join('');
+        staffHtml=staff.map(s=>{ const andel=totalPoang>0?s.poang/totalPoang:0; const totalt=(s.isVoluntar?0:bassumma)+Math.round(andel*deln); return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(232,224,208,0.06);font-size:12px;"><span>${escapeHtml(s.name)}${s.isVoluntar?' <span style="color:rgba(232,224,208,0.3);font-size:10px;">volontär</span>':''} <span style="color:rgba(232,224,208,0.4);">${escapeHtml(s.task)}</span></span><span style="font-family:'IM Fell English SC',serif;">${totalt} kr</span></div>`; }).join('');
       } else {
         staffHtml=`<div class="tiny muted">Inga sparade arbetstider för detta datum.</div>`;
       }
@@ -1214,7 +1216,7 @@
     }).join('');
   }
 
-  function initLonPanel(){ const s=loadWageSettings(); const b=document.getElementById('lonBassumma'); const v=document.getElementById('lonVerksamhet'); if(b) b.value=s.bassumma; if(v) v.value=s.verksamhetsandel; const vd=document.getElementById('lonViktDrift'); const va=document.getElementById('lonViktAnsvarig'); const vs=document.getElementById('lonViktStandard'); const vm=document.getElementById('lonViktMedarbetare'); if(vd) vd.value=s.vikt_driftansvarig??2.0; if(va) va.value=s.vikt_ansvarig??1.5; if(vs) vs.value=s.vikt_standard??1.0; if(vm) vm.value=s.vikt_medarbetare??0.5; const today=todayStr(); const fd=document.getElementById('lonFromDate'); const td=document.getElementById('lonToDate'); if(fd&&!fd.value) fd.value=today; if(td&&!td.value) td.value=today; selectLonTab('idag'); }
+  function initLonPanel(){ const s=loadWageSettings(); const b=document.getElementById('lonBassumma'); const v=document.getElementById('lonVerksamhet'); if(b) b.value=s.bassumma; if(v) v.value=s.verksamhetsandel; const list=document.getElementById('lonTaskVikterList'); if(list){ const tasks=loadTaskCatalog(); list.innerHTML=tasks.length?tasks.map(t=>{ const savedV=(s.task_vikter||{})[t]; const savedB=!!((s.task_kassaboost||{})[t]); return `<div style="display:flex;align-items:center;gap:10px;"><span style="flex:1;font-size:13px;">${escapeHtml(t)}</span><input type="number" class="input lon-task-vikt" data-task="${escapeHtml(t)}" min="0.1" max="10" step="0.1" style="width:70px;" placeholder="1.0"${savedV?` value="${savedV}"`:''}><label style="display:flex;align-items:center;gap:4px;font-size:12px;color:rgba(232,224,208,0.6);white-space:nowrap;cursor:pointer;"><input type="checkbox" class="lon-task-boost" data-task="${escapeHtml(t)}"${savedB?' checked':''}> kassaboost</label></div>`; }).join(''):'<div class="tiny muted">Inga uppgifter i katalogen ännu.</div>'; } const today=todayStr(); const fd=document.getElementById('lonFromDate'); const td=document.getElementById('lonToDate'); if(fd&&!fd.value) fd.value=today; if(td&&!td.value) td.value=today; selectLonTab('idag'); }
   function refreshLonIfOpen(){ const el=document.getElementById('lonContent'); if(!el||el.style.display!=='block') return; if(document.getElementById('lonPanel_idag')?.style.display!=='none') renderLonIdag(); else renderLon(); }
 
   function renderLon(opts){
@@ -1238,18 +1240,19 @@
     const totalTrans=Object.values(transaktioner).reduce((a,b)=>a+b,0);
     staffData.forEach(s=>{
       const baseVikt=getLonRollvikt(s.task,settings);
-      const t=(s.task||'').toLowerCase();
       s.personTrans=transaktioner[s.name]||0;
-      if(t.includes('medarbetare')&&totalTrans>0){ const sv=Number(settings.vikt_standard||1.0); s.vikt=Math.min(sv,+(baseVikt+((s.personTrans/totalTrans)*(sv-baseVikt))).toFixed(3)); s.kassaBoost=true; }
+      if((settings.task_kassaboost||{})[s.task||'']&&totalTrans>0){ s.vikt=Math.min(1.0,+(baseVikt+((s.personTrans/totalTrans)*(1.0-baseVikt))).toFixed(3)); s.kassaBoost=true; }
       else { s.vikt=baseVikt; s.kassaBoost=false; }
       s.tackning=totalOpeningHrs>0?s.totalHrs/totalOpeningHrs:0;
       s.poang=+(s.tackning*s.vikt).toFixed(4);
     });
     if(!staffData.length){el.innerHTML='<div class="muted" style="margin-top:12px;">Ingen personal med arbetstid eller gästinteraktion för perioden.</div>';return;}
+    const isVoluntar=(name)=>Object.values(users).some(u=>u.name===name&&u.isVoluntar);
+    staffData.forEach(s=>{ s.isVoluntar=isVoluntar(s.name); });
     const totalPoang=staffData.reduce((s,x)=>s+x.poang,0);
-    const totalBas=bassumma*staffData.length;
+    const totalBas=bassumma*staffData.filter(s=>!s.isVoluntar).length;
     const delningsDel=Math.max(0,lonPott-totalBas);
-    const rows=staffData.map(s=>{ const andel=totalPoang>0?(s.poang/totalPoang):0; const variabel=Math.round(andel*delningsDel); const totalt=bassumma+variabel; return {...s,andel,variabel,totalt}; });
+    const rows=staffData.map(s=>{ const andel=totalPoang>0?(s.poang/totalPoang):0; const variabel=Math.round(andel*delningsDel); const totalt=(s.isVoluntar?0:bassumma)+variabel; return {...s,andel,variabel,totalt}; });
     const totalLon=rows.reduce((s,r)=>s+r.totalt,0);
     const kvar=verkDel+(lonPott-totalLon);
     const periodLabel=fromVal===toVal?fromVal:`${fromVal} – ${toVal}`;
@@ -1271,9 +1274,9 @@
     html+=`</tr></thead><tbody>`;
     rows.forEach(r=>{
       html+=`<tr style="border-bottom:1px solid rgba(232,224,208,0.07);">`;
-      html+=`<td style="padding:8px;">${escapeHtml(r.name)}</td>`;
-      const sv=Number(settings.vikt_standard||1.0);
-      const viktLabel=r.vikt!==sv?` <span style="color:#d4872a;font-size:11px;">×${r.vikt.toFixed(1)}</span>`:'';
+      const volLabel=r.isVoluntar?` <span style="color:rgba(232,224,208,0.3);font-size:10px;">volontär</span>`:'';
+      html+=`<td style="padding:8px;">${escapeHtml(r.name)}${volLabel}</td>`;
+      const viktLabel=r.vikt!==1.0?` <span style="color:#d4872a;font-size:11px;">×${r.vikt.toFixed(1)}</span>`:'';
       const transLabel=r.kassaBoost&&r.personTrans>0?` <span style="color:rgba(232,224,208,0.35);font-size:10px;">${r.personTrans} trans.</span>`:'';
       html+=`<td style="padding:8px;">${escapeHtml(r.task)}${viktLabel}${transLabel}</td>`;
       const hrsLabel=totalOpeningHrs>0?`${r.totalHrs}h / ${totalOpeningHrs}h`:`${r.totalHrs}h`;
@@ -2059,7 +2062,7 @@
     <div class="staff-replies-list">${listHtml}</div>`;
   }
 
-  function adminAccordion(id,btn){ const el=document.getElementById(id);if(!el) return;const isOpen=el.style.display==='block';document.querySelectorAll('#adminSettings .content,#statsContainer .content').forEach(c=>c.style.display='none');document.querySelectorAll('#adminSettings .section > button.disclosure,#statsContainer .section > button.disclosure').forEach(b=>{const base=b.textContent.replace(/^Visa |^Dölj /,'');b.textContent='Visa '+base;});if(!isOpen){el.style.display='block';if(btn){const base=btn.textContent.replace(/^Visa |^Dölj /,'');btn.textContent='Dölj '+base;}if(id==='productsContent') renderProductsManager();if(id==='catalogContent') renderCatalogManager();if(id==='welcomeEditContent') syncWelcomeEditor();if(id==='personalContent') initUserSelect();if(id==='reviewsContent') renderReviewsAdmin();} }
+  function adminAccordion(id,btn){ const el=document.getElementById(id);if(!el) return;const isOpen=el.style.display==='block';if(document.getElementById('persPanel_laggTill')?.style.display==='block') closeAddUserPanel();document.querySelectorAll('#adminSettings .content,#statsContainer .content').forEach(c=>c.style.display='none');document.querySelectorAll('#adminSettings .section > button.disclosure,#statsContainer .section > button.disclosure').forEach(b=>{const base=b.textContent.replace(/^Visa |^Dölj /,'');b.textContent='Visa '+base;});if(!isOpen){el.style.display='block';if(btn){const base=btn.textContent.replace(/^Visa |^Dölj /,'');btn.textContent='Dölj '+base;}if(id==='productsContent') renderProductsManager();if(id==='catalogContent') renderCatalogManager();if(id==='welcomeEditContent') syncWelcomeEditor();if(id==='personalContent') initUserSelect();if(id==='reviewsContent') renderReviewsAdmin();} }
 
   function ensureProfileDefaults(name){ if(!userData[name]) userData[name]={};if(!userData[name].theme) userData[name].theme='default';if(!Array.isArray(userData[name].skills)) userData[name].skills=[];if(typeof userData[name].hours!=='string') userData[name].hours='';if(typeof userData[name].task!=='string') userData[name].task=''; }
   function saveUserData(){ dbSet(STORAGE_KEY,userData||{}).catch(()=>{}); }
@@ -2475,6 +2478,11 @@
 
   function initUserSelect(){
     const sel=document.getElementById('userSelect');if(!sel) return;
+    // Rensa userData-poster som inte längre har en användare i users
+    const validNames=new Set(Object.values(users).map(u=>u.name));
+    let cleaned=false;
+    Object.keys(userData).forEach(n=>{ if(!validNames.has(n)){ delete userData[n]; cleaned=true; } });
+    if(cleaned) saveUserData();
     sel.innerHTML='';
     const allaOpt=document.createElement('option');allaOpt.value='__alla__';allaOpt.textContent='Alla';sel.appendChild(allaOpt);
     Object.entries(users).forEach(([k,u])=>{const o=document.createElement('option');o.value=k;o.textContent=u.name;sel.appendChild(o);});
@@ -2499,6 +2507,10 @@
       if(a) a.checked=!!u.hasAccess;if(ai) ai.checked=!!u.hasInslepp;saveUsers();
       if(u.name==='Adam'||u.name==='Casper'){if(a) a.disabled=true;if(n){n.textContent=`${u.name} har alltid kassaaccess och kan inte stängas av.`;n.style.display='block';}}else{if(a) a.disabled=false;if(n) n.style.display='none';}
       if(u.name==='Casper'){if(ai) ai.disabled=true;if(ni){ni.textContent=`Casper har alltid insläpp-access och kan inte stängas av.`;ni.style.display='block';}}else{if(ai) ai.disabled=false;if(ni) ni.style.display='none';}
+      const vol=document.getElementById('voluntarCheckbox');
+      if(vol){vol.checked=!!u.isVoluntar;vol.disabled=(u.name==='Adam'||u.name==='Casper');}
+      const delBtn=document.getElementById('deleteUserBtn');
+      if(delBtn) delBtn.style.display=(u.name==='Adam'||u.name==='Casper')?'none':'block';
       buildAdminSkillsOptions(u.name);
       renderSchemaForEmployee();
     };
@@ -2534,17 +2546,78 @@
     const inslEl=document.getElementById('insleppCheckbox');
     if(u.name==='Adam'||u.name==='Casper'){if(accEl) accEl.checked=true;u.hasAccess=true;}else{u.hasAccess=!!(accEl&&accEl.checked);}
     if(u.name==='Casper'){if(inslEl) inslEl.checked=true;u.hasInslepp=true;}else{u.hasInslepp=!!(inslEl&&inslEl.checked);}
+    const volEl=document.getElementById('voluntarCheckbox');
+    if(u.name==='Adam'||u.name==='Casper'){if(volEl) volEl.checked=false;u.isVoluntar=false;}else{u.isVoluntar=!!(volEl&&volEl.checked);}
     const skills=[...document.querySelectorAll('.admin-skill:checked')].map(el=>el.value);
-    userData[u.name].skills=skills;saveUserData();snapshotStaffHoursToday();if(loggedInUser===u.name) loadProfile();
+    userData[u.name].skills=skills;saveUserData();saveUsers();snapshotStaffHoursToday();if(loggedInUser===u.name) loadProfile();
     const c=document.getElementById('adminConfirm');if(c){c.textContent=`Sparat för ${u.name}`;c.style.display='block';setTimeout(()=>c.style.display='none',2000);}
   });
+
+  function openAddUserPanel(){
+    document.getElementById('userSelectSection').style.display='none';
+    document.getElementById('persTabRow').style.display='none';
+    document.getElementById('persPanel_idag').style.display='none';
+    document.getElementById('persPanel_schema').style.display='none';
+    document.getElementById('persPanel_laggTill').style.display='block';
+  }
+  function closeAddUserPanel(){
+    document.getElementById('persPanel_laggTill').style.display='none';
+    document.getElementById('userSelectSection').style.display='';
+    document.getElementById('persTabRow').style.display='flex';
+    document.getElementById('newUserName').value='';
+    document.getElementById('newUserPass').value='';
+    document.getElementById('newUserAccessCheckbox').checked=false;
+    document.getElementById('newUserInsleppCheckbox').checked=false;
+    const warn=document.getElementById('newUserPassWarn');if(warn){warn.textContent='';warn.style.display='none';}
+    selectPersonalTab('idag');
+  }
+  function openDeleteUserModal(){
+    const sel=document.getElementById('userSelect');
+    const u=users[sel?.value];if(!u) return;
+    document.getElementById('deleteUserModalMsg').textContent=`Är du säker på att du vill ta bort ${u.name}?`;
+    document.getElementById('deleteUserModal').style.display='flex';
+  }
+  function closeDeleteUserModal(){
+    document.getElementById('deleteUserModal').style.display='none';
+  }
+  function executeDeleteUser(){
+    closeDeleteUserModal();
+    const sel=document.getElementById('userSelect');
+    const pw=sel?.value;const u=users[pw];if(!u) return;
+    const savedUser={...u};const savedPw=pw;const name=u.name;
+    const savedUserData={...userData[name]};
+    const wasSelf=(loggedInKey===pw);
+    delete users[pw];
+    delete userData[name];
+    const plan=loadShiftPlan();
+    const savedPlan={};
+    Object.keys(plan).forEach(date=>{ if(plan[date][name]!==undefined){ savedPlan[date]=plan[date][name]; delete plan[date][name]; } });
+    saveUsers();
+    saveUserData();
+    saveShiftPlan(plan);
+    if(wasSelf) logout(); else initUserSelect();
+    showUndoToast(`${name} borttagen`, ()=>{ users[savedPw]=savedUser; userData[name]=savedUserData; const p=loadShiftPlan(); Object.keys(savedPlan).forEach(date=>{ if(!p[date]) p[date]={}; p[date][name]=savedPlan[date]; }); saveUsers(); saveUserData(); saveShiftPlan(p); initUserSelect(); }, 10000);
+  }
 
   (function bindUserMgmt(){
     const root=document.getElementById('adminSettings');if(!root||root._boundUserMgmt) return;
     root.addEventListener('click',(e)=>{
       const t=e.target;if(!(t instanceof HTMLElement)) return;
-      if(t.id==='addUserBtn'){e.preventDefault();const name=(document.getElementById('newUserName')?.value||'').trim();const pw=(document.getElementById('newUserPass')?.value||'').trim();const acc=!!document.getElementById('newUserAccessCheckbox')?.checked;const insl=!!document.getElementById('newUserInsleppCheckbox')?.checked;if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}if(users[pw]){alert('Det finns redan en användare med det lösenordet.');return;}users[pw]={name,admin:false,hasAccess:acc,hasInslepp:insl};ensureProfileDefaults(name);saveUserData();initUserSelect();alert(name+' har lagts till.');saveUsers();document.getElementById('newUserName').value='';document.getElementById('newUserPass').value='';document.getElementById('newUserAccessCheckbox').checked=false;document.getElementById('newUserInsleppCheckbox').checked=false;}
-      if(t.id==='removeUserBtn'){e.preventDefault();const name=(document.getElementById('newUserName')?.value||'').trim();const pw=(document.getElementById('newUserPass')?.value||'').trim();if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}const u=users[pw];if(!u||u.name!==name){alert('Fel namn eller lösenord.');return;}if(u.name==='Adam'||u.name==='Casper'){alert('Casper och Adam kan inte tas bort.');return;}const savedUser={...u};const savedPw=pw;const wasSelf=(loggedInKey===pw);delete users[pw];if(wasSelf) logout();initUserSelect();saveUsers();document.getElementById('newUserName').value='';document.getElementById('newUserPass').value='';document.getElementById('newUserAccessCheckbox').checked=false;showUndoToast(`${name} borttagen`, ()=>{ users[savedPw]=savedUser; saveUsers(); initUserSelect(); });}
+      if(t.id==='addUserBtn'){
+        e.preventDefault();
+        const name=(document.getElementById('newUserName')?.value||'').trim();
+        const pw=(document.getElementById('newUserPass')?.value||'').trim();
+        const acc=!!document.getElementById('newUserAccessCheckbox')?.checked;
+        const insl=!!document.getElementById('newUserInsleppCheckbox')?.checked;
+        if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}
+        if(users[pw]){alert('Det finns redan en användare med det lösenordet.');return;}
+        users[pw]={name,admin:false,hasAccess:acc,hasInslepp:insl};
+        ensureProfileDefaults(name);saveUserData();saveUsers();
+        closeAddUserPanel();
+        initUserSelect();
+        // Välj den nya medarbetaren i dropdown
+        const sel=document.getElementById('userSelect');if(sel){sel.value=pw;sel.dispatchEvent(new Event('change'));}
+      }
     });
     document.getElementById('newUserPass')?.addEventListener('input', function(){
       const pw = this.value.trim();
@@ -2829,6 +2902,7 @@
       try{
         await dbRefreshMany(BOOT_KEYS);
         await loadUserDataFromServer();await loadUsersFromServer();
+        { const vn=new Set(Object.values(users).map(u=>u.name)); let c=false; Object.keys(userData).forEach(n=>{ if(!vn.has(n)){ delete userData[n]; c=true; } }); if(c) saveUserData(); const plan=loadShiftPlan(); let cp=false; Object.keys(plan).forEach(date=>{ Object.keys(plan[date]).forEach(n=>{ if(!vn.has(n)){ delete plan[date][n]; cp=true; } }); }); if(cp) saveShiftPlan(plan); }
         openingHours=loadOpeningHours();queueTime=loadQueue();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
