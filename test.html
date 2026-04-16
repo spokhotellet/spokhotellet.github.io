@@ -1050,6 +1050,7 @@
   function parseWorkHoursStr(s){ if(!s) return 0; const m=s.match(/(\d{1,2}):(\d{2})\s*[–\-]\s*(\d{1,2}):(\d{2})/); if(!m) return 0; const start=parseInt(m[1])+parseInt(m[2])/60; const end=parseInt(m[3])+parseInt(m[4])/60; const diff=end-start; return diff>0?diff:0; }
   function getLonRollvikt(task,settings){ const s=settings||loadWageSettings(); const v=Number((s.task_vikter||{})[task||'']); return (v&&v>0)?v:1.0; }
   function getLonTransaktionerForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const counts={}; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); const entries=(hist[ds]||{}).entries||[]; entries.forEach(e=>{ const s=e.seller||''; if(s&&s!=='—') counts[s]=(counts[s]||0)+1; }); d.setDate(d.getDate()+1); } return counts; }
+  function getLonIntakterForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const sums={}; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); const entries=(hist[ds]||{}).entries||[]; entries.forEach(e=>{ const s=e.seller||''; if(s&&s!=='—') sums[s]=(sums[s]||0)+Number(e.sum||0); }); d.setDate(d.getDate()+1); } return sums; }
 
   function getLonTotalIncomeForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); total+=Number((hist[ds]||{}).income||0); d.setDate(d.getDate()+1); } return total; }
   function getLonOpeningHrsForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const today=todayStr(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); let hoursStr; if(ds===today){ const live=loadOpeningHours()||''; hoursStr=(live&&live!=='Stängt')?live:((hist[ds]||{}).hours||''); } else { hoursStr=(hist[ds]||{}).hours||''; } total+=parseWorkHoursStr(hoursStr); d.setDate(d.getDate()+1); } return total; }
@@ -1192,12 +1193,19 @@
         const openHrs=Number((day.openingHrs||0));
         const dayTrans=(day.entries||[]).reduce((acc,e)=>{ const sel=e.seller||''; if(sel&&sel!=='—') acc[sel]=(acc[sel]||0)+1; return acc; },{});
         const dayTotalTrans=Object.values(dayTrans).reduce((a,b)=>a+b,0);
+        const dayIntakt=(day.entries||[]).reduce((acc,e)=>{ const sel=e.seller||''; if(sel&&sel!=='—') acc[sel]=(acc[sel]||0)+Number(e.sum||0); return acc; },{});
+        const dayTotalIntakt=Object.values(dayIntakt).reduce((a,b)=>a+b,0);
         const isVoluntarH=(name)=>Object.values(users).some(u=>u.name===name&&u.isVoluntar);
-        staff.forEach(s=>{ s.isVoluntar=isVoluntarH(s.name); const baseVikt=getLonRollvikt(s.task,settings); if((settings.task_kassaboost||{})[s.task||'']&&dayTotalTrans>0){ s.vikt=Math.min(1.0,+(baseVikt+(((dayTrans[s.name]||0)/dayTotalTrans)*(1.0-baseVikt))).toFixed(3)); } else { s.vikt=baseVikt; } s.tackning=openHrs>0?s.hrs/openHrs:0; s.poang=+(s.tackning*s.vikt).toFixed(4); });
-        const totalPoang=staff.reduce((a,s)=>a+s.poang,0);
-        const totalBas=bassumma*staff.filter(s=>!s.isVoluntar).length;
+        staff.forEach(s=>{ s.isVoluntar=isVoluntarH(s.name); const baseVikt=getLonRollvikt(s.task,settings); const hasKB=!!(settings.task_kassaboost||{})[s.task||'']; if(!s.isVoluntar&&hasKB&&dayTotalTrans>0){ s.vikt=Math.min(1.0,+(baseVikt+(((dayTrans[s.name]||0)/dayTotalTrans)*(1.0-baseVikt))).toFixed(3)); } else { s.vikt=baseVikt; } s.kassaBoost=hasKB; s.personIntakt=dayIntakt[s.name]||0; s.tackning=openHrs>0?s.hrs/openHrs:0; s.poang=+(s.tackning*s.vikt).toFixed(4); });
+        const normalStaffH=staff.filter(s=>!s.isVoluntar);
+        const voluntarKassaH=staff.filter(s=>s.isVoluntar&&s.kassaBoost&&dayTotalIntakt>0&&s.personIntakt>0);
+        const totalPoang=normalStaffH.reduce((a,s)=>a+s.poang,0);
+        const totalBas=bassumma*normalStaffH.length;
         const deln=Math.max(0,lonPott-totalBas);
-        staffHtml=staff.map(s=>{ const andel=totalPoang>0?s.poang/totalPoang:0; const totalt=(s.isVoluntar?0:bassumma)+Math.round(andel*deln); return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(232,224,208,0.06);font-size:12px;"><span>${escapeHtml(s.name)}${s.isVoluntar?' <span style="color:rgba(232,224,208,0.3);font-size:10px;">volontär</span>':''} <span style="color:rgba(232,224,208,0.4);">${escapeHtml(s.task)}</span></span><span style="font-family:'IM Fell English SC',serif;">${totalt} kr</span></div>`; }).join('');
+        const voluntarPayH=voluntarKassaH.map(s=>{ const andel=dayTotalIntakt>0?s.personIntakt/dayTotalIntakt:0; const totalt=Math.round(andel*deln); return {...s,andel,totalt}; });
+        const totalVoluntarH=voluntarPayH.reduce((a,s)=>a+s.totalt,0);
+        const normalDelnH=Math.max(0,deln-totalVoluntarH);
+        staffHtml=[...normalStaffH.map(s=>{ const andel=totalPoang>0?s.poang/totalPoang:0; const totalt=bassumma+Math.round(andel*normalDelnH); return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(232,224,208,0.06);font-size:12px;"><span>${escapeHtml(s.name)} <span style="color:rgba(232,224,208,0.4);">${escapeHtml(s.task)}</span></span><span style="font-family:'IM Fell English SC',serif;">${totalt} kr</span></div>`; }),...voluntarPayH.map(s=>{ return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(232,224,208,0.06);font-size:12px;"><span>${escapeHtml(s.name)} <span style="color:rgba(232,224,208,0.3);font-size:10px;">volontär</span> <span style="color:rgba(232,224,208,0.4);">${escapeHtml(s.task)}</span></span><span style="font-family:'IM Fell English SC',serif;">${s.totalt} kr</span></div>`; })].join('');
       } else {
         staffHtml=`<div class="tiny muted">Inga sparade arbetstider för detta datum.</div>`;
       }
@@ -1238,9 +1246,12 @@
     const {staff:staffData,hasMissingSnapshot}=getLonStaffDataForPeriod(fromVal,toVal);
     const transaktioner=getLonTransaktionerForPeriod(fromVal,toVal);
     const totalTrans=Object.values(transaktioner).reduce((a,b)=>a+b,0);
+    const intakter=getLonIntakterForPeriod(fromVal,toVal);
+    const totalIntakt=Object.values(intakter).reduce((a,b)=>a+b,0);
     staffData.forEach(s=>{
       const baseVikt=getLonRollvikt(s.task,settings);
       s.personTrans=transaktioner[s.name]||0;
+      s.personIntakt=intakter[s.name]||0;
       if((settings.task_kassaboost||{})[s.task||'']&&totalTrans>0){ s.vikt=Math.min(1.0,+(baseVikt+((s.personTrans/totalTrans)*(1.0-baseVikt))).toFixed(3)); s.kassaBoost=true; }
       else { s.vikt=baseVikt; s.kassaBoost=false; }
       s.tackning=totalOpeningHrs>0?s.totalHrs/totalOpeningHrs:0;
@@ -1249,10 +1260,16 @@
     if(!staffData.length){el.innerHTML='<div class="muted" style="margin-top:12px;">Ingen personal med arbetstid eller gästinteraktion för perioden.</div>';return;}
     const isVoluntar=(name)=>Object.values(users).some(u=>u.name===name&&u.isVoluntar);
     staffData.forEach(s=>{ s.isVoluntar=isVoluntar(s.name); });
-    const totalPoang=staffData.reduce((s,x)=>s+x.poang,0);
-    const totalBas=bassumma*staffData.filter(s=>!s.isVoluntar).length;
+    const normalStaff=staffData.filter(s=>!s.isVoluntar);
+    const voluntarKassa=staffData.filter(s=>s.isVoluntar&&s.kassaBoost&&totalIntakt>0&&s.personIntakt>0);
+    const totalBas=bassumma*normalStaff.length;
     const delningsDel=Math.max(0,lonPott-totalBas);
-    const rows=staffData.map(s=>{ const andel=totalPoang>0?(s.poang/totalPoang):0; const variabel=Math.round(andel*delningsDel); const totalt=(s.isVoluntar?0:bassumma)+variabel; return {...s,andel,variabel,totalt}; });
+    const voluntarRows=voluntarKassa.map(s=>{ const andel=totalIntakt>0?s.personIntakt/totalIntakt:0; const totalt=Math.round(andel*delningsDel); return {...s,andel,variabel:totalt,totalt}; });
+    const totalVoluntarKassa=voluntarRows.reduce((a,r)=>a+r.totalt,0);
+    const normalDelningsDel=Math.max(0,delningsDel-totalVoluntarKassa);
+    const totalPoang=normalStaff.reduce((s,x)=>s+x.poang,0);
+    const normalRows=normalStaff.map(s=>{ const andel=totalPoang>0?(s.poang/totalPoang):0; const variabel=Math.round(andel*normalDelningsDel); const totalt=bassumma+variabel; return {...s,andel,variabel,totalt}; });
+    const rows=[...normalRows,...voluntarRows];
     const totalLon=rows.reduce((s,r)=>s+r.totalt,0);
     const kvar=verkDel+(lonPott-totalLon);
     const periodLabel=fromVal===toVal?fromVal:`${fromVal} – ${toVal}`;
@@ -3083,13 +3100,22 @@
   }
 
   async function adminDisconnectDisplay(){
+    const btn=document.getElementById('displayAdminDisconnectBtn');
+    const statusEl=document.getElementById('displayAdminStatus');
+    if(btn){ btn.disabled=true; btn.textContent='Kopplar från…'; }
+    if(statusEl){ statusEl.textContent='Kopplar från…'; }
     try{
       await apiSet(CUSTOMER_DISPLAY_OWNER_KEY,'');
       await apiSet(CUSTOMER_DISPLAY_CART_KEY,'');
       _displayActive=false;
       updateDisplayBtn();
-      loadDisplayAdminStatus();
-    }catch(_e){}
+      if(statusEl){ statusEl.textContent='Frånkopplad ✓'; }
+      if(btn){ btn.style.display='none'; btn.disabled=false; btn.textContent='Koppla från'; }
+      setTimeout(()=>loadDisplayAdminStatus(),1200);
+    }catch(_e){
+      if(statusEl){ statusEl.textContent='Något gick fel – försök igen.'; }
+      if(btn){ btn.disabled=false; btn.textContent='Koppla från'; }
+    }
   }
 
   function startPosMode(){
