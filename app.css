@@ -456,6 +456,14 @@
     #wsPrices .ds-price-row  { padding: 0.3em 0.5em; }
     #wsPrices .ds-prices     { gap: 0; }
 
+    /* Kommande öppettider – datumfliken */
+    .ws-dates-month { margin-bottom: 22px; }
+    .ws-dates-month-label { font-family: 'IM Fell English SC', serif; font-size: 11px; letter-spacing: 2px; color: rgba(232,224,208,0.38); text-transform: uppercase; margin-bottom: 6px; padding: 0 0.5em; }
+    #wsOpenDates .ds-price-name { font-size: 1rem; }
+    #wsOpenDates .ds-price-val  { font-size: 1rem; text-shadow: none; color: rgba(212,175,55,0.85); }
+    #wsOpenDates .ds-price-row  { padding: 0.3em 0.5em; }
+    #wsOpenDates .ds-prices     { gap: 0; }
+
     /* Info-panel – gästguide-känsla */
     #welcomeFaqContent {
       font-family: Georgia, 'Times New Roman', serif;
