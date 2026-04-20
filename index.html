@@ -129,6 +129,7 @@
         <button class="ws-tab active" data-tab="info" onclick="showWelcomeTab('info')">Info</button>
         <button class="ws-tab" data-tab="priser" onclick="showWelcomeTab('priser')">Priser</button>
         <button class="ws-tab" data-tab="kontakt" onclick="showWelcomeTab('kontakt')">Kontakt</button>
+        <button class="ws-tab" data-tab="oppettider" id="tabOppettider" style="display:none;" onclick="showWelcomeTab('oppettider')">Öppettider</button>
       </div>
 
       <!-- Panel: Priser -->
@@ -141,6 +142,11 @@
         <div class="welcome-info-panel" id="welcomeInfoPanel">
           <div id="welcomeFaqContent"></div>
         </div>
+      </div>
+
+      <!-- Panel: Öppettider -->
+      <div class="ws-panel" id="panel-oppettider" style="display:none;">
+        <div id="wsOpenDates"></div>
       </div>
 
       <!-- Panel: Kontakt -->
@@ -2833,8 +2839,24 @@
     if(panel) panel.style.display='';
     const tab=document.querySelector(`.ws-tab[data-tab="${name}"]`);
     if(tab) tab.classList.add('active');
+    const staffBtn=document.querySelector('.welcome-staff-btn');
+    if(staffBtn) staffBtn.style.display=name==='info'?'':'none';
   }
   function renderWelcomePrices(){ const c=document.getElementById('wsPrices'); if(!c) return; const prods=loadProducts().filter(p=>Number(p.price)>0&&!p.internal); c.innerHTML=`<div class="ds-prices" style="max-width:420px;margin:0 auto;">${prods.map((p,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.08+0.08}s"><span class="ds-price-name">${escapeHtml(p.name)}</span><span class="ds-price-dots"></span><span class="ds-price-val">${p.price} kr</span></div>`).join('')}</div>`; }
+
+  function renderUpcomingDates(){
+    const el=document.getElementById('wsOpenDates'); const tab=document.getElementById('tabOppettider'); if(!el) return;
+    const today=todayStr();
+    const MONTHS=['Januari','Februari','Mars','April','Maj','Juni','Juli','Augusti','September','Oktober','November','December'];
+    const DAYS=['Söndag','Måndag','Tisdag','Onsdag','Torsdag','Fredag','Lördag'];
+    const entries=loadOpenDates().map(e=>typeof e==='string'?{date:e,hours:''}:e).filter(e=>e.date>today).sort((a,b)=>a.date.localeCompare(b.date));
+    if(tab) tab.style.display=entries.length?'':'none';
+    if(!entries.length){ el.innerHTML='<p style="font-family:\'IM Fell English\',serif;font-style:italic;color:rgba(232,224,208,0.4);text-align:center;margin:0;">Inga kommande öppettider inlagda</p>'; return; }
+    const groups={};
+    entries.forEach(e=>{ const d=new Date(e.date+'T00:00:00'); const key=d.getFullYear()+'-'+d.getMonth(); if(!groups[key]) groups[key]={label:MONTHS[d.getMonth()]+' '+d.getFullYear(),items:[]}; groups[key].items.push({...e,d}); });
+    const html=Object.values(groups).map(g=>`<div class="ws-dates-month"><div class="ws-dates-month-label">${g.label}</div><div class="ds-prices">${g.items.map((e,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.07}s"><span class="ds-price-name">${DAYS[e.d.getDay()]} ${e.d.getDate()}</span><span class="ds-price-dots"></span><span class="ds-price-val">${escapeHtml(e.hours||'–')}</span></div>`).join('')}</div></div>`).join('');
+    el.innerHTML=`<div style="max-width:380px;margin:0 auto;">${html}</div>`;
+  }
 
   /* ============================== BOOT ============================== */
   // Nödutgång: tryck Escape 3 ggr snabbt för att rensa overlay-läge
@@ -2868,7 +2890,7 @@
     }catch(_e){}
 
     enforceCoreUsers();
-    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();renderWelcomePrices();showWelcomeTab('info');bindWelcomeControls();
+    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();renderWelcomePrices();renderUpcomingDates();showWelcomeTab('info');bindWelcomeControls();
     hideAll();
 
     if(loggedInUser && localStorage.getItem('kassaLockedV1')){
@@ -2923,7 +2945,7 @@
         openingHours=loadOpeningHours();queueTime=loadQueue();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
-        loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();renderWelcomePrices();
+        loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();renderWelcomePrices();renderUpcomingDates();
         updateTopbar();refreshCockpitIfOpen();
         syncDisplayOwnership();
         if(document.getElementById('kassaContainer')?.style.display==='block'){renderProductButtons();renderCart();}
