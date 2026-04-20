@@ -2852,9 +2852,10 @@
     const entries=loadOpenDates().map(e=>typeof e==='string'?{date:e,hours:''}:e).filter(e=>e.date>today).sort((a,b)=>a.date.localeCompare(b.date));
     if(tab) tab.style.display=entries.length?'':'none';
     if(!entries.length){ el.innerHTML='<p style="font-family:\'IM Fell English\',serif;font-style:italic;color:rgba(232,224,208,0.4);text-align:center;margin:0;">Inga kommande öppettider inlagda</p>'; return; }
+    const currentYear=new Date().getFullYear();
     const groups={};
     entries.forEach(e=>{ const d=new Date(e.date+'T00:00:00'); const key=d.getFullYear()+'-'+d.getMonth(); if(!groups[key]) groups[key]={label:MONTHS[d.getMonth()]+' '+d.getFullYear(),items:[]}; groups[key].items.push({...e,d}); });
-    const html=Object.values(groups).map(g=>`<div class="ws-dates-month"><div class="ws-dates-month-label">${g.label}</div><div class="ds-prices">${g.items.map((e,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.07}s"><span class="ds-price-name">${DAYS[e.d.getDay()]} ${e.d.getDate()}</span><span class="ds-price-dots"></span><span class="ds-price-val">${escapeHtml(e.hours||'–')}</span></div>`).join('')}</div></div>`).join('');
+    const html=Object.values(groups).map(g=>`<div class="ws-dates-month"><div class="ws-dates-month-label">${g.label}</div><div class="ds-prices">${g.items.map((e,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.07}s"><span class="ds-price-name">${DAYS[e.d.getDay()]} ${e.d.getDate()} ${MONTHS[e.d.getMonth()].toLowerCase()}</span><span class="ds-price-dots"></span><span class="ds-price-val">${escapeHtml(e.hours||'–')}</span></div>`).join('')}</div></div>`).join('');
     el.innerHTML=`<div style="max-width:380px;margin:0 auto;">${html}</div>`;
   }
 
