@@ -506,7 +506,7 @@
     #offlineBanner.visible { display: block; }
 
     /* ====== SAVE ERROR BANNER ====== */
-    #saveErrorBanner { display: none; position: fixed; top: 0; left: 0; right: 0; background: rgba(180,30,20,0.97); border-bottom: 2px solid rgba(255,80,60,0.6); padding: 12px 16px; font-family: 'IM Fell English', serif; font-size: 14px; color: #fff; z-index: 10000; text-align: center; backdrop-filter: blur(4px); }
+    #saveErrorBanner { display: none; position: fixed; top: 0; left: 0; right: 0; background: rgba(180,30,20,0.97); border-bottom: 2px solid rgba(255,80,60,0.6); padding: 12px 16px; font-family: 'IM Fell English', serif; font-size: 14px; color: #fff; z-index: 19000; text-align: center; backdrop-filter: blur(4px); }
     #saveErrorBanner.visible { display: block; }
     #saveErrorBanner button { margin-left: 16px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; color: #fff; padding: 4px 12px; cursor: pointer; font-family: inherit; font-size: 13px; }
     #saveErrorBanner button:hover { background: rgba(255,255,255,0.25); }
