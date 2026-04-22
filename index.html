@@ -2911,9 +2911,9 @@
     if(lo) lo.style.display='none';if(li) li.style.display='inline-block';
     loadWelcomeBg();
 
-    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:REVIEWS_KEY,fallback:[]},{key:WAGE_SETTINGS_KEY,fallback:defaultWageSettings()},{key:SHIFT_PLAN_KEY,fallback:{}},{key:TASK_DESCRIPTIONS_KEY,fallback:{}}];
+    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:GUEST_HIDDEN_KEY,fallback:false},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:REVIEWS_KEY,fallback:[]},{key:WAGE_SETTINGS_KEY,fallback:defaultWageSettings()},{key:SHIFT_PLAN_KEY,fallback:{}},{key:TASK_DESCRIPTIONS_KEY,fallback:{}}];
     // Bara nycklar som ändras löpande — hämtas vid periodisk refresh
-    const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()}];
+    const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:GUEST_HIDDEN_KEY,fallback:false},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()}];
 
     persistCacheHydrate(BOOT_KEYS);
     openingHours=loadOpeningHours();queueTime=loadQueue();guestHidden=loadGuestHidden();
@@ -2998,6 +2998,9 @@
       try{
         await dbRefreshMany(REFRESH_KEYS);await loadUsersFromServer();
         userData=dbGet(STORAGE_KEY,{})||{};
+        openingHours=loadOpeningHours();queueTime=loadQueue();guestHidden=loadGuestHidden();
+        if(openingHours==='Stängt') queueTime='Stängt';
+        updateTopbar();
         loadDailyStats();loadDailyCosts();loadDailyForecast();
         refreshCockpitIfOpen();
         if(document.getElementById('profileContainer')?.style.display==='block'&&loggedInUser) loadProfile();
