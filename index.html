@@ -37,7 +37,7 @@
   <!-- Save error banner -->
   <div id="saveErrorBanner" role="alert" style="display:none">
     <span id="saveErrorMsg"></span>
-    <button onclick="document.getElementById('saveErrorBanner').classList.remove('visible')">OK</button>
+    <button onclick="hideSaveError()">OK</button>
   </div>
 
 
@@ -926,8 +926,9 @@
 
   const _db = { cache: new Map(), loaded: new Set(), inflight: new Map(), pendingWrites: new Map() };
 
-  function showSaveError(msg){ const b=document.getElementById('saveErrorBanner'); const m=document.getElementById('saveErrorMsg'); if(m) m.textContent=msg||'Fel: data kunde inte sparas till servern.'; if(b) b.classList.add('visible'); }
-  function hideSaveError(){ document.getElementById('saveErrorBanner')?.classList.remove('visible'); }
+  let _saveErrorMutedUntil=0;
+  function showSaveError(msg){ if(Date.now()<_saveErrorMutedUntil) return; const b=document.getElementById('saveErrorBanner'); const m=document.getElementById('saveErrorMsg'); if(m) m.textContent=msg||'Fel: data kunde inte sparas till servern.'; if(b) b.style.display='block'; }
+  function hideSaveError(){ _saveErrorMutedUntil=Date.now()+30000; const b=document.getElementById('saveErrorBanner'); if(b) b.style.display='none'; }
   const PERSIST_CACHE_PREFIX = 'dbcache_v1__';
   function _cacheLSKey(key){ return PERSIST_CACHE_PREFIX + key; }
   function persistCacheWrite(key, value){ try{ localStorage.setItem(_cacheLSKey(key), JSON.stringify({t:Date.now(),v:value})); }catch(_e){} }
@@ -1364,7 +1365,7 @@
   function addOpenTicket({label,adult,child,sum}){ const o=loadOpenTickets(); const id=label&&label.trim()?null:nextTicketId(); const item={id:id||null,label:(label||'').trim()||null,time:new Date().toLocaleTimeString(),createdAt:new Date().toISOString(),adult:Number(adult||0),child:Number(child||0),sum:Number(sum||0)}; o.items.unshift(item); saveOpenTickets(o); return item; }
   function isJustCreated(iso,seconds=8){ const t=Date.parse(iso||''); if(!t) return false; return (Date.now()-t)<seconds*1000; }
   function loadAdmissions(){ let o=dbGet(ADMIT_KEY,defaultAdmissions()); if(!o||o.date!==todayStr()) o=defaultAdmissions(); o.entries=Array.isArray(o.entries)?o.entries:[]; o.count=Number(o.count||0); return o; }
-  function saveAdmissions(o){ const safe=o&&typeof o==='object'?o:defaultAdmissions(); if(safe.date!==todayStr()) safe.date=todayStr(); if(!Array.isArray(safe.entries)) safe.entries=[]; safe.count=Number(safe.count||0); dbSet(ADMIT_KEY,safe).catch(()=>{ showSaveError('⚠ Insläpp sparades inte på servern — räknarens siffra kan vara fel. Kontrollera uppkopplingen!'); }); }
+  function saveAdmissions(o){ const safe=o&&typeof o==='object'?o:defaultAdmissions(); if(safe.date!==todayStr()) safe.date=todayStr(); if(!Array.isArray(safe.entries)) safe.entries=[]; safe.count=Number(safe.count||0); const _attempt=(n)=>dbSet(ADMIT_KEY,safe).catch(e=>{ if(n>0) return new Promise(r=>setTimeout(r,1500)).then(()=>_attempt(n-1)); showSaveError('⚠ Insläpp sparades inte på servern — räknarens siffra kan vara fel. Kontrollera uppkopplingen!'); }); _attempt(2); }
   function bumpAdmissions(n){ n=Math.max(0,Number(n||0)); if(!n) return; const o=loadAdmissions(); o.count=Math.max(0,Number(o.count||0)+n); o.entries=Array.isArray(o.entries)?o.entries:[]; o.entries.push({ts:new Date().toISOString(),n}); saveAdmissions(o); try{recordAdmission(n,o.entries[o.entries.length-1]?.ts,loggedInUser||'—');}catch(_e){} refreshCockpitIfOpen(); }
   function admittedToday(){ const a=loadAdmissions(); return Number(a.count||0); }
   function reEntryAdmittedToday(){ const db=loadReEntry(); const passes=Array.isArray(db.passes)?db.passes:[]; return passes.reduce((sum,p)=>sum+Number(p.count||0),0); }
