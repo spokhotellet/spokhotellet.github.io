@@ -16,6 +16,14 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="theme-color" content="#0a0a0a">
   <link rel="stylesheet" href="app.css">
+  <style>
+    @keyframes guestHiddenFill {
+      from { transform: scaleX(0); }
+      to   { transform: scaleX(1); }
+    }
+    #guestHiddenBar { animation: none; }
+    #guestHiddenBar.filling { animation: guestHiddenFill var(--fill-dur, 0.5s) cubic-bezier(0.4,0,0.2,1) forwards; }
+  </style>
 </head>
 
 <body>
@@ -202,6 +210,11 @@
           </select>
         </div>
         <button class="btn btn-green" onclick="addOpenDate()">+ Lägg till</button>
+        <div id="guestHiddenToggle" onclick="toggleGuestHidden()" style="cursor:pointer; margin-left:auto; text-align:center; padding:5px 12px; border-radius:4px; border:1px solid rgba(232,224,208,0.15); background:rgba(232,224,208,0.05); position:relative; overflow:hidden;">
+          <span id="guestHiddenBar" style="position:absolute; bottom:0; left:0; width:100%; height:2px; background:rgba(200,160,50,0.85); transform:scaleX(0); transform-origin:left; border-radius:0 0 4px 4px;"></span>
+          <div style="font-size:13px; font-family:'IM Fell English SC',serif; color:rgba(232,224,208,0.7);">Test</div>
+          <div style="font-size:10px; font-family:'IM Fell English',serif; font-style:italic; color:rgba(232,224,208,0.35); margin-top:1px;">Dölj öppettid för gäster</div>
+        </div>
       </div>
       <div id="openDatesSaved" style="display:none; color:#6f6; font-style:italic; font-size:12px; margin-top:6px; font-family:'IM Fell English',serif;">Sparat!</div>
     </div>
@@ -898,12 +911,12 @@
   async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
   const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1'; const DISPLAY_TICKER_KEY='displayTickerTextV1'; const DISPLAY_IMAGES_KEY='displayImagesV1';
-  const SHIFT_PLAN_KEY='shiftPlanV1'; const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1'; const WAGE_SETTINGS_KEY='wageSettingsV1'; const TASK_DESCRIPTIONS_KEY='taskDescriptionsV1';
+  const SHIFT_PLAN_KEY='shiftPlanV1'; const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1'; const WAGE_SETTINGS_KEY='wageSettingsV1'; const TASK_DESCRIPTIONS_KEY='taskDescriptionsV1'; const GUEST_HIDDEN_KEY='guestHiddenV1';
 
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
   function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode === 'intake' ? 'intake' : 'guests'); }
 
-  const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY,TASK_DESCRIPTIONS_KEY]);
+  const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY,TASK_DESCRIPTIONS_KEY,GUEST_HIDDEN_KEY]);
 
   const _db = { cache: new Map(), loaded: new Set(), inflight: new Map() };
   const PERSIST_CACHE_PREFIX = 'dbcache_v1__';
@@ -968,7 +981,7 @@
     fn();
   }
   let _displayActive=false, _suppressDisplayPush=false;
-  let cart={}, cartHistory=[], totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0;
+  let cart={}, cartHistory=[], totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0, guestHidden=false;
   let loggedInKey='', loggedInUser='', isAdmin=false, currentHasAccess=false, currentHasInslepp=false;
   let discountApplied=false, _lastPayChoice='Swish';
   let _pendingPayChoice = null;
@@ -1004,6 +1017,20 @@
   function loadOpeningHours(){ return String(dbGet(OPENING_KEY,'Stängt')||'Stängt'); }
   function saveQueue(v){ return dbSet(QUEUE_KEY, String(v||'')); }
   function loadQueue(){ return String(dbGet(QUEUE_KEY,'')||''); }
+  function saveGuestHidden(v){ return dbSet(GUEST_HIDDEN_KEY,!!v); }
+  function loadGuestHidden(){ return !!dbGet(GUEST_HIDDEN_KEY,false); }
+  async function toggleGuestHidden(){
+    const btn=document.getElementById('guestHiddenToggle');
+    const bar=document.getElementById('guestHiddenBar');
+    if(btn) btn.style.pointerEvents='none';
+    const dur=1500;
+    if(bar){ bar.style.setProperty('--fill-dur',dur+'ms'); bar.classList.remove('filling'); void bar.offsetWidth; bar.classList.add('filling'); }
+    guestHidden=!guestHidden;
+    await Promise.all([saveGuestHidden(guestHidden), new Promise(r=>setTimeout(r,dur))]);
+    if(bar){ bar.classList.remove('filling'); bar.style.transform='scaleX(0)'; }
+    if(btn) btn.style.pointerEvents='';
+    updateTopbar();
+  }
 
   async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=loadQueue(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); const oh=loadOpeningHours(); const qt=loadQueue(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':(qt||''); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
 
@@ -1889,10 +1916,11 @@
     const wHoursEl=document.getElementById('welcomeOpenHoursText');
     const wQueueEl=document.getElementById('queueTimeDisplay');
     const isClosed=(openingHours==='Stängt');
+    const guestIsClosed=isClosed||guestHidden;
 
-    if(wQueueCard) wQueueCard.style.display=isClosed?'none':'';
+    if(wQueueCard) wQueueCard.style.display=guestIsClosed?'none':'';
 
-    if(!isClosed&&wQueueEl){
+    if(!guestIsClosed&&wQueueEl){
       const dotCls=(shownQueue==='Stängt för kvällen'||shownQueue==='Tillfälligt Stängt'||shownQueue==='Stängt')?'dead':'live';
       wQueueEl.innerHTML=`<span class="status-dot ${dotCls}"></span>${escapeHtml(shownQueue)}`;
       wQueueEl.className='welcome-status-value '+(dotCls==='live'?'is-open':'is-closed');
@@ -1900,8 +1928,8 @@
     }
 
     if(wHoursEl){
-      if(isClosed){
-        const nextDate=getNextOpenDate();
+      if(guestIsClosed){
+        const nextDate=(!guestHidden&&!isClosed)?null:getNextOpenDate();
         const nextLabel=nextDate?formatNextOpen(nextDate):null;
         wHoursEl.innerHTML=nextLabel?`Stängt &ndash; öppnar ${escapeHtml(nextLabel)}`:'Stängt idag';
         wHoursEl.className='welcome-status-value is-closed';
@@ -1912,8 +1940,17 @@
     }
 
     const wHoursLabel=wHoursEl?.previousElementSibling;
-    if(wHoursLabel) wHoursLabel.textContent=isClosed?'Idag':'Öppet idag';
+    if(wHoursLabel) wHoursLabel.textContent=guestIsClosed?'Idag':'Öppet idag';
 
+    const hiddenBtn=document.getElementById('guestHiddenToggle');
+    if(hiddenBtn){
+      hiddenBtn.style.background=guestHidden?'rgba(180,130,20,0.25)':'rgba(232,224,208,0.05)';
+      hiddenBtn.style.borderColor=guestHidden?'rgba(200,160,50,0.5)':'rgba(232,224,208,0.15)';
+      const lbl=hiddenBtn.querySelector('div:first-child');
+      const sub=hiddenBtn.querySelector('div:last-child');
+      if(lbl) lbl.style.color=guestHidden?'rgba(220,180,60,0.95)':'rgba(232,224,208,0.7)';
+      if(sub) sub.textContent=guestHidden?'Gäster ser Stängt':'Dölj öppettid för gäster';
+    }
 
     const adminBar=document.getElementById('welcomeAdminBar');
     if(adminBar) adminBar.style.display=(loggedInUser&&isAdmin)?'block':'none';
@@ -2551,7 +2588,8 @@
     const dateOpts=dates.map(e=>`<option value="${escapeHtml(e.date)}"${e.date===today?' selected':''}>${e.date===today?'Idag':''}${e.date!==today?fmtDate(e.date):''}${e.hours?' — '+escapeHtml(e.hours):''}</option>`).join('');
     function listForDate(date){
       const dayPlan=plan[date]||{};
-      const entries=Object.entries(dayPlan).filter(([,d])=>d.hours||d.task);
+      const toMin=s=>{if(!s)return 9999;const p=s.replace('–','-').split('-')[0].trim().split(':');return parseInt(p[0]||0)*60+parseInt(p[1]||0);};
+      const entries=Object.entries(dayPlan).filter(([,d])=>d.hours||d.task).sort(([,a],[,b])=>toMin(a.hours)-toMin(b.hours));
       if(!entries.length) return `<div class="muted" style="font-style:italic;margin-top:8px;">Inget schema inlagt för det här datumet.</div>`;
       return entries.map(([name,d])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(232,224,208,0.07);"><div><div style="font-family:'IM Fell English SC',serif;font-size:15px;">${escapeHtml(name)}</div><div class="tiny muted" style="margin-top:2px;">${escapeHtml(d.task||'—')}</div></div><div style="font-size:14px;opacity:0.75;white-space:nowrap;">${escapeHtml(d.hours||'—')}</div></div>`).join('');
     }
@@ -2878,7 +2916,7 @@
     const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()}];
 
     persistCacheHydrate(BOOT_KEYS);
-    openingHours=loadOpeningHours();queueTime=loadQueue();
+    openingHours=loadOpeningHours();queueTime=loadQueue();guestHidden=loadGuestHidden();
     if(openingHours==='Stängt') queueTime='Stängt';
     loadDailyStats();loadDailyCosts();loadDailyForecast();
     userData=dbGet(STORAGE_KEY,{})||{};
@@ -2943,7 +2981,7 @@
         await dbRefreshMany(BOOT_KEYS);
         await loadUserDataFromServer();await loadUsersFromServer();
         { const vn=new Set(Object.values(users).map(u=>u.name)); let c=false; Object.keys(userData).forEach(n=>{ if(!vn.has(n)){ delete userData[n]; c=true; } }); if(c) saveUserData(); const plan=loadShiftPlan(); let cp=false; Object.keys(plan).forEach(date=>{ Object.keys(plan[date]).forEach(n=>{ if(!vn.has(n)){ delete plan[date][n]; cp=true; } }); }); if(cp) saveShiftPlan(plan); }
-        openingHours=loadOpeningHours();queueTime=loadQueue();
+        openingHours=loadOpeningHours();queueTime=loadQueue();guestHidden=loadGuestHidden();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
         loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();renderWelcomePrices();renderUpcomingDates();
