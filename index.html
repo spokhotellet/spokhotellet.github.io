@@ -971,7 +971,7 @@
   const THEME_CLASSES=['theme-default','theme-forest','theme-royal'];
 
   /* ====== ÅNGRA-TOAST ====== */
-  let _undoState=null, _undoTimer=null;
+  let _undoState=null, _undoTimer=null, _autoClosedAt=null;
   function showUndoToast(label, restoreFn, durationMs=6000){
     if(_undoTimer){ clearTimeout(_undoTimer); _undoTimer=null; }
     _undoState={restoreFn};
@@ -1052,7 +1052,7 @@
     updateTopbar();
   }
 
-  async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); const oh=loadOpeningHours(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':getEffectiveQueueTime(); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
+  async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); checkScheduledClose(); const oh=loadOpeningHours(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':getEffectiveQueueTime(); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
 
   function maybeEditHours(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!isAdmin) return; const el=document.getElementById('hoursMenu'); if(el) el.style.display='block'; renderOpenDatesCalendar(); }
 
@@ -1060,6 +1060,20 @@
   async function addOpenDate(){ const inp=document.getElementById('addOpenDateInput'); const hoursInp=document.getElementById('addOpenHoursInput'); const v=inp?.value; if(!v){alert('Välj ett datum');return;} if(v<todayStr()){alert('Datumet har redan passerat');return;} const hours=(hoursInp?.value||'').trim(); const entry=hours?{date:v,hours}:v; const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==v); dates.push(entry); dates.sort((a,b)=>(typeof a==='string'?a:a.date).localeCompare(typeof b==='string'?b:b.date)); await saveOpenDates(dates); if(inp) inp.value=''; if(hoursInp) hoursInp.value=''; const saved=document.getElementById('openDatesSaved'); if(saved){saved.style.display='block';setTimeout(()=>saved.style.display='none',1500);} renderOpenDatesCalendar(); }
   async function removeOpenDate(d){ const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==d); await saveOpenDates(dates); renderOpenDatesCalendar(); }
   function checkScheduledOpen(){ if(openingHours!=='Stängt') return; const today=todayStr(); const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today); if(!entry||typeof entry==='string'||!entry.hours) return; openingHours=entry.hours; saveOpeningHours(entry.hours).catch(()=>{}); updateTopbar(); refreshCockpitIfOpen(); }
+  function checkScheduledClose(){
+    const now=new Date(); const nowMins=now.getHours()*60+now.getMinutes();
+    if(openingHours==='Stängt'){
+      if(_autoClosedAt===null) return;
+      if(Date.now()-_autoClosedAt>=30*60*1000){ if(queueTime==='Stängt för kvällen'){ queueTime='Stängt'; saveQueueData({value:'Stängt',until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); } _autoClosedAt=null; }
+      return;
+    }
+    const m=openingHours.match(/(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})/); if(!m) return;
+    const startMins=parseInt(m[1],10)*60+parseInt(m[2],10); const endMins=parseInt(m[3],10)*60+parseInt(m[4],10);
+    const crossMidnight=endMins<=startMins; const minsLeft=crossMidnight?(nowMins>=startMins?endMins+1440-nowMins:endMins-nowMins):endMins-nowMins;
+    if(minsLeft>1) return;
+    if(minsLeft>0){ if(queueTime!=='Stängt för kvällen'){ queueTime='Stängt för kvällen'; saveQueueData({value:'Stängt för kvällen',until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); } return; }
+    _autoClosedAt=Date.now(); saveOpeningHours('Stängt').catch(()=>{}); openingHours='Stängt'; queueTime='Stängt för kvällen'; saveQueueData({value:'Stängt för kvällen',until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen();
+  }
 
   async function presetSelected(v){ const inp=document.getElementById('customHours'); if(v==='custom'){if(inp){inp.style.display='inline-block';inp.focus();}return;} openingHours=v; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
   async function applyCustomHours(){ const inp=document.getElementById('customHours'); const raw=(inp?inp.value.trim():'')||''; const norm=normalizeRangeStr(raw); if(!norm){alert('Skriv t.ex. 16-02 eller 10:00–18:00');return;} openingHours=norm; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
