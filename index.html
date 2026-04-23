@@ -74,7 +74,7 @@
   <!-- ===== TOPBAR ===== -->
   <div class="topbar">
     <div id="queueTopbar" class="status clickable" onclick="maybeEditQueueTime(event)">
-      Kö: <span id="queueTimeText">Ingen info</span><span id="queueWarnDot" class="queue-warn-dot" style="display:none;" title="Någon biljett har väntat längre än angiven kötid">!</span>
+      <span id="queueAutoSymbol" style="font-size:0.6em;opacity:0.3;margin-right:2px;vertical-align:middle;line-height:1;"></span>Kö: <span id="queueTimeText">Ingen info</span>
     </div>
     <div class="status" id="openBlock">
       <span class="open-label">Öppet idag:</span>
@@ -241,6 +241,7 @@
       <option>25–30 min</option>
       <option>Stängt för kvällen</option>
     </select>
+    <div id="queueStatusRow" style="font-size:12px;opacity:0.55;margin-top:6px;font-style:italic;">↺ Auto</div>
   </div>
 
   <!-- ===== ADMIN ===== -->
@@ -1025,8 +1026,13 @@
   function getNextOpenDate(){ const today=todayStr(); const dates=loadOpenDates().map(e=>typeof e==='string'?e:e.date).filter(d=>d>today).sort(); return dates[0]||null; }
   function formatNextOpen(dateStr){ if(!dateStr) return null; const today=new Date(); today.setHours(0,0,0,0); const d=new Date(dateStr+'T00:00:00'); const diff=Math.round((d-today)/(1000*60*60*24)); const days=['söndag','måndag','tisdag','onsdag','torsdag','fredag','lördag']; const months=['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec']; if(diff===1) return 'imorgon'; if(diff===2) return 'i övermorgon'; if(diff<=6) return 'på '+days[d.getDay()]; return d.getDate()+' '+months[d.getMonth()]; }
   function loadOpeningHours(){ return String(dbGet(OPENING_KEY,'Stängt')||'Stängt'); }
-  function saveQueue(v){ return dbSet(QUEUE_KEY, String(v||'')); }
-  function loadQueue(){ return String(dbGet(QUEUE_KEY,'')||''); }
+  function loadQueueData(){ const r=dbGet(QUEUE_KEY,null); if(r&&typeof r==='object') return r; if(typeof r==='string'&&r) return {value:r,until:null}; return {value:null,until:null}; }
+  function saveQueueData(obj){ return dbSet(QUEUE_KEY,obj); }
+  function computeAutoQueueTime(){ const t=loadOpenTickets(); const unused=(t.items||[]).filter(it=>!it.used&&(Number(it.adult||0)+Number(it.child||0))>0); const total=unused.reduce((s,it)=>s+Number(it.adult||0)+Number(it.child||0),0); const runs=total>0?Math.ceil(total/2):0; const wait=Math.max(0,runs-1); const mins=wait*5; const lo=Math.max(0,mins-5); const hi=Math.max(5,mins); return `${lo}–${hi} min`; }
+  function _queueMins(s){ const m=String(s||'').match(/(\d+)\s*[–-]\s*(\d+)/); return m?Number(m[2]):null; }
+  function getEffectiveQueueTime(){ const d=loadQueueData(); const now=Date.now(); const isAuto=d.value===null; const expired=!isAuto&&d.until!==null&&now>=d.until; if(isAuto||expired) return computeAutoQueueTime(); const auto=computeAutoQueueTime(); const am=_queueMins(auto),mm=_queueMins(d.value); if(d.until!==null&&am!==null&&mm!==null&&am>mm) return auto; return d.value; }
+  function lockQueueManual(){ const d=loadQueueData(); const val=d.value||computeAutoQueueTime(); saveQueueData({value:val,until:null}); queueTime=getEffectiveQueueTime(); updateTopbar(); updateQueueStatusRow(); }
+  function updateQueueStatusRow(){ const el=document.getElementById('queueStatusRow'); if(!el) return; const d=loadQueueData(); const now=Date.now(); const isAuto=d.value===null; const expired=!isAuto&&d.until!==null&&now>=d.until; const s='background:none;border:none;color:inherit;font:inherit;font-style:italic;cursor:pointer;padding:0;opacity:0.55;font-size:12px;text-decoration:underline;text-underline-offset:2px;'; if(isAuto||expired){el.innerHTML=`<button style="${s}" onclick="lockQueueManual()">↺ Auto</button>`;return;} if(d.until===null){el.innerHTML=`<button style="${s}" onclick="applyQueuePreset('__auto__')">Manuell</button>`;return;} const auto=computeAutoQueueTime(); const am=_queueMins(auto),mm=_queueMins(d.value); const rem=Math.max(1,Math.ceil((d.until-now)/60000)); const info=am!==null&&mm!==null&&am>mm?'kön längre, auto aktivt':`auto om ${rem} min`; el.innerHTML=`<button style="${s}" onclick="lockQueueManual()">Tillfälligt manuell — ${info}</button>`; }
   function saveGuestHidden(v){ return dbSet(GUEST_HIDDEN_KEY,!!v); }
   function loadGuestHidden(){ return !!dbGet(GUEST_HIDDEN_KEY,false); }
   async function toggleGuestHidden(){
@@ -1042,7 +1048,7 @@
     updateTopbar();
   }
 
-  async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=loadQueue(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); const oh=loadOpeningHours(); const qt=loadQueue(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':(qt||''); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
+  async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); const oh=loadOpeningHours(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':getEffectiveQueueTime(); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
 
   function maybeEditHours(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!isAdmin) return; const el=document.getElementById('hoursMenu'); if(el) el.style.display='block'; renderOpenDatesCalendar(); }
 
@@ -1051,11 +1057,11 @@
   async function removeOpenDate(d){ const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==d); await saveOpenDates(dates); renderOpenDatesCalendar(); }
   function checkScheduledOpen(){ if(openingHours!=='Stängt') return; const today=todayStr(); const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today); if(!entry||typeof entry==='string'||!entry.hours) return; openingHours=entry.hours; saveOpeningHours(entry.hours).catch(()=>{}); updateTopbar(); refreshCockpitIfOpen(); }
 
-  async function presetSelected(v){ const inp=document.getElementById('customHours'); if(v==='custom'){if(inp){inp.style.display='inline-block';inp.focus();}return;} openingHours=v; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueue(queueTime); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
-  async function applyCustomHours(){ const inp=document.getElementById('customHours'); const raw=(inp?inp.value.trim():'')||''; const norm=normalizeRangeStr(raw); if(!norm){alert('Skriv t.ex. 16-02 eller 10:00–18:00');return;} openingHours=norm; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueue(queueTime); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
-  function maybeEditQueueTime(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!loggedInUser) return; if(openingHours==='Stängt'&&!isAdmin) return; const el=document.getElementById('queueMenu'); if(el) el.style.display='block'; }
-  function applyQueuePreset(v){ if(!v) return; queueTime=v; saveQueue(v); updateTopbar(); const el=document.getElementById('queueMenu'); if(el) el.style.display='none'; }
-  function refreshCockpitIfOpen(){ const sc=document.getElementById('statsContainer'); if(!sc) return; const isVisible=getComputedStyle(sc).display!=='none'; if(!isVisible) return; openingHours=loadOpeningHours(); queueTime=loadQueue(); loadDailyCosts(); loadDailyForecast(); renderCockpit(); if(isAdmin&&_statsDirty){renderStats();_statsDirty=false;} }
+  async function presetSelected(v){ const inp=document.getElementById('customHours'); if(v==='custom'){if(inp){inp.style.display='inline-block';inp.focus();}return;} openingHours=v; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
+  async function applyCustomHours(){ const inp=document.getElementById('customHours'); const raw=(inp?inp.value.trim():'')||''; const norm=normalizeRangeStr(raw); if(!norm){alert('Skriv t.ex. 16-02 eller 10:00–18:00');return;} openingHours=norm; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
+  function maybeEditQueueTime(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!loggedInUser) return; if(openingHours==='Stängt'&&!isAdmin) return; const el=document.getElementById('queueMenu'); if(el) el.style.display='block'; updateQueueStatusRow(); }
+  function applyQueuePreset(v){ if(!v) return; if(v==='__auto__'){ saveQueueData({value:null,until:null}); }else{ const isStangt=v.toLowerCase().includes('stängt'); saveQueueData({value:v,until:isStangt?null:Date.now()+5*60*1000}); } queueTime=getEffectiveQueueTime(); updateTopbar(); updateQueueStatusRow(); const el=document.getElementById('queueMenu'); if(el) el.style.display='none'; }
+  function refreshCockpitIfOpen(){ const sc=document.getElementById('statsContainer'); if(!sc) return; const isVisible=getComputedStyle(sc).display!=='none'; if(!isVisible) return; openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); loadDailyCosts(); loadDailyForecast(); renderCockpit(); if(isAdmin&&_statsDirty){renderStats();_statsDirty=false;} }
 
   function loadDailyStats(){ let ds=dbGet(DAILY_KEY,defaultDailyStats()); if(ds.date!==todayStr()) ds=defaultDailyStats(); guestCount=Number(ds.guestCount||0); totalIncome=Number(ds.totalIncome||0); dbSet(DAILY_KEY,{date:todayStr(),guestCount,totalIncome}).catch(()=>{}); }
   function saveDailyStats(){ dbSet(DAILY_KEY,{date:todayStr(),guestCount,totalIncome}).catch(()=>{}); }
@@ -1366,7 +1372,7 @@
   function isJustCreated(iso,seconds=8){ const t=Date.parse(iso||''); if(!t) return false; return (Date.now()-t)<seconds*1000; }
   function loadAdmissions(){ let o=dbGet(ADMIT_KEY,defaultAdmissions()); if(!o||o.date!==todayStr()) o=defaultAdmissions(); o.entries=Array.isArray(o.entries)?o.entries:[]; o.count=Number(o.count||0); return o; }
   function saveAdmissions(o){ const safe=o&&typeof o==='object'?o:defaultAdmissions(); if(safe.date!==todayStr()) safe.date=todayStr(); if(!Array.isArray(safe.entries)) safe.entries=[]; safe.count=Number(safe.count||0); const _attempt=(n)=>dbSet(ADMIT_KEY,safe).catch(e=>{ if(n>0) return new Promise(r=>setTimeout(r,1500)).then(()=>_attempt(n-1)); showSaveError('⚠ Insläpp sparades inte på servern — räknarens siffra kan vara fel. Kontrollera uppkopplingen!'); }); _attempt(2); }
-  function bumpAdmissions(n){ n=Math.max(0,Number(n||0)); if(!n) return; const o=loadAdmissions(); o.count=Math.max(0,Number(o.count||0)+n); o.entries=Array.isArray(o.entries)?o.entries:[]; o.entries.push({ts:new Date().toISOString(),n}); saveAdmissions(o); try{recordAdmission(n,o.entries[o.entries.length-1]?.ts,loggedInUser||'—');}catch(_e){} refreshCockpitIfOpen(); }
+  function bumpAdmissions(n){ n=Math.max(0,Number(n||0)); if(!n) return; const o=loadAdmissions(); o.count=Math.max(0,Number(o.count||0)+n); o.entries=Array.isArray(o.entries)?o.entries:[]; o.entries.push({ts:new Date().toISOString(),n}); saveAdmissions(o); try{recordAdmission(n,o.entries[o.entries.length-1]?.ts,loggedInUser||'—');}catch(_e){} queueTime=getEffectiveQueueTime(); updateTopbar(); refreshCockpitIfOpen(); }
   function admittedToday(){ const a=loadAdmissions(); return Number(a.count||0); }
   function reEntryAdmittedToday(){ const db=loadReEntry(); const passes=Array.isArray(db.passes)?db.passes:[]; return passes.reduce((sum,p)=>sum+Number(p.count||0),0); }
   function loadReEntry(){ let o=dbGet(REENTRY_KEY,defaultReEntry()); if(!o||o.date!==todayStr()){ const fresh=defaultReEntry(); dbSet(REENTRY_KEY,fresh).catch(()=>{}); return fresh; } o.passes=Array.isArray(o.passes)?o.passes:[]; return o; }
@@ -1921,6 +1927,7 @@
     if(oh) oh.textContent=openingHours||'Stängt';
     const shownQueue=(openingHours==='Stängt')?'Stängt':(queueTime||'Ingen info');
     if(qt) qt.textContent=shownQueue;
+    const sym=document.getElementById('queueAutoSymbol'); if(sym){ const d=loadQueueData(); const isAuto=d.value===null||(d.until!==null&&Date.now()>=d.until); sym.textContent=isAuto?'↺':''; }
 
     const wQueueCard=document.getElementById('queueTimeDisplay')?.closest('.welcome-status-card');
     const wHoursEl=document.getElementById('welcomeOpenHoursText');
@@ -2788,7 +2795,7 @@
       case 'kassa':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}if(!currentHasAccess&&!isAdmin){alert('Du har inte access till kassan.');return selectMenu('profile');}const tbK=document.querySelector('.topbar');if(tbK)tbK.style.display='';document.getElementById('kassaContainer').style.display='block';renderProductButtons();syncDisplayOwnership();const closed=(openingHours==='Stängt'&&!isAdmin);document.getElementById('closedMessage').style.display=closed?'block':'none';document.querySelector('.products').style.display=closed?'none':'flex';document.querySelector('.cart-table').style.display=closed?'none':'table';document.getElementById('checkout').style.display=closed?'none':'block';document.getElementById('discountBtn').style.display=closed?'none':'block';document.getElementById('total').style.display=closed?'none':'block';break;}
       case 'profile':{ if(!loggedInUser){document.getElementById('welcomeMessage').style.display='flex';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');const tb=document.querySelector('.topbar');if(tb)tb.style.display='none';const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';return;}const tb2=document.querySelector('.topbar');if(tb2)tb2.style.display='';document.getElementById('profileContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadProfile();markMsgSeen();break;}
       case 'admin':{ if(!isAdmin){alert('Endast admin.');return selectMenu('profile');}const tbA=document.querySelector('.topbar');if(tbA)tbA.style.display='';document.getElementById('adminSettings').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');initUserSelect();break;}
-      case 'stats':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}const tbS=document.querySelector('.topbar');if(tbS)tbS.style.display='';document.getElementById('statsContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadDailyStats();openingHours=loadOpeningHours();queueTime=loadQueue();loadDailyCosts();loadDailyForecast();renderCockpit();renderStats();break;}
+      case 'stats':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}const tbS=document.querySelector('.topbar');if(tbS)tbS.style.display='';document.getElementById('statsContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadDailyStats();openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();loadDailyCosts();loadDailyForecast();renderCockpit();renderStats();break;}
       case 'logout': logout(); return;
       default:{ document.getElementById('welcomeMessage').style.display='flex';document.body.classList.add('welcome-bg-on');const tb=document.querySelector('.topbar');if(tb)tb.style.display='none';const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';}
     }
@@ -2926,7 +2933,7 @@
     const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:GUEST_HIDDEN_KEY,fallback:false},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()}];
 
     persistCacheHydrate(BOOT_KEYS);
-    openingHours=loadOpeningHours();queueTime=loadQueue();guestHidden=loadGuestHidden();
+    openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();guestHidden=loadGuestHidden();
     if(openingHours==='Stängt') queueTime='Stängt';
     loadDailyStats();loadDailyCosts();loadDailyForecast();
     userData=dbGet(STORAGE_KEY,{})||{};
@@ -2971,9 +2978,6 @@
       setTimeout(tickClock,1000);
     })();
 
-    function updateQueueWarnDot(){ const dot=document.getElementById('queueWarnDot'); if(!dot) return; const threshold=(() => { const q=String(queueTime||''); const nums=q.match(/\d+/g); if(!nums||!nums.length) return null; return Math.max(...nums.map(Number)); })(); if(threshold===null){ dot.style.display='none'; return; } const tickets=loadOpenTickets(); const unused=(tickets.items||[]).filter(it=>!it.used&&(Number(it.adult||0)+Number(it.child||0))>0); const anyOver=unused.some(it=>{ const ms=Date.now()-Date.parse(it.createdAt||''); return !isNaN(ms)&&ms>threshold*60*1000; }); dot.style.display=anyOver?'inline':'none'; }
-    updateQueueWarnDot();
-    setInterval(updateQueueWarnDot, 15000);
 
     const _offlineBanner = document.getElementById('offlineBanner');
     function _setOffline(on){ if(_offlineBanner) _offlineBanner.classList.toggle('visible', on); }
@@ -2991,7 +2995,7 @@
         await dbRefreshMany(BOOT_KEYS);
         await loadUserDataFromServer();await loadUsersFromServer();
         { const vn=new Set(Object.values(users).map(u=>u.name)); let c=false; Object.keys(userData).forEach(n=>{ if(!vn.has(n)){ delete userData[n]; c=true; } }); if(c) saveUserData(); const plan=loadShiftPlan(); let cp=false; Object.keys(plan).forEach(date=>{ Object.keys(plan[date]).forEach(n=>{ if(!vn.has(n)){ delete plan[date][n]; cp=true; } }); }); if(cp) saveShiftPlan(plan); }
-        openingHours=loadOpeningHours();queueTime=loadQueue();guestHidden=loadGuestHidden();
+        openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();guestHidden=loadGuestHidden();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
         loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();renderWelcomePrices();renderUpcomingDates();
@@ -3008,7 +3012,7 @@
       try{
         await dbRefreshMany(REFRESH_KEYS);await loadUsersFromServer();
         userData=dbGet(STORAGE_KEY,{})||{};
-        openingHours=loadOpeningHours();queueTime=loadQueue();guestHidden=loadGuestHidden();
+        openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();guestHidden=loadGuestHidden();
         if(openingHours==='Stängt') queueTime='Stängt';
         updateTopbar();
         loadDailyStats();loadDailyCosts();loadDailyForecast();

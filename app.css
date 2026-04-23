@@ -768,7 +768,6 @@
     .fv-timer { font-family: monospace; font-size: 12px; color: rgba(255,255,255,0.4); margin-left: 6px; letter-spacing: 0.5px; transition: color 0.4s; }
     .fv-timer-over { color: #e53935; animation: fv-timer-pulse 2s ease-in-out infinite; }
     @keyframes fv-timer-pulse { 0%,100%{opacity:1;} 50%{opacity:0.55;} }
-    .queue-warn-dot { display: inline-block; margin-left: 6px; background: #e53935; color: #fff; font-size: 10px; font-weight: 700; font-family: monospace; border-radius: 50%; width: 16px; height: 16px; line-height: 16px; text-align: center; vertical-align: middle; animation: fv-timer-pulse 1.5s ease-in-out infinite; cursor: pointer; }
     .field-content { flex: 1; overflow: auto; padding: 20px 16px 32px; position: relative; z-index: 1; }
     .ticket-list { max-width: 820px; margin: 0 auto; }
     .ticket-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; margin: 12px 0; background: #141414; border: 1px solid #2a2a2a; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.35); transition: transform .18s ease, box-shadow .28s ease, border-color .28s ease, opacity .28s ease; }
