@@ -1031,7 +1031,16 @@
   function formatNextOpen(dateStr){ if(!dateStr) return null; const today=new Date(); today.setHours(0,0,0,0); const d=new Date(dateStr+'T00:00:00'); const diff=Math.round((d-today)/(1000*60*60*24)); const days=['söndag','måndag','tisdag','onsdag','torsdag','fredag','lördag']; const months=['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec']; if(diff===1) return 'imorgon'; if(diff===2) return 'i övermorgon'; if(diff<=6) return 'på '+days[d.getDay()]; return d.getDate()+' '+months[d.getMonth()]; }
   function loadOpeningHours(){ return String(dbGet(OPENING_KEY,'Stängt')||'Stängt'); }
   function saveTodaysDisplayHours(h){ if(!h||h==='Stängt') return; return dbSet(TODAYS_HOURS_KEY,{date:todayStr(),hours:h}); }
-  function loadTodaysDisplayHours(){ const d=dbGet(TODAYS_HOURS_KEY,null); if(!d||typeof d!=='object') return ''; return d.date===todayStr()?d.hours||'':''; }
+  function loadTodaysDisplayHours(){
+    const today=todayStr();
+    const d=dbGet(TODAYS_HOURS_KEY,null);
+    if(d&&typeof d==='object'&&d.date===today&&d.hours) return d.hours;
+    const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today);
+    if(entry&&typeof entry!=='string'&&entry.hours) return entry.hours;
+    const hist=loadSalesHistory(); const day=hist[today];
+    if(day&&day.hours&&day.hours!=='Stängt') return day.hours;
+    return '';
+  }
   function loadQueueData(){ const r=dbGet(QUEUE_KEY,null); if(r&&typeof r==='object') return r; if(typeof r==='string'&&r) return {value:r,until:null}; return {value:null,until:null}; }
   function saveQueueData(obj){ return dbSet(QUEUE_KEY,obj); }
   function computeAutoQueueTime(){ const t=loadOpenTickets(); const unused=(t.items||[]).filter(it=>!it.used&&(Number(it.adult||0)+Number(it.child||0))>0); const total=unused.reduce((s,it)=>s+Number(it.adult||0)+Number(it.child||0),0); const runs=total>0?Math.ceil(total/2):0; const wait=Math.max(0,runs-1); const mins=wait*5; const lo=Math.max(0,mins-5); const hi=Math.max(5,mins); return `${lo}–${hi} min`; }
@@ -1061,7 +1070,31 @@
   function renderOpenDatesCalendar(){ const cal=document.getElementById('openDatesCalendar'); if(!cal) return; const today=todayStr(); const all=loadOpenDates(); const pruned=all.filter(e=>(typeof e==='string'?e:e.date)>=today); if(pruned.length!==all.length) saveOpenDates(pruned).catch(()=>{}); const dates=pruned.slice().sort((a,b)=>(typeof a==='string'?a:a.date).localeCompare(typeof b==='string'?b:b.date)); cal.innerHTML=''; if(!dates.length){ cal.innerHTML='<span style="font-size:12px;color:rgba(232,224,208,0.3);font-style:italic;">Inga datum inlagda</span>'; return; } dates.forEach(e=>{ const d=typeof e==='string'?e:e.date; const tag=document.createElement('span'); tag.style.cssText='display:inline-flex;align-items:center;gap:5px;background:rgba(40,100,40,0.25);border:1px solid rgba(100,200,100,0.25);border-radius:3px;padding:3px 8px;font-size:13px;color:rgba(180,230,160,0.9);'; const full=d.slice(5).replace('-','/'); const timePart=e.hours?` <span style="opacity:0.6;font-size:11px;">${e.hours}</span>`:''; tag.innerHTML=`${full}${timePart}<button onclick="removeOpenDate('${d}')" style="background:none;border:none;color:rgba(255,100,100,0.5);cursor:pointer;padding:0 0 0 4px;font-size:14px;line-height:1;" title="Ta bort">×</button>`; cal.appendChild(tag); }); updateTopbar(); }
   async function addOpenDate(){ const inp=document.getElementById('addOpenDateInput'); const hoursInp=document.getElementById('addOpenHoursInput'); const v=inp?.value; if(!v){alert('Välj ett datum');return;} if(v<todayStr()){alert('Datumet har redan passerat');return;} const hours=(hoursInp?.value||'').trim(); const entry=hours?{date:v,hours}:v; const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==v); dates.push(entry); dates.sort((a,b)=>(typeof a==='string'?a:a.date).localeCompare(typeof b==='string'?b:b.date)); await saveOpenDates(dates); if(inp) inp.value=''; if(hoursInp) hoursInp.value=''; const saved=document.getElementById('openDatesSaved'); if(saved){saved.style.display='block';setTimeout(()=>saved.style.display='none',1500);} renderOpenDatesCalendar(); }
   async function removeOpenDate(d){ const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==d); await saveOpenDates(dates); renderOpenDatesCalendar(); }
-  function checkScheduledOpen(){ if(openingHours!=='Stängt') return; const today=todayStr(); const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today); if(!entry||typeof entry==='string'||!entry.hours){ if(queueTime&&String(queueTime).toLowerCase().startsWith('öppnar')){ queueTime='Stängt'; saveQueueData({value:null,until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); } return; } const mm=entry.hours.match(/(\d{1,2}):(\d{2})\s*[–-]/); if(mm){ const now=new Date(),nowMins=now.getHours()*60+now.getMinutes(),startMins=parseInt(mm[1],10)*60+parseInt(mm[2],10); if(nowMins<startMins){ const hr=parseInt(mm[1],10),mn=parseInt(mm[2],10); const msg=`Öppnar kl. ${mn===0?hr:`${hr}:${String(mn).padStart(2,'0')}`}`; if(queueTime!==msg){ queueTime=msg; saveQueueData({value:msg,until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); } return; } } openingHours=entry.hours; _todayHours=entry.hours; saveOpeningHours(entry.hours).catch(()=>{}); saveTodaysDisplayHours(entry.hours).catch(()=>{}); saveQueueData({value:null,until:null}).catch(()=>{}); queueTime=getEffectiveQueueTime(); updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); }
+  function checkScheduledOpen(){
+    if(openingHours!=='Stängt') return;
+    const today=todayStr();
+    const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today);
+    if(!entry||typeof entry==='string'||!entry.hours){
+      if(queueTime&&String(queueTime).toLowerCase().startsWith('öppnar')){ queueTime='Stängt'; saveQueueData({value:null,until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); }
+      return;
+    }
+    const now=new Date(), nowMins=now.getHours()*60+now.getMinutes();
+    const fullM=entry.hours.match(/(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})/);
+    if(fullM){
+      const sm=parseInt(fullM[1],10)*60+parseInt(fullM[2],10), em=parseInt(fullM[3],10)*60+parseInt(fullM[4],10), cross=em<=sm;
+      const minsLeft=cross?(nowMins>=sm?em+1440-nowMins:em-nowMins):em-nowMins;
+      if(minsLeft<=0) return;
+      if(nowMins<sm){
+        const msg=`Öppnar kl. ${parseInt(fullM[1],10)}${parseInt(fullM[2],10)===0?'':':'+fullM[2]}`;
+        if(queueTime!==msg){ queueTime=msg; saveQueueData({value:msg,until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); }
+        return;
+      }
+    }
+    openingHours=entry.hours; _todayHours=entry.hours;
+    saveOpeningHours(entry.hours).catch(()=>{}); saveTodaysDisplayHours(entry.hours).catch(()=>{});
+    saveQueueData({value:null,until:null}).catch(()=>{}); queueTime=getEffectiveQueueTime();
+    updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen();
+  }
   function checkScheduledClose(){
     const now=new Date(); const nowMins=now.getHours()*60+now.getMinutes();
     if(openingHours==='Stängt'){
@@ -1968,7 +2001,7 @@
 
   function updateTopbar(){
     const oh=document.getElementById('openHoursText');const qt=document.getElementById('queueTimeText');
-    if(oh) oh.textContent=openingHours||'Stängt';
+    if(oh) oh.textContent=(openingHours&&openingHours!=='Stängt')?openingHours:(loadTodaysDisplayHours()||'Stängt');
     const shownQueue=(openingHours==='Stängt')?'Stängt':(queueTime||'Ingen info');
     if(qt) qt.textContent=shownQueue;
     const sym=document.getElementById('queueAutoSymbol'); if(sym){ const d=loadQueueData(); const isAuto=d.value===null||(d.until!==null&&Date.now()>=d.until); sym.textContent=isAuto?'↺':''; }
