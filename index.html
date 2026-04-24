@@ -506,15 +506,11 @@
               <input id="lonBassumma" type="number" min="0" step="50" class="input" style="width:100%;" placeholder="200">
             </div>
             <div style="flex:1; min-width:150px;">
-              <label class="admin-label" for="lonSkattesats">Skattesats (%)</label>
-              <input id="lonSkattesats" type="number" min="0" max="100" step="1" class="input" style="width:100%;" placeholder="50">
-            </div>
-            <div style="flex:1; min-width:150px;">
               <label class="admin-label" for="lonVerksamhet">Verksamhetsandel (%)</label>
               <input id="lonVerksamhet" type="number" min="0" max="100" step="1" class="input" style="width:100%;" placeholder="20">
             </div>
           </div>
-          <div class="tiny muted" style="margin-top:6px;">Flöde: intäkter − utgifter → skatt dras → verksamhetsandelen avsätts → resten delas ut som lön.</div>
+          <div class="tiny muted" style="margin-top:6px;">Verksamhetsandelen reserveras för kostnader och nästa event. Resten delas ut som lön.</div>
 
           <hr style="border:none;border-top:1px solid rgba(232,224,208,0.1);margin:14px 0;">
           <div style="font-size:12px;color:rgba(232,224,208,0.7);margin-bottom:4px;font-family:'IM Fell English SC',serif;letter-spacing:0.5px;">Rollvikter</div>
@@ -922,12 +918,12 @@
   async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
   const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1'; const DISPLAY_TICKER_KEY='displayTickerTextV1'; const DISPLAY_IMAGES_KEY='displayImagesV1';
-  const SHIFT_PLAN_KEY='shiftPlanV1'; const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1'; const WAGE_SETTINGS_KEY='wageSettingsV1'; const TASK_DESCRIPTIONS_KEY='taskDescriptionsV1'; const GUEST_HIDDEN_KEY='guestHiddenV1'; const TODAYS_HOURS_KEY='todaysDisplayHoursV1';
+  const SHIFT_PLAN_KEY='shiftPlanV1'; const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1'; const WAGE_SETTINGS_KEY='wageSettingsV1'; const TASK_DESCRIPTIONS_KEY='taskDescriptionsV1'; const GUEST_HIDDEN_KEY='guestHiddenV1';
 
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
   function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode === 'intake' ? 'intake' : 'guests'); }
 
-  const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY,TASK_DESCRIPTIONS_KEY,GUEST_HIDDEN_KEY,TODAYS_HOURS_KEY]);
+  const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY,TASK_DESCRIPTIONS_KEY,GUEST_HIDDEN_KEY]);
 
   const _db = { cache: new Map(), loaded: new Set(), inflight: new Map(), pendingWrites: new Map() };
 
@@ -971,7 +967,7 @@
   const THEME_CLASSES=['theme-default','theme-forest','theme-royal'];
 
   /* ====== ÅNGRA-TOAST ====== */
-  let _undoState=null, _undoTimer=null, _autoClosedAt=null, _todayHours='';
+  let _undoState=null, _undoTimer=null;
   function showUndoToast(label, restoreFn, durationMs=6000){
     if(_undoTimer){ clearTimeout(_undoTimer); _undoTimer=null; }
     _undoState={restoreFn};
@@ -1030,17 +1026,6 @@
   function getNextOpenDate(){ const today=todayStr(); const dates=loadOpenDates().map(e=>typeof e==='string'?e:e.date).filter(d=>d>today).sort(); return dates[0]||null; }
   function formatNextOpen(dateStr){ if(!dateStr) return null; const today=new Date(); today.setHours(0,0,0,0); const d=new Date(dateStr+'T00:00:00'); const diff=Math.round((d-today)/(1000*60*60*24)); const days=['söndag','måndag','tisdag','onsdag','torsdag','fredag','lördag']; const months=['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec']; if(diff===1) return 'imorgon'; if(diff===2) return 'i övermorgon'; if(diff<=6) return 'på '+days[d.getDay()]; return d.getDate()+' '+months[d.getMonth()]; }
   function loadOpeningHours(){ return String(dbGet(OPENING_KEY,'Stängt')||'Stängt'); }
-  function saveTodaysDisplayHours(h){ if(!h||h==='Stängt') return; return dbSet(TODAYS_HOURS_KEY,{date:todayStr(),hours:h}); }
-  function loadTodaysDisplayHours(){
-    const today=todayStr();
-    const d=dbGet(TODAYS_HOURS_KEY,null);
-    if(d&&typeof d==='object'&&d.date===today&&d.hours) return d.hours;
-    const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today);
-    if(entry&&typeof entry!=='string'&&entry.hours) return entry.hours;
-    const hist=loadSalesHistory(); const day=hist[today];
-    if(day&&day.hours&&day.hours!=='Stängt') return day.hours;
-    return '';
-  }
   function loadQueueData(){ const r=dbGet(QUEUE_KEY,null); if(r&&typeof r==='object') return r; if(typeof r==='string'&&r) return {value:r,until:null}; return {value:null,until:null}; }
   function saveQueueData(obj){ return dbSet(QUEUE_KEY,obj); }
   function computeAutoQueueTime(){ const t=loadOpenTickets(); const unused=(t.items||[]).filter(it=>!it.used&&(Number(it.adult||0)+Number(it.child||0))>0); const total=unused.reduce((s,it)=>s+Number(it.adult||0)+Number(it.child||0),0); const runs=total>0?Math.ceil(total/2):0; const wait=Math.max(0,runs-1); const mins=wait*5; const lo=Math.max(0,mins-5); const hi=Math.max(5,mins); return `${lo}–${hi} min`; }
@@ -1063,55 +1048,17 @@
     updateTopbar();
   }
 
-  async function setupLiveStatus(){ openingHours=loadOpeningHours(); if(openingHours&&openingHours!=='Stängt') _todayHours=openingHours; queueTime=getEffectiveQueueTime(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); checkScheduledClose(); const oh=loadOpeningHours(); const newOpening=oh||'Stängt'; const effQueue=getEffectiveQueueTime(); const newQueue=(newOpening==='Stängt')?(effQueue==='Stängt för kvällen'&&_autoClosedAt!==null?'Stängt för kvällen':String(effQueue||'').toLowerCase().startsWith('öppnar')?effQueue:'Stängt'):effQueue; if(newOpening&&newOpening!=='Stängt') _todayHours=newOpening; if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
+  async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); const oh=loadOpeningHours(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':getEffectiveQueueTime(); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
 
   function maybeEditHours(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!isAdmin) return; const el=document.getElementById('hoursMenu'); if(el) el.style.display='block'; renderOpenDatesCalendar(); }
 
   function renderOpenDatesCalendar(){ const cal=document.getElementById('openDatesCalendar'); if(!cal) return; const today=todayStr(); const all=loadOpenDates(); const pruned=all.filter(e=>(typeof e==='string'?e:e.date)>=today); if(pruned.length!==all.length) saveOpenDates(pruned).catch(()=>{}); const dates=pruned.slice().sort((a,b)=>(typeof a==='string'?a:a.date).localeCompare(typeof b==='string'?b:b.date)); cal.innerHTML=''; if(!dates.length){ cal.innerHTML='<span style="font-size:12px;color:rgba(232,224,208,0.3);font-style:italic;">Inga datum inlagda</span>'; return; } dates.forEach(e=>{ const d=typeof e==='string'?e:e.date; const tag=document.createElement('span'); tag.style.cssText='display:inline-flex;align-items:center;gap:5px;background:rgba(40,100,40,0.25);border:1px solid rgba(100,200,100,0.25);border-radius:3px;padding:3px 8px;font-size:13px;color:rgba(180,230,160,0.9);'; const full=d.slice(5).replace('-','/'); const timePart=e.hours?` <span style="opacity:0.6;font-size:11px;">${e.hours}</span>`:''; tag.innerHTML=`${full}${timePart}<button onclick="removeOpenDate('${d}')" style="background:none;border:none;color:rgba(255,100,100,0.5);cursor:pointer;padding:0 0 0 4px;font-size:14px;line-height:1;" title="Ta bort">×</button>`; cal.appendChild(tag); }); updateTopbar(); }
   async function addOpenDate(){ const inp=document.getElementById('addOpenDateInput'); const hoursInp=document.getElementById('addOpenHoursInput'); const v=inp?.value; if(!v){alert('Välj ett datum');return;} if(v<todayStr()){alert('Datumet har redan passerat');return;} const hours=(hoursInp?.value||'').trim(); const entry=hours?{date:v,hours}:v; const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==v); dates.push(entry); dates.sort((a,b)=>(typeof a==='string'?a:a.date).localeCompare(typeof b==='string'?b:b.date)); await saveOpenDates(dates); if(inp) inp.value=''; if(hoursInp) hoursInp.value=''; const saved=document.getElementById('openDatesSaved'); if(saved){saved.style.display='block';setTimeout(()=>saved.style.display='none',1500);} renderOpenDatesCalendar(); }
   async function removeOpenDate(d){ const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==d); await saveOpenDates(dates); renderOpenDatesCalendar(); }
-  function checkScheduledOpen(){
-    if(openingHours!=='Stängt') return;
-    const today=todayStr();
-    const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today);
-    if(!entry||typeof entry==='string'||!entry.hours){
-      if(queueTime&&String(queueTime).toLowerCase().startsWith('öppnar')){ queueTime='Stängt'; saveQueueData({value:null,until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); }
-      return;
-    }
-    const now=new Date(), nowMins=now.getHours()*60+now.getMinutes();
-    const fullM=entry.hours.match(/(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})/);
-    if(fullM){
-      const sm=parseInt(fullM[1],10)*60+parseInt(fullM[2],10), em=parseInt(fullM[3],10)*60+parseInt(fullM[4],10), cross=em<=sm;
-      const minsLeft=cross?(nowMins>=sm?em+1440-nowMins:em-nowMins):em-nowMins;
-      if(minsLeft<=0) return;
-      if(nowMins<sm){
-        const msg=`Öppnar kl. ${parseInt(fullM[1],10)}${parseInt(fullM[2],10)===0?'':':'+fullM[2]}`;
-        if(queueTime!==msg){ queueTime=msg; saveQueueData({value:msg,until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); }
-        return;
-      }
-    }
-    openingHours=entry.hours; _todayHours=entry.hours;
-    saveOpeningHours(entry.hours).catch(()=>{}); saveTodaysDisplayHours(entry.hours).catch(()=>{});
-    saveQueueData({value:null,until:null}).catch(()=>{}); queueTime=getEffectiveQueueTime();
-    updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen();
-  }
-  function checkScheduledClose(){
-    const now=new Date(); const nowMins=now.getHours()*60+now.getMinutes();
-    if(openingHours==='Stängt'){
-      if(_autoClosedAt===null) return;
-      if(Date.now()-_autoClosedAt>=60*60*1000){ if(queueTime==='Stängt för kvällen'){ queueTime='Stängt'; saveQueueData({value:'Stängt',until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); } _autoClosedAt=null; }
-      return;
-    }
-    const m=openingHours.match(/(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})/); if(!m) return;
-    const startMins=parseInt(m[1],10)*60+parseInt(m[2],10); const endMins=parseInt(m[3],10)*60+parseInt(m[4],10);
-    const crossMidnight=endMins<=startMins; const minsLeft=crossMidnight?(nowMins>=startMins?endMins+1440-nowMins:endMins-nowMins):endMins-nowMins;
-    if(minsLeft>1) return;
-    if(minsLeft>0){ if(queueTime!=='Stängt för kvällen'){ queueTime='Stängt för kvällen'; saveQueueData({value:'Stängt för kvällen',until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); } return; }
-    _autoClosedAt=Date.now(); _todayHours=openingHours; saveOpeningHours('Stängt').catch(()=>{}); openingHours='Stängt'; queueTime='Stängt för kvällen'; saveQueueData({value:'Stängt för kvällen',until:null}).catch(()=>{}); updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen();
-  }
+  function checkScheduledOpen(){ if(openingHours!=='Stängt') return; const today=todayStr(); const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today); if(!entry||typeof entry==='string'||!entry.hours) return; openingHours=entry.hours; saveOpeningHours(entry.hours).catch(()=>{}); updateTopbar(); refreshCockpitIfOpen(); }
 
-  async function presetSelected(v){ const inp=document.getElementById('customHours'); if(v==='custom'){if(inp){inp.style.display='inline-block';inp.focus();}return;} openingHours=v; try{ await saveOpeningHours(openingHours); saveTodaysDisplayHours(openingHours).catch(()=>{}); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
-  async function applyCustomHours(){ const inp=document.getElementById('customHours'); const raw=(inp?inp.value.trim():'')||''; const norm=normalizeRangeStr(raw); if(!norm){alert('Skriv t.ex. 16-02 eller 10:00–18:00');return;} openingHours=norm; try{ await saveOpeningHours(openingHours); saveTodaysDisplayHours(openingHours).catch(()=>{}); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
+  async function presetSelected(v){ const inp=document.getElementById('customHours'); if(v==='custom'){if(inp){inp.style.display='inline-block';inp.focus();}return;} openingHours=v; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
+  async function applyCustomHours(){ const inp=document.getElementById('customHours'); const raw=(inp?inp.value.trim():'')||''; const norm=normalizeRangeStr(raw); if(!norm){alert('Skriv t.ex. 16-02 eller 10:00–18:00');return;} openingHours=norm; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
   function maybeEditQueueTime(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!loggedInUser) return; if(openingHours==='Stängt'&&!isAdmin) return; const el=document.getElementById('queueMenu'); if(el) el.style.display='block'; updateQueueStatusRow(); }
   function applyQueuePreset(v){ if(!v) return; if(v==='__auto__'){ saveQueueData({value:null,until:null}); }else{ const isStangt=v.toLowerCase().includes('stängt'); saveQueueData({value:v,until:isStangt?null:Date.now()+5*60*1000}); } queueTime=getEffectiveQueueTime(); updateTopbar(); updateQueueStatusRow(); const el=document.getElementById('queueMenu'); if(el) el.style.display='none'; }
   function refreshCockpitIfOpen(){ const sc=document.getElementById('statsContainer'); if(!sc) return; const isVisible=getComputedStyle(sc).display!=='none'; if(!isVisible) return; openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); loadDailyCosts(); loadDailyForecast(); renderCockpit(); if(isAdmin&&_statsDirty){renderStats();_statsDirty=false;} }
@@ -1120,7 +1067,8 @@
   function saveDailyStats(){ dbSet(DAILY_KEY,{date:todayStr(),guestCount,totalIncome}).catch(()=>{}); }
   function guestBucketsByHourFromAdmissionsHistory(dateStr){ const out=Array.from({length:24},()=>0); const day=loadSalesHistory()[dateStr]||{}; const entries=Array.isArray(day.admissionsEntries)?day.admissionsEntries:[]; entries.forEach(e=>{ const h=new Date(e.ts).getHours(); out[h]+=Number(e.n||0); }); return out; }
   function loadDailyCosts(){ let o=dbGet(DAILY_COSTS_KEY,defaultDailyCosts()); if(o.date!==todayStr()) o=defaultDailyCosts(); o.costs=Number(o.costs||0); dbSet(DAILY_COSTS_KEY,o).catch(()=>{}); return o; }
-  function saveDailyCosts(costs){ const n=Math.max(0,Number(costs||0)); const rounded=Math.round(n); dbSet(DAILY_COSTS_KEY,{date:todayStr(),costs:rounded}).catch(()=>{}); const hist=loadSalesHistory(); const day=ensureHistDay(hist,todayStr()); day.costs=rounded; saveSalesHistory(hist); }
+  function saveDailyCosts(costs){ const n=Math.max(0,Number(costs||0)); dbSet(DAILY_COSTS_KEY,{date:todayStr(),costs:Math.round(n)}).catch(()=>{}); const hist=loadSalesHistory();const day=ensureHistDay(hist,todayStr());day.costs=Math.round(n);saveSalesHistory(hist); }
+  function getCostsForDate(dateStr){ if(dateStr===todayStr()) return getDailyCosts(); const hist=loadSalesHistory(); return Number(hist[dateStr]?.costs||0); }
   function getDailyCosts(){ return Number(loadDailyCosts().costs||0); }
   function setDailyCostsViaPrompt(){ if(!isAdmin) return; const current=getDailyCosts(); const raw=prompt('Dagens utgifter (kr)',String(current)); if(raw===null) return; const n=Number(String(raw).replace(',','.').trim()); if(!Number.isFinite(n)||n<0){alert('Skriv en giltig siffra.');return;} saveDailyCosts(Math.round(n)); const fc=computeForecastForToday(cockpitTotals(todayStr()).intake,admittedToday()); if(n>0&&fc.avgUsed>0){const be=Math.ceil(n/fc.avgUsed);const o=loadDailyForecast();o.target=be;saveDailyForecast(o);} refreshCockpitIfOpen(); }
   function loadDailyForecast(){ let o=dbGet(DAILY_FORECAST_KEY,defaultDailyForecast()); if(o.date!==todayStr()) o=defaultDailyForecast(); o.target=Math.max(0,Number(o.target||0)); o.fallbackAvg=Math.max(0,Number(o.fallbackAvg||0)); dbSet(DAILY_FORECAST_KEY,o).catch(()=>{}); return o; }
@@ -1146,7 +1094,7 @@
   function reactivateTicketFromHistory(key){ if(!isAdmin){alert('Endast admin kan återaktivera biljetter.');return;} const data=(window._reactivateTickets||{})[key]; if(!data){alert('Kunde inte hitta biljettdata.');return;} const o=loadOpenTickets(); if((o.items||[]).some(x=>x.createdAt===data.ticketUid&&!x.used)){alert('Biljetten finns redan i aktiva biljetter (ej använd).');return;} const staleIdx=(o.items||[]).findIndex(x=>x.createdAt===data.ticketUid); if(staleIdx>-1) o.items.splice(staleIdx,1); o.items.unshift({id:null,label:data.label||null,time:new Date().toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'}),createdAt:data.ticketUid||new Date().toISOString(),adult:Number(data.adult||0),child:Number(data.child||0),sum:Number(data.sum||0)}); saveOpenTickets(o); alert('Biljetten är nu återlagd i aktiva biljetter.'); }
 
   // ===== LÖNER =====
-  function defaultWageSettings(){ return {bassumma:200,verksamhetsandel:20,skattesats:50,task_vikter:{},task_kassaboost:{}}; }
+  function defaultWageSettings(){ return {bassumma:200,verksamhetsandel:20,task_vikter:{},task_kassaboost:{}}; }
   function loadWageSettings(){ const s=dbGet(WAGE_SETTINGS_KEY,null); const def=defaultWageSettings(); if(s&&typeof s==='object'){ return {...def,...s,task_vikter:{...def.task_vikter,...(s.task_vikter||{})},task_kassaboost:{...def.task_kassaboost,...(s.task_kassaboost||{})}}; } return def; }
   function saveWageSettings(s){ return dbSet(WAGE_SETTINGS_KEY,s||defaultWageSettings()).catch(()=>{}); }
   function parseWorkHoursStr(s){ if(!s) return 0; const m=s.match(/(\d{1,2}):(\d{2})\s*[–\-]\s*(\d{1,2}):(\d{2})/); if(!m) return 0; const start=parseInt(m[1])+parseInt(m[2])/60; const end=parseInt(m[3])+parseInt(m[4])/60; const diff=end-start; return diff>0?diff:0; }
@@ -1155,7 +1103,6 @@
   function getLonIntakterForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const sums={}; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); const entries=(hist[ds]||{}).entries||[]; entries.forEach(e=>{ const s=e.seller||''; if(s&&s!=='—') sums[s]=(sums[s]||0)+Number(e.sum||0); }); d.setDate(d.getDate()+1); } return sums; }
 
   function getLonTotalIncomeForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); total+=Number((hist[ds]||{}).income||0); d.setDate(d.getDate()+1); } return total; }
-  function getLonTotalCostsForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); total+=Number((hist[ds]||{}).costs||0); d.setDate(d.getDate()+1); } return total; }
   function getLonOpeningHrsForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const today=todayStr(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); let hoursStr; if(ds===today){ const live=loadOpeningHours()||''; hoursStr=(live&&live!=='Stängt')?live:((hist[ds]||{}).hours||''); } else { hoursStr=(hist[ds]||{}).hours||''; } total+=parseWorkHoursStr(hoursStr); d.setDate(d.getDate()+1); } return total; }
 
   function snapshotStaffHoursToday(){ const hist=loadSalesHistory(); const day=ensureHistDay(hist,todayStr()); if(!day.staffHours) day.staffHours={}; Object.keys(userData).forEach(name=>{ if(userData[name]&&typeof userData[name].hours==='string') day.staffHours[name]={hours:userData[name].hours||'',task:userData[name].task||''}; }); if(openingHours&&openingHours!=='Stängt') day.openingHrs=parseWorkHoursStr(openingHours); saveSalesHistory(hist); }
@@ -1264,7 +1211,7 @@
 
   function getLonDaysBetween(fromDate,toDate){ const d1=new Date(fromDate+'T12:00:00'); const d2=new Date(toDate+'T12:00:00'); return Math.max(1,Math.round((d2-d1)/86400000)+1); }
 
-  function saveLonSettings(){ const bassumma=Number(String(document.getElementById('lonBassumma')?.value||'0').replace(',','.')); const verk=Number(String(document.getElementById('lonVerksamhet')?.value||'0').replace(',','.')); const skatt=Number(String(document.getElementById('lonSkattesats')?.value||'50').replace(',','.')); if(!Number.isFinite(bassumma)||bassumma<0||!Number.isFinite(verk)||verk<0||verk>100||!Number.isFinite(skatt)||skatt<0||skatt>100){alert('Kontrollera värdena.');return;} const task_vikter={}; document.querySelectorAll('#lonTaskVikterList .lon-task-vikt').forEach(inp=>{ const task=inp.dataset.task; const val=Number(String(inp.value||'').replace(',','.')); if(task&&val>0) task_vikter[task]=val; }); const task_kassaboost={}; document.querySelectorAll('#lonTaskVikterList .lon-task-boost').forEach(chk=>{ if(chk.dataset.task&&chk.checked) task_kassaboost[chk.dataset.task]=true; }); saveWageSettings({bassumma:Math.round(bassumma),verksamhetsandel:Math.round(verk),skattesats:Math.round(skatt),task_vikter,task_kassaboost}); const c=document.getElementById('lonSettingsConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} renderLon(); renderLonIdag(); }
+  function saveLonSettings(){ const bassumma=Number(String(document.getElementById('lonBassumma')?.value||'0').replace(',','.')); const verk=Number(String(document.getElementById('lonVerksamhet')?.value||'0').replace(',','.')); if(!Number.isFinite(bassumma)||bassumma<0||!Number.isFinite(verk)||verk<0||verk>100){alert('Kontrollera värdena.');return;} const task_vikter={}; document.querySelectorAll('#lonTaskVikterList .lon-task-vikt').forEach(inp=>{ const task=inp.dataset.task; const val=Number(String(inp.value||'').replace(',','.')); if(task&&val>0) task_vikter[task]=val; }); const task_kassaboost={}; document.querySelectorAll('#lonTaskVikterList .lon-task-boost').forEach(chk=>{ if(chk.dataset.task&&chk.checked) task_kassaboost[chk.dataset.task]=true; }); saveWageSettings({bassumma:Math.round(bassumma),verksamhetsandel:Math.round(verk),task_vikter,task_kassaboost}); const c=document.getElementById('lonSettingsConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} renderLon(); renderLonIdag(); }
 
   function selectLonTab(tab){
     ['idag','historik','berakna','installningar'].forEach(t=>{ const p=document.getElementById('lonPanel_'+t); if(p) p.style.display=tab===t?'':'none'; });
@@ -1283,16 +1230,11 @@
     const settings=loadWageSettings();
     const bassumma=Math.max(0,Number(settings.bassumma||0));
     const verkAndel=Math.max(0,Math.min(100,Number(settings.verksamhetsandel||0)))/100;
-    const skattesats=Math.max(0,Math.min(100,Number(settings.skattesats??50)))/100;
     el.innerHTML=days.map(date=>{
       const day=hist[date]||{};
       const income=Number(day.income||0);
-      const costs=Number(day.costs||0);
-      const resultat=income-costs;
-      const skatt=Math.round(resultat*skattesats);
-      const efterSkatt=resultat-skatt;
-      const verkDel=Math.round(efterSkatt*verkAndel);
-      const lonPott=efterSkatt-verkDel;
+      const verkDel=Math.round(income*verkAndel);
+      const lonPott=income-verkDel;
       const hasSnap=!!(day.staffHours&&Object.keys(day.staffHours).length);
       let staffHtml='';
       if(hasSnap){
@@ -1324,9 +1266,7 @@
           <span style="display:flex;gap:16px;align-items:center;"><span style="font-size:12px;color:rgba(232,224,208,0.5);">${income} kr</span><span class="lon-chevron" style="font-size:10px;">▾</span></span>
         </button>
         <div style="display:none;padding:10px 14px;font-family:'IM Fell English',serif;">
-          ${costs>0?`<div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(232,224,208,0.5);margin-bottom:3px;"><span>Utgifter</span><span>−${costs} kr</span></div>`:''}
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(232,224,208,0.5);margin-bottom:3px;"><span>Skatt (${Math.round(skattesats*100)}%)</span><span>−${skatt} kr</span></div>
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(232,224,208,0.5);margin-bottom:6px;"><span>Lönepott (efter skatt + ${Math.round(verkAndel*100)}% verksamhet)</span><span>${lonPott} kr</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(232,224,208,0.5);margin-bottom:6px;"><span>Lönepott (efter ${Math.round(verkAndel*100)}% verksamhet)</span><span>${lonPott} kr</span></div>
           ${staffHtml}
           <div style="margin-top:8px;text-align:right;"><button class="btn" style="font-size:11px;padding:4px 10px;" onclick="document.getElementById('lonFromDate').value='${date}';document.getElementById('lonToDate').value='${date}';selectLonTab('berakna');renderLon();">Öppna i Beräkna →</button></div>
         </div>
@@ -1334,7 +1274,7 @@
     }).join('');
   }
 
-  function initLonPanel(){ const s=loadWageSettings(); const b=document.getElementById('lonBassumma'); const v=document.getElementById('lonVerksamhet'); const sk=document.getElementById('lonSkattesats'); if(b) b.value=s.bassumma; if(v) v.value=s.verksamhetsandel; if(sk) sk.value=s.skattesats??50; const list=document.getElementById('lonTaskVikterList'); if(list){ const tasks=loadTaskCatalog(); list.innerHTML=tasks.length?tasks.map(t=>{ const savedV=(s.task_vikter||{})[t]; const savedB=!!((s.task_kassaboost||{})[t]); return `<div style="display:flex;align-items:center;gap:10px;"><span style="flex:1;font-size:13px;">${escapeHtml(t)}</span><input type="number" class="input lon-task-vikt" data-task="${escapeHtml(t)}" min="0.1" max="10" step="0.1" style="width:70px;" placeholder="1.0"${savedV?` value="${savedV}"`:''}><label style="display:flex;align-items:center;gap:4px;font-size:12px;color:rgba(232,224,208,0.6);white-space:nowrap;cursor:pointer;"><input type="checkbox" class="lon-task-boost" data-task="${escapeHtml(t)}"${savedB?' checked':''}> kassaboost</label></div>`; }).join(''):'<div class="tiny muted">Inga uppgifter i katalogen ännu.</div>'; } const today=todayStr(); const fd=document.getElementById('lonFromDate'); const td=document.getElementById('lonToDate'); if(fd&&!fd.value) fd.value=today; if(td&&!td.value) td.value=today; selectLonTab('idag'); }
+  function initLonPanel(){ const s=loadWageSettings(); const b=document.getElementById('lonBassumma'); const v=document.getElementById('lonVerksamhet'); if(b) b.value=s.bassumma; if(v) v.value=s.verksamhetsandel; const list=document.getElementById('lonTaskVikterList'); if(list){ const tasks=loadTaskCatalog(); list.innerHTML=tasks.length?tasks.map(t=>{ const savedV=(s.task_vikter||{})[t]; const savedB=!!((s.task_kassaboost||{})[t]); return `<div style="display:flex;align-items:center;gap:10px;"><span style="flex:1;font-size:13px;">${escapeHtml(t)}</span><input type="number" class="input lon-task-vikt" data-task="${escapeHtml(t)}" min="0.1" max="10" step="0.1" style="width:70px;" placeholder="1.0"${savedV?` value="${savedV}"`:''}><label style="display:flex;align-items:center;gap:4px;font-size:12px;color:rgba(232,224,208,0.6);white-space:nowrap;cursor:pointer;"><input type="checkbox" class="lon-task-boost" data-task="${escapeHtml(t)}"${savedB?' checked':''}> kassaboost</label></div>`; }).join(''):'<div class="tiny muted">Inga uppgifter i katalogen ännu.</div>'; } const today=todayStr(); const fd=document.getElementById('lonFromDate'); const td=document.getElementById('lonToDate'); if(fd&&!fd.value) fd.value=today; if(td&&!td.value) td.value=today; selectLonTab('idag'); }
   function refreshLonIfOpen(){ const el=document.getElementById('lonContent'); if(!el||el.style.display!=='block') return; if(document.getElementById('lonPanel_idag')?.style.display!=='none') renderLonIdag(); else renderLon(); }
 
   function renderLon(opts){
@@ -1348,15 +1288,10 @@
     const settings=loadWageSettings();
     const bassumma=Math.max(0,Number(settings.bassumma||0));
     const verkAndel=Math.max(0,Math.min(100,Number(settings.verksamhetsandel||0)))/100;
-    const skattesats=Math.max(0,Math.min(100,Number(settings.skattesats??50)))/100;
     const dayCount=getLonDaysBetween(fromVal,toVal);
     const totalIncome=getLonTotalIncomeForPeriod(fromVal,toVal);
-    const totalCosts=getLonTotalCostsForPeriod(fromVal,toVal);
-    const resultat=totalIncome-totalCosts;
-    const skatt=Math.round(resultat*skattesats);
-    const efterSkatt=resultat-skatt;
-    const verkDel=Math.round(efterSkatt*verkAndel);
-    const lonPott=efterSkatt-verkDel;
+    const verkDel=Math.round(totalIncome*verkAndel);
+    const lonPott=totalIncome-verkDel;
     const totalOpeningHrs=getLonOpeningHrsForPeriod(fromVal,toVal);
     const {staff:staffData,hasMissingSnapshot}=getLonStaffDataForPeriod(fromVal,toVal);
     const transaktioner=getLonTransaktionerForPeriod(fromVal,toVal);
@@ -1391,9 +1326,6 @@
     let html=`<div style="margin-top:16px;padding:14px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(232,224,208,0.1);font-family:'IM Fell English',serif;font-size:13px;">`;
     html+=`<div style="font-size:11px;color:rgba(232,224,208,0.4);margin-bottom:10px;letter-spacing:0.5px;">${escapeHtml(periodLabel)}</div>`;
     html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span>Intäkter perioden</span><span>${totalIncome} kr</span></div>`;
-    if(totalCosts>0) html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Utgifter</span><span>−${totalCosts} kr</span></div>`;
-    if(totalCosts>0) html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;border-top:1px solid rgba(232,224,208,0.12);padding-top:6px;"><span>Resultat</span><span>${resultat} kr</span></div>`;
-    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Skatt (${Math.round(skattesats*100)}%)</span><span>−${skatt} kr</span></div>`;
     html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Verksamhetsandel (${Math.round(verkAndel*100)}%)</span><span>−${verkDel} kr</span></div>`;
     html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;border-top:1px solid rgba(232,224,208,0.12);padding-top:6px;"><span>Lönepott</span><strong>${lonPott} kr</strong></div>`;
     html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Total lönekostnad</span><span>−${totalLon} kr</span></div>`;
@@ -1807,7 +1739,7 @@
   function reEntryPurchasesForDate(dateStr){ const day=loadSalesHistory()[dateStr]||{}; const passes=Array.isArray(day.reEntryPasses)?day.reEntryPasses:[]; return passes.length; }
   function reEntryAdmittedForDate(dateStr){ if(dateStr===todayStr()) return reEntryAdmittedToday(); return reEntryUsesForDate(dateStr); }
 
-  function buildDayExportText(dateStr){ const s=summaryForDate(dateStr); let guestsPerHour=(dateStr===todayStr())?guestBucketsByHour():guestBucketsByHourFromAdmissionsHistory(dateStr); const hasAnyAdmission=guestsPerHour.some(v=>Number(v||0)>0); if(!hasAnyAdmission) guestsPerHour=guestsByHourFromSales(dateStr); const intakePerHour=intakeBucketsByHour(dateStr); const lines=[]; lines.push(`Spökhotellet Korpen`);lines.push(`${dateStr}`);lines.push(``);lines.push(`Gäster: ${s.totalInslapp}`);lines.push(`|| ${s.adult} Vuxna || ${s.child} Barn || ${s.reEntryInslapp} Re-entry ||`);lines.push(``);lines.push(`Köp: ${s.buys}`);lines.push(`Re-entry köp: ${s.reEntryBuys}`);lines.push(`Intäkt vuxna: ${s.intakeAdult} kr`);lines.push(`Intäkt barn: ${s.intakeChild} kr`);lines.push(`Intäkt re-entry: ${s.intakeReEntry} kr`);lines.push(`Intäkt övrigt: ${s.intakeOther} kr`);lines.push(`INTÄKT TOTAL: ${s.intakeTotal} kr`); const costsObj=(()=>{try{return JSON.parse(localStorage.getItem(DAILY_COSTS_KEY)||'{}')||{};}catch(_e){return {};}})(); const costsForDay=(costsObj.date===dateStr)?Number(costsObj.costs||0):0; const netForDay=Number(s.intakeTotal||0)-Number(costsForDay||0); lines.push(`Utgifter: ${costsForDay} kr`);lines.push(`Resultat: ${netForDay} kr`);lines.push(``);lines.push(`Gäster/timme (från insläpp${hasAnyAdmission?'':',fallback köp'})`);lines.push(formatBarsLineTrimZeros(guestsPerHour,''));lines.push(``);lines.push(`Intäkt/timme`);lines.push(formatBarsLineTrimZeros(intakePerHour,' kr')); return lines.join('\n'); }
+  function buildDayExportText(dateStr){ const s=summaryForDate(dateStr); let guestsPerHour=(dateStr===todayStr())?guestBucketsByHour():guestBucketsByHourFromAdmissionsHistory(dateStr); const hasAnyAdmission=guestsPerHour.some(v=>Number(v||0)>0); if(!hasAnyAdmission) guestsPerHour=guestsByHourFromSales(dateStr); const intakePerHour=intakeBucketsByHour(dateStr); const lines=[]; lines.push(`Spökhotellet Korpen`);lines.push(`${dateStr}`);lines.push(``);lines.push(`Gäster: ${s.totalInslapp}`);lines.push(`|| ${s.adult} Vuxna || ${s.child} Barn || ${s.reEntryInslapp} Re-entry ||`);lines.push(``);lines.push(`Köp: ${s.buys}`);lines.push(`Re-entry köp: ${s.reEntryBuys}`);lines.push(`Intäkt vuxna: ${s.intakeAdult} kr`);lines.push(`Intäkt barn: ${s.intakeChild} kr`);lines.push(`Intäkt re-entry: ${s.intakeReEntry} kr`);lines.push(`Intäkt övrigt: ${s.intakeOther} kr`);lines.push(`INTÄKT TOTAL: ${s.intakeTotal} kr`); const costsForDay=getCostsForDate(dateStr); const netForDay=Number(s.intakeTotal||0)-Number(costsForDay||0); lines.push(`Utgifter: ${costsForDay} kr`);lines.push(`Resultat: ${netForDay} kr`);lines.push(``);lines.push(`Gäster/timme (från insläpp${hasAnyAdmission?'':',fallback köp'})`);lines.push(formatBarsLineTrimZeros(guestsPerHour,''));lines.push(``);lines.push(`Intäkt/timme`);lines.push(formatBarsLineTrimZeros(intakePerHour,' kr')); return lines.join('\n'); }
   async function copyTextToClipboard(text){ try{await navigator.clipboard.writeText(text);alert('Export kopierad till urklipp!');return true;}catch(e){window.prompt('Kopiera exporttexten (Ctrl+C):',text);return false;} }
   function downloadTextFile(filename,text){ const blob=new Blob([text],{type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},0); }
   function exportDay(dateStr,mode='copy'){ const txt=buildDayExportText(dateStr); if(mode==='download') downloadTextFile(`korpen-${dateStr}.txt`,txt); else copyTextToClipboard(txt); }
@@ -1815,13 +1747,16 @@
   function showDaySummaryModal(dateStr){
     window._daySummaryDate = dateStr;
     const s = summaryForDate(dateStr);
-    const costsObj = (()=>{ try{ return JSON.parse(localStorage.getItem(DAILY_COSTS_KEY)||'{}')||{}; }catch(_e){ return {}; } })();
-    const costsForDay = (costsObj.date === dateStr) ? Number(costsObj.costs||0) : 0;
+    const costsForDay = getCostsForDate(dateStr);
     const net = Number(s.intakeTotal||0) - Number(costsForDay||0);
 
-    const guestsPerHour = (dateStr === todayStr()) ? guestBucketsByHour() : guestBucketsByHourFromAdmissionsHistory(dateStr);
+    let guestsPerHour = (dateStr === todayStr()) ? guestBucketsByHour() : guestBucketsByHourFromAdmissionsHistory(dateStr);
     const hasAnyAdmission = guestsPerHour.some(v=>Number(v||0)>0);
-    const intakePerHour = intakeBucketsByHour(dateStr);
+    let intakePerHour = intakeBucketsByHour(dateStr);
+    const dayHoursStr = dateStr === todayStr() ? openingHours : (loadSalesHistory()[dateStr]||{}).hours;
+    const dayRange = getOpenHourRange(dayHoursStr);
+    let hourOffset = 0;
+    if(dayRange){ guestsPerHour=guestsPerHour.slice(dayRange.start,dayRange.end); intakePerHour=intakePerHour.slice(dayRange.start,dayRange.end); hourOffset=dayRange.start; }
     const maxG = Math.max(...guestsPerHour, 1);
     const maxI = Math.max(...intakePerHour, 1);
 
@@ -1892,13 +1827,13 @@
     html += `<hr class="day-summary-divider">
     <div class="day-summary-section">
       <div class="day-summary-section-title">Gäster per timme (insläpp${!hasAnyAdmission?' — inga data':''})</div>
-      <div class="day-summary-chart-wrap">${hasAnyAdmission ? svgBars24(guestsPerHour,maxG,70,{id:'dsMGChart',unit:'gäster'}) : '<div class="muted" style="font-style:italic;padding:8px 0;">Inga insläppsdata för dagen.</div>'}</div>
+      <div class="day-summary-chart-wrap">${hasAnyAdmission ? svgBars24(guestsPerHour,maxG,70,{id:'dsMGChart',unit:'gäster',startHour:hourOffset}) : '<div class="muted" style="font-style:italic;padding:8px 0;">Inga insläppsdata för dagen.</div>'}</div>
       ${hasAnyAdmission ? '<div id="dsMGChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div>' : ''}
     </div>`;
     if(isAdmin){
       html += `<div class="day-summary-section" style="margin-top:14px;">
         <div class="day-summary-section-title">Intäkt per timme</div>
-        <div class="day-summary-chart-wrap" style="color:rgba(40,167,69,0.75);">${svgBars24(intakePerHour,maxI,70,{id:'dsMIChart',unit:'kr'})}</div>
+        <div class="day-summary-chart-wrap" style="color:rgba(40,167,69,0.75);">${svgBars24(intakePerHour,maxI,70,{id:'dsMIChart',unit:'kr',startHour:hourOffset})}</div>
         <div id="dsMIChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div>
       </div>`;
     }
@@ -1922,7 +1857,7 @@
   function cockpitTotals(dateStr){ const hist=loadSalesHistory(); const d=hist[dateStr]||{}; const adult=d.adult||0,child=d.child||0,total=adult+child,intake=d.income||0,receipts=d.count||0; let intakeAdult=0,intakeChild=0,intakeReEntry=0,intakeOther=0; const entries=Array.isArray(d.entries)?d.entries:[]; entries.forEach(e=>{const b=e&&e.breakdown;if(b){intakeAdult+=Number(b.adult||0);intakeChild+=Number(b.child||0);intakeReEntry+=Number(b.reEntry||0);intakeOther+=Number(b.other||0);}}); return {adult,child,total,intake,receipts,intakeAdult,intakeChild,intakeReEntry,intakeOther}; }
   function paymentTotalsForDate(dateStr){ const hist=loadSalesHistory(); const d=hist[dateStr]||{}; const entries=Array.isArray(d.entries)?d.entries:[]; const tots={}; entries.forEach(e=>{ const p=e.payType||'—'; tots[p]=(tots[p]||0)+Number(e.sum||0); }); return tots; }
   function parseHourFromTimeStr(t){ if(typeof t!=='string') return 0; const m=t.match(/(\d{1,2}):(\d{2})/); if(!m) return 0; let h=parseInt(m[1],10); if(/pm/i.test(t)&&h<12) h+=12; if(/am/i.test(t)&&h===12) h=0; return h%24; }
-  function getOpenHourRange(){ if(!openingHours||openingHours==='Stängt') return null; const m=openingHours.match(/(\d{1,2}):\d{2}\s*[–-]\s*(\d{1,2}):\d{2}/); if(!m) return null; let start=parseInt(m[1],10),end=parseInt(m[2],10); start=Math.max(0,Math.min(23,start)); end=Math.max(0,Math.min(24,end)); return {start,end}; }
+  function getOpenHourRange(hrs){ const s=hrs!==undefined?hrs:openingHours; if(!s||s==='Stängt') return null; const m=s.match(/(\d{1,2}):\d{2}\s*[–-]\s*(\d{1,2}):\d{2}/); if(!m) return null; let start=parseInt(m[1],10),end=parseInt(m[2],10); start=Math.max(0,Math.min(23,start)); end=Math.max(0,Math.min(24,end)); return {start,end}; }
   function intakeBucketsByHour(dateStr){ const out=Array.from({length:24},()=>0); const day=loadSalesHistory()[dateStr]||{}; const entries=Array.isArray(day.entries)?day.entries:[]; entries.forEach(e=>{const h=parseHourFromTimeStr(e.time);out[h]+=Number(e.sum||0);}); return out; }
   function guestBucketsByHour(){ const out=Array.from({length:24},()=>0); const a=loadAdmissions(); (a.entries||[]).forEach(e=>{const h=new Date(e.ts).getHours();out[h]+=Number(e.n||0);}); return out; }
 
@@ -2001,7 +1936,7 @@
 
   function updateTopbar(){
     const oh=document.getElementById('openHoursText');const qt=document.getElementById('queueTimeText');
-    if(oh) oh.textContent=(openingHours&&openingHours!=='Stängt')?openingHours:(loadTodaysDisplayHours()||'Stängt');
+    if(oh) oh.textContent=openingHours||'Stängt';
     const shownQueue=(openingHours==='Stängt')?'Stängt':(queueTime||'Ingen info');
     if(qt) qt.textContent=shownQueue;
     const sym=document.getElementById('queueAutoSymbol'); if(sym){ const d=loadQueueData(); const isAuto=d.value===null||(d.until!==null&&Date.now()>=d.until); sym.textContent=isAuto?'↺':''; }
@@ -2077,7 +2012,7 @@
   function saveDisplayTicker(){ const val=(document.getElementById('displayTickerInput')?.value||'').trim(); localStorage.setItem(DISPLAY_TICKER_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayTickerConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} apiSet(DISPLAY_TICKER_KEY,val).catch(()=>{}); }
   function saveDisplayImages(){ const val=(document.getElementById('displayImagesInput')?.value||'').trim(); localStorage.setItem(DISPLAY_IMAGES_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayImagesConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} apiSet(DISPLAY_IMAGES_KEY,val).catch(()=>{}); }
 
-  function computeDisplayTextAndState(){ const q=String(queueTime||'').trim();const qLower=q.toLowerCase();const isClosed=openingHours==='Stängt'||qLower.includes('stängt');let text='Ingen info';if(qLower==='stängt för kvällen') text='Stängt för kvällen';else if(qLower==='tillfälligt stängt') text='Tillfälligt stängt';else if(qLower.startsWith('öppnar')) text=q;else if(openingHours==='Stängt'||qLower==='stängt') text='Stängt';else if(q) text=q;return {text,isClosed}; }
+  function computeDisplayTextAndState(){ const q=String(queueTime||'').trim();const qLower=q.toLowerCase();const isClosed=openingHours==='Stängt'||qLower.includes('stängt');let text='Ingen info';if(qLower==='stängt för kvällen') text='Stängt för kvällen';else if(qLower==='tillfälligt stängt') text='Tillfälligt stängt';else if(openingHours==='Stängt'||qLower==='stängt') text='Stängt';else if(q) text=q;return {text,isClosed}; }
 
   function showDisplay(){
     const o=document.createElement('div'); o.className='display-view'; document.body.appendChild(o);
@@ -2109,7 +2044,7 @@
     let taps=0,tapTimer=null; o.addEventListener('pointerdown',(e)=>{if(e.pointerType!=='touch') return;taps+=1;clearTimeout(tapTimer);tapTimer=setTimeout(()=>{taps=0;},1500);if(taps>=3) close();},{passive:true});
   }
 
-  function refreshDisplayOverlay(){ const root=document.querySelector('.display-view');if(!root) return; const lbl=root.querySelector('#displayQueue');const hrs=root.querySelector('#displayHours');const {text,isClosed}=computeDisplayTextAndState();if(lbl) lbl.textContent=text;if(hrs){ const _dh=(openingHours&&openingHours!=='Stängt')?openingHours:loadTodaysDisplayHours(); hrs.textContent=_dh?`Öppet idag: ${_dh}`:'Stängt idag'; }root.classList.toggle('state-closed',isClosed);root.classList.toggle('state-open',!isClosed);if(root._rebuildSlides) root._rebuildSlides(); }
+  function refreshDisplayOverlay(){ const root=document.querySelector('.display-view');if(!root) return; const lbl=root.querySelector('#displayQueue');const hrs=root.querySelector('#displayHours');const {text,isClosed}=computeDisplayTextAndState();if(lbl) lbl.textContent=text;if(hrs) hrs.textContent=(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${openingHours}`:'Stängt idag';root.classList.toggle('state-closed',isClosed);root.classList.toggle('state-open',!isClosed);if(root._rebuildSlides) root._rebuildSlides(); }
 
   /* ============================== RECENSIONER ============================== */
   let _reviewRating = 0;
@@ -3005,7 +2940,7 @@
     if(lo) lo.style.display='none';if(li) li.style.display='inline-block';
     loadWelcomeBg();
 
-    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:TODAYS_HOURS_KEY,fallback:null},{key:GUEST_HIDDEN_KEY,fallback:false},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:REVIEWS_KEY,fallback:[]},{key:WAGE_SETTINGS_KEY,fallback:defaultWageSettings()},{key:SHIFT_PLAN_KEY,fallback:{}},{key:TASK_DESCRIPTIONS_KEY,fallback:{}}];
+    const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:GUEST_HIDDEN_KEY,fallback:false},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:REVIEWS_KEY,fallback:[]},{key:WAGE_SETTINGS_KEY,fallback:defaultWageSettings()},{key:SHIFT_PLAN_KEY,fallback:{}},{key:TASK_DESCRIPTIONS_KEY,fallback:{}}];
     // Bara nycklar som ändras löpande — hämtas vid periodisk refresh
     const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:GUEST_HIDDEN_KEY,fallback:false},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()}];
 
