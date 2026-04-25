@@ -1160,13 +1160,17 @@
     }
     const todayOpenEntry=allOpenDates.find(e=>e.date===today);
     const todayOpenHrs=todayOpenEntry?.hours||openingHours||'';
-    const todayPlanned=plan[today]?.[name]||{hours:userData[name]?.hours||'',task:userData[name]?.task||''};
+    const savedToday=userData[name]?.hoursDate===today;
+    const todayPlanned=plan[today]?.[name]||(savedToday?{hours:userData[name]?.hours||'',task:userData[name]?.task||''}:{hours:'',task:''});
     const todayHtml=dayRow(today,todayOpenHrs,todayPlanned.hours,todayPlanned.task,true);
-    if(!future.length){ el.innerHTML=todayHtml+'<div class="muted" style="margin-top:8px;">Inga kommande öppna dagar inlagda under Öppettider.</div>'; return; }
+    const past=Object.keys(plan).filter(d=>d<today&&(plan[d][name]?.hours||plan[d][name]?.task)).sort((a,b)=>b.localeCompare(a));
+    const pastHist=loadSalesHistory();
+    const pastHtml=past.length?`<div style="margin-top:16px;margin-bottom:8px;font-family:'IM Fell English SC',serif;font-size:11px;color:rgba(232,224,208,0.3);letter-spacing:1px;">TIDIGARE</div>`+past.map(d=>{const p=plan[d][name];const openHrs=pastHist[d]?.hours||'';return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(232,224,208,0.05);opacity:0.5;"><div><div style="font-family:'IM Fell English SC',serif;font-size:13px;">${escapeHtml(d)}${openHrs?` <span style="color:rgba(232,224,208,0.4);font-size:11px;">${escapeHtml(openHrs)}</span>`:''}</div></div><div style="font-size:13px;">${escapeHtml(p.hours||'—')}${p.task?` <span style="opacity:0.6;font-size:11px;">· ${escapeHtml(p.task)}</span>`:''}</div></div>`;}).join(''):'';
+    if(!future.length){ el.innerHTML=todayHtml+'<div class="muted" style="margin-top:8px;">Inga kommande öppna dagar inlagda under Öppettider.</div>'+pastHtml; return; }
     el.innerHTML=todayHtml+future.map(e=>{
       const dayPlan=plan[e.date]||{}; const planned=dayPlan[name]||{hours:'',task:''};
       return dayRow(e.date,e.hours,planned.hours,planned.task,false);
-    }).join('');
+    }).join('')+pastHtml;
   }
 
   function saveSchemaForEmployee(){
@@ -1181,7 +1185,7 @@
       plan[date][name]={hours,task};
       if(inp.dataset.isToday){
         ensureProfileDefaults(name);
-        userData[name].hours=hours; userData[name].task=task;
+        userData[name].hours=hours; userData[name].task=task; userData[name].hoursDate=todayStr();
         saveUserData(); snapshotStaffHoursToday();
         if(loggedInUser===name) loadProfile();
       }
@@ -2624,21 +2628,43 @@
     sel.onchange();
   }
 
+  function deleteSchemaDate(date){
+    const p=loadShiftPlan();
+    const saved=p[date]?JSON.parse(JSON.stringify(p[date])):null;
+    delete p[date];
+    saveShiftPlan(p);
+    renderSchemaAll();
+    showUndoToast(`Schema för ${date} borttaget`,()=>{
+      if(saved){const q=loadShiftPlan();q[date]=saved;saveShiftPlan(q);}
+      renderSchemaAll();
+    });
+  }
+
   function renderSchemaAll(){
     const el=document.getElementById('schemaEmployeeRows');if(!el) return;
     const saveRow=document.querySelector('#persPanel_schema .row');if(saveRow) saveRow.style.display='none';
     const today=todayStr();
     const plan=loadShiftPlan();
     const allOpenDates=loadOpenDates().map(e=>typeof e==='string'?{date:e,hours:''}:e);
-    const dates=[{date:today,hours:openingHours||''},...allOpenDates].filter((e,i,arr)=>arr.findIndex(x=>x.date===e.date)===i).sort((a,b)=>a.date.localeCompare(b.date));
-    function fmtDate(d){const[y,m,day]=d.split('-');const names=['sön','mån','tis','ons','tor','fre','lör'];const wd=new Date(d).getDay();return `${names[wd]} ${parseInt(day)}/${parseInt(m)}`;}
-    const dateOpts=dates.map(e=>`<option value="${escapeHtml(e.date)}"${e.date===today?' selected':''}>${e.date===today?'Idag':''}${e.date!==today?fmtDate(e.date):''}${e.hours?' — '+escapeHtml(e.hours):''}</option>`).join('');
+    const pastPlanDates=Object.keys(plan).filter(d=>d<today&&Object.values(plan[d]||{}).some(v=>v.hours||v.task));
+    const hoursMap=Object.fromEntries(allOpenDates.map(e=>[e.date,e.hours]));
+    const hist=loadSalesHistory();
+    pastPlanDates.forEach(d=>{if(!hoursMap[d]&&hist[d]?.hours)hoursMap[d]=hist[d].hours;});
+    function fmtDate(d){const[,m,day]=d.split('-');const names=['sön','mån','tis','ons','tor','fre','lör'];const wd=new Date(d).getDay();return `${names[wd]} ${parseInt(day)}/${parseInt(m)}`;}
+    const upcoming=[{date:today,hours:hoursMap[today]||openingHours||''},...allOpenDates.filter(e=>e.date>today)].filter((e,i,arr)=>arr.findIndex(x=>x.date===e.date)===i).sort((a,b)=>a.date.localeCompare(b.date));
+    const past=pastPlanDates.map(d=>({date:d,hours:hoursMap[d]||''})).sort((a,b)=>b.date.localeCompare(a.date));
+    const upcomingOpts=upcoming.map(e=>`<option value="${escapeHtml(e.date)}"${e.date===today?' selected':''}>${e.date===today?'Idag':fmtDate(e.date)}${e.hours?' — '+escapeHtml(e.hours):''}</option>`).join('');
+    const pastOpts=past.map(e=>`<option value="${escapeHtml(e.date)}">${fmtDate(e.date)}${e.hours?' — '+escapeHtml(e.hours):''}</option>`).join('');
+    const dateOpts=pastOpts?`<optgroup label="Kommande">${upcomingOpts}</optgroup><optgroup label="Tidigare">${pastOpts}</optgroup>`:upcomingOpts;
     function listForDate(date){
       const dayPlan=plan[date]||{};
+      const isPast=date<today;
       const toMin=s=>{if(!s)return 9999;const p=s.replace('–','-').split('-')[0].trim().split(':');return parseInt(p[0]||0)*60+parseInt(p[1]||0);};
       const entries=Object.entries(dayPlan).filter(([,d])=>d.hours||d.task).sort(([,a],[,b])=>toMin(a.hours)-toMin(b.hours));
       if(!entries.length) return `<div class="muted" style="font-style:italic;margin-top:8px;">Inget schema inlagt för det här datumet.</div>`;
-      return entries.map(([name,d])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(232,224,208,0.07);"><div><div style="font-family:'IM Fell English SC',serif;font-size:15px;">${escapeHtml(name)}</div><div class="tiny muted" style="margin-top:2px;">${escapeHtml(d.task||'—')}</div></div><div style="font-size:14px;opacity:0.75;white-space:nowrap;">${escapeHtml(d.hours||'—')}</div></div>`).join('');
+      const rows=entries.map(([name,d])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(232,224,208,0.07);"><div><div style="font-family:'IM Fell English SC',serif;font-size:15px;">${escapeHtml(name)}</div><div class="tiny muted" style="margin-top:2px;">${escapeHtml(d.task||'—')}</div></div><div style="font-size:14px;opacity:0.75;white-space:nowrap;">${escapeHtml(d.hours||'—')}</div></div>`).join('');
+      const deleteBtn=isPast?`<button class="btn" style="margin-top:14px;opacity:0.45;font-size:12px;" onclick="deleteSchemaDate('${escapeHtml(date)}')">Ta bort schema för denna dag</button>`:'';
+      return rows+deleteBtn;
     }
     el.innerHTML=`<div style="margin-bottom:14px;"><select class="input" id="allaDateSelect" style="width:100%;">${dateOpts}</select></div><div id="allaSchemaList">${listForDate(today)}</div>`;
     document.getElementById('allaDateSelect')?.addEventListener('change',(e)=>{
