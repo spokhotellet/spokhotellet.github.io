@@ -475,7 +475,7 @@
         </div>
 
         <div id="lonPanel_idag">
-          <div class="tiny muted" style="margin-bottom:10px;">Driftansvarig räknas som 1,5× vid fördelning. Övriga roller räknas lika.</div>
+
           <div id="lonResultIdag"></div>
         </div>
 
@@ -495,7 +495,7 @@
             </div>
             <button class="btn btn-green" onclick="renderLon()">Beräkna</button>
           </div>
-          <div class="tiny muted" style="margin-top:6px;">Driftansvarig räknas som 1,5× vid fördelning. Övriga roller räknas lika.</div>
+
           <div id="lonResult"></div>
         </div>
 
@@ -509,8 +509,12 @@
               <label class="admin-label" for="lonVerksamhet">Verksamhetsandel (%)</label>
               <input id="lonVerksamhet" type="number" min="0" max="100" step="1" class="input" style="width:100%;" placeholder="20">
             </div>
+            <div style="flex:1; min-width:150px;">
+              <label class="admin-label" for="lonSkatteprocent">Skatteprocent (%)</label>
+              <input id="lonSkatteprocent" type="number" min="0" max="100" step="1" class="input" style="width:100%;" placeholder="50">
+            </div>
           </div>
-          <div class="tiny muted" style="margin-top:6px;">Verksamhetsandelen reserveras för kostnader och nästa event. Resten delas ut som lön.</div>
+          <div class="tiny muted" style="margin-top:6px;">Intäkt − utgifter − skatt = netto att fördela. Verksamhetsandelen tas av nettot, resten delas ut som lön.</div>
 
           <hr style="border:none;border-top:1px solid rgba(232,224,208,0.1);margin:14px 0;">
           <div style="font-size:12px;color:rgba(232,224,208,0.7);margin-bottom:4px;font-family:'IM Fell English SC',serif;letter-spacing:0.5px;">Rollvikter</div>
@@ -1048,7 +1052,7 @@
     updateTopbar();
   }
 
-  async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); const oh=loadOpeningHours(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':getEffectiveQueueTime(); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
+  async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); checkScheduledClose(); const oh=loadOpeningHours(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':getEffectiveQueueTime(); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
 
   function maybeEditHours(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!isAdmin) return; const el=document.getElementById('hoursMenu'); if(el) el.style.display='block'; renderOpenDatesCalendar(); }
 
@@ -1056,6 +1060,7 @@
   async function addOpenDate(){ const inp=document.getElementById('addOpenDateInput'); const hoursInp=document.getElementById('addOpenHoursInput'); const v=inp?.value; if(!v){alert('Välj ett datum');return;} if(v<todayStr()){alert('Datumet har redan passerat');return;} const hours=(hoursInp?.value||'').trim(); const entry=hours?{date:v,hours}:v; const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==v); dates.push(entry); dates.sort((a,b)=>(typeof a==='string'?a:a.date).localeCompare(typeof b==='string'?b:b.date)); await saveOpenDates(dates); if(inp) inp.value=''; if(hoursInp) hoursInp.value=''; const saved=document.getElementById('openDatesSaved'); if(saved){saved.style.display='block';setTimeout(()=>saved.style.display='none',1500);} renderOpenDatesCalendar(); }
   async function removeOpenDate(d){ const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==d); await saveOpenDates(dates); renderOpenDatesCalendar(); }
   function checkScheduledOpen(){ if(openingHours!=='Stängt') return; const today=todayStr(); const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today); if(!entry||typeof entry==='string'||!entry.hours) return; openingHours=entry.hours; saveOpeningHours(entry.hours).catch(()=>{}); updateTopbar(); refreshCockpitIfOpen(); }
+  function checkScheduledClose(){ if(!openingHours||openingHours==='Stängt') return; const range=getOpenHourRange(openingHours); if(!range) return; const now=new Date(); const nowMins=now.getHours()*60+now.getMinutes(); const endMins=range.end*60; let diff=nowMins-endMins; while(diff<-720) diff+=1440; while(diff>720) diff-=1440; if(diff>=-1&&diff<60){ if(queueTime!=='Stängt för kvällen'&&queueTime!=='Stängt'){ saveQueueData({value:'Stängt för kvällen',until:null}).catch(()=>{}); queueTime='Stängt för kvällen'; updateTopbar(); refreshDisplayOverlay(); } return; } if(diff>=60){ openingHours='Stängt'; saveOpeningHours('Stängt').catch(()=>{}); saveQueueData({value:'Stängt',until:null}).catch(()=>{}); queueTime='Stängt'; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } }
 
   async function presetSelected(v){ const inp=document.getElementById('customHours'); if(v==='custom'){if(inp){inp.style.display='inline-block';inp.focus();}return;} openingHours=v; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
   async function applyCustomHours(){ const inp=document.getElementById('customHours'); const raw=(inp?inp.value.trim():'')||''; const norm=normalizeRangeStr(raw); if(!norm){alert('Skriv t.ex. 16-02 eller 10:00–18:00');return;} openingHours=norm; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
@@ -1094,7 +1099,7 @@
   function reactivateTicketFromHistory(key){ if(!isAdmin){alert('Endast admin kan återaktivera biljetter.');return;} const data=(window._reactivateTickets||{})[key]; if(!data){alert('Kunde inte hitta biljettdata.');return;} const o=loadOpenTickets(); if((o.items||[]).some(x=>x.createdAt===data.ticketUid&&!x.used)){alert('Biljetten finns redan i aktiva biljetter (ej använd).');return;} const staleIdx=(o.items||[]).findIndex(x=>x.createdAt===data.ticketUid); if(staleIdx>-1) o.items.splice(staleIdx,1); o.items.unshift({id:null,label:data.label||null,time:new Date().toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'}),createdAt:data.ticketUid||new Date().toISOString(),adult:Number(data.adult||0),child:Number(data.child||0),sum:Number(data.sum||0)}); saveOpenTickets(o); alert('Biljetten är nu återlagd i aktiva biljetter.'); }
 
   // ===== LÖNER =====
-  function defaultWageSettings(){ return {bassumma:200,verksamhetsandel:20,task_vikter:{},task_kassaboost:{}}; }
+  function defaultWageSettings(){ return {bassumma:200,verksamhetsandel:20,skatteprocent:50,task_vikter:{},task_kassaboost:{}}; }
   function loadWageSettings(){ const s=dbGet(WAGE_SETTINGS_KEY,null); const def=defaultWageSettings(); if(s&&typeof s==='object'){ return {...def,...s,task_vikter:{...def.task_vikter,...(s.task_vikter||{})},task_kassaboost:{...def.task_kassaboost,...(s.task_kassaboost||{})}}; } return def; }
   function saveWageSettings(s){ return dbSet(WAGE_SETTINGS_KEY,s||defaultWageSettings()).catch(()=>{}); }
   function parseWorkHoursStr(s){ if(!s) return 0; const m=s.match(/(\d{1,2}):(\d{2})\s*[–\-]\s*(\d{1,2}):(\d{2})/); if(!m) return 0; const start=parseInt(m[1])+parseInt(m[2])/60; const end=parseInt(m[3])+parseInt(m[4])/60; const diff=end-start; return diff>0?diff:0; }
@@ -1102,6 +1107,7 @@
   function getLonTransaktionerForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const counts={}; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); const entries=(hist[ds]||{}).entries||[]; entries.forEach(e=>{ const s=e.seller||''; if(s&&s!=='—') counts[s]=(counts[s]||0)+1; }); d.setDate(d.getDate()+1); } return counts; }
   function getLonIntakterForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const sums={}; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); const entries=(hist[ds]||{}).entries||[]; entries.forEach(e=>{ const s=e.seller||''; if(s&&s!=='—') sums[s]=(sums[s]||0)+Number(e.sum||0); }); d.setDate(d.getDate()+1); } return sums; }
 
+  function getLonUgifterForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); total+=Number((hist[ds]||{}).costs||0); d.setDate(d.getDate()+1); } return total; }
   function getLonTotalIncomeForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); total+=Number((hist[ds]||{}).income||0); d.setDate(d.getDate()+1); } return total; }
   function getLonOpeningHrsForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const today=todayStr(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); let hoursStr; if(ds===today){ const live=loadOpeningHours()||''; hoursStr=(live&&live!=='Stängt')?live:((hist[ds]||{}).hours||''); } else { hoursStr=(hist[ds]||{}).hours||''; } total+=parseWorkHoursStr(hoursStr); d.setDate(d.getDate()+1); } return total; }
 
@@ -1211,7 +1217,7 @@
 
   function getLonDaysBetween(fromDate,toDate){ const d1=new Date(fromDate+'T12:00:00'); const d2=new Date(toDate+'T12:00:00'); return Math.max(1,Math.round((d2-d1)/86400000)+1); }
 
-  function saveLonSettings(){ const bassumma=Number(String(document.getElementById('lonBassumma')?.value||'0').replace(',','.')); const verk=Number(String(document.getElementById('lonVerksamhet')?.value||'0').replace(',','.')); if(!Number.isFinite(bassumma)||bassumma<0||!Number.isFinite(verk)||verk<0||verk>100){alert('Kontrollera värdena.');return;} const task_vikter={}; document.querySelectorAll('#lonTaskVikterList .lon-task-vikt').forEach(inp=>{ const task=inp.dataset.task; const val=Number(String(inp.value||'').replace(',','.')); if(task&&val>0) task_vikter[task]=val; }); const task_kassaboost={}; document.querySelectorAll('#lonTaskVikterList .lon-task-boost').forEach(chk=>{ if(chk.dataset.task&&chk.checked) task_kassaboost[chk.dataset.task]=true; }); saveWageSettings({bassumma:Math.round(bassumma),verksamhetsandel:Math.round(verk),task_vikter,task_kassaboost}); const c=document.getElementById('lonSettingsConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} renderLon(); renderLonIdag(); }
+  function saveLonSettings(){ const bassumma=Number(String(document.getElementById('lonBassumma')?.value||'0').replace(',','.')); const verk=Number(String(document.getElementById('lonVerksamhet')?.value||'0').replace(',','.')); const skatteprocent=Number(String(document.getElementById('lonSkatteprocent')?.value||'50').replace(',','.')); if(!Number.isFinite(bassumma)||bassumma<0||!Number.isFinite(verk)||verk<0||verk>100||!Number.isFinite(skatteprocent)||skatteprocent<0||skatteprocent>100){alert('Kontrollera värdena.');return;} const task_vikter={}; document.querySelectorAll('#lonTaskVikterList .lon-task-vikt').forEach(inp=>{ const task=inp.dataset.task; const val=Number(String(inp.value||'').replace(',','.')); if(task&&val>0) task_vikter[task]=val; }); const task_kassaboost={}; document.querySelectorAll('#lonTaskVikterList .lon-task-boost').forEach(chk=>{ if(chk.dataset.task&&chk.checked) task_kassaboost[chk.dataset.task]=true; }); saveWageSettings({bassumma:Math.round(bassumma),verksamhetsandel:Math.round(verk),skatteprocent:Math.round(skatteprocent),task_vikter,task_kassaboost}); const c=document.getElementById('lonSettingsConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} renderLon(); renderLonIdag(); }
 
   function selectLonTab(tab){
     ['idag','historik','berakna','installningar'].forEach(t=>{ const p=document.getElementById('lonPanel_'+t); if(p) p.style.display=tab===t?'':'none'; });
@@ -1274,7 +1280,7 @@
     }).join('');
   }
 
-  function initLonPanel(){ const s=loadWageSettings(); const b=document.getElementById('lonBassumma'); const v=document.getElementById('lonVerksamhet'); if(b) b.value=s.bassumma; if(v) v.value=s.verksamhetsandel; const list=document.getElementById('lonTaskVikterList'); if(list){ const tasks=loadTaskCatalog(); list.innerHTML=tasks.length?tasks.map(t=>{ const savedV=(s.task_vikter||{})[t]; const savedB=!!((s.task_kassaboost||{})[t]); return `<div style="display:flex;align-items:center;gap:10px;"><span style="flex:1;font-size:13px;">${escapeHtml(t)}</span><input type="number" class="input lon-task-vikt" data-task="${escapeHtml(t)}" min="0.1" max="10" step="0.1" style="width:70px;" placeholder="1.0"${savedV?` value="${savedV}"`:''}><label style="display:flex;align-items:center;gap:4px;font-size:12px;color:rgba(232,224,208,0.6);white-space:nowrap;cursor:pointer;"><input type="checkbox" class="lon-task-boost" data-task="${escapeHtml(t)}"${savedB?' checked':''}> kassaboost</label></div>`; }).join(''):'<div class="tiny muted">Inga uppgifter i katalogen ännu.</div>'; } const today=todayStr(); const fd=document.getElementById('lonFromDate'); const td=document.getElementById('lonToDate'); if(fd&&!fd.value) fd.value=today; if(td&&!td.value) td.value=today; selectLonTab('idag'); }
+  function initLonPanel(){ const s=loadWageSettings(); const b=document.getElementById('lonBassumma'); const v=document.getElementById('lonVerksamhet'); const sk=document.getElementById('lonSkatteprocent'); if(b) b.value=s.bassumma; if(v) v.value=s.verksamhetsandel; if(sk) sk.value=s.skatteprocent??50; const list=document.getElementById('lonTaskVikterList'); if(list){ const tasks=loadTaskCatalog(); list.innerHTML=tasks.length?tasks.map(t=>{ const savedV=(s.task_vikter||{})[t]; const savedB=!!((s.task_kassaboost||{})[t]); return `<div style="display:flex;align-items:center;gap:10px;"><span style="flex:1;font-size:13px;">${escapeHtml(t)}</span><input type="number" class="input lon-task-vikt" data-task="${escapeHtml(t)}" min="0.1" max="10" step="0.1" style="width:70px;" placeholder="1.0"${savedV?` value="${savedV}"`:''}><label style="display:flex;align-items:center;gap:4px;font-size:12px;color:rgba(232,224,208,0.6);white-space:nowrap;cursor:pointer;"><input type="checkbox" class="lon-task-boost" data-task="${escapeHtml(t)}"${savedB?' checked':''}> kassaboost</label></div>`; }).join(''):'<div class="tiny muted">Inga uppgifter i katalogen ännu.</div>'; } const today=todayStr(); const fd=document.getElementById('lonFromDate'); const td=document.getElementById('lonToDate'); if(fd&&!fd.value) fd.value=today; if(td&&!td.value) td.value=today; selectLonTab('idag'); }
   function refreshLonIfOpen(){ const el=document.getElementById('lonContent'); if(!el||el.style.display!=='block') return; if(document.getElementById('lonPanel_idag')?.style.display!=='none') renderLonIdag(); else renderLon(); }
 
   function renderLon(opts){
@@ -1288,10 +1294,15 @@
     const settings=loadWageSettings();
     const bassumma=Math.max(0,Number(settings.bassumma||0));
     const verkAndel=Math.max(0,Math.min(100,Number(settings.verksamhetsandel||0)))/100;
+    const skatteProcent=Math.max(0,Math.min(100,Number(settings.skatteprocent??50)))/100;
     const dayCount=getLonDaysBetween(fromVal,toVal);
     const totalIncome=getLonTotalIncomeForPeriod(fromVal,toVal);
-    const verkDel=Math.round(totalIncome*verkAndel);
-    const lonPott=totalIncome-verkDel;
+    const totalUgifter=getLonUgifterForPeriod(fromVal,toVal);
+    const skatteUnderlag=Math.max(0,totalIncome-totalUgifter);
+    const skatt=Math.round(skatteUnderlag*skatteProcent);
+    const nettoAttFordela=skatteUnderlag-skatt;
+    const verkDel=Math.round(nettoAttFordela*verkAndel);
+    const lonPott=nettoAttFordela-verkDel;
     const totalOpeningHrs=getLonOpeningHrsForPeriod(fromVal,toVal);
     const {staff:staffData,hasMissingSnapshot}=getLonStaffDataForPeriod(fromVal,toVal);
     const transaktioner=getLonTransaktionerForPeriod(fromVal,toVal);
@@ -1326,6 +1337,9 @@
     let html=`<div style="margin-top:16px;padding:14px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(232,224,208,0.1);font-family:'IM Fell English',serif;font-size:13px;">`;
     html+=`<div style="font-size:11px;color:rgba(232,224,208,0.4);margin-bottom:10px;letter-spacing:0.5px;">${escapeHtml(periodLabel)}</div>`;
     html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span>Intäkter perioden</span><span>${totalIncome} kr</span></div>`;
+    if(totalUgifter>0) html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Utgifter perioden</span><span>−${totalUgifter} kr</span></div>`;
+    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Skatt (${Math.round(skatteProcent*100)}%)</span><span>−${skatt} kr</span></div>`;
+    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;border-top:1px solid rgba(232,224,208,0.12);padding-top:6px;"><span>Netto att fördela</span><strong>${nettoAttFordela} kr</strong></div>`;
     html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Verksamhetsandel (${Math.round(verkAndel*100)}%)</span><span>−${verkDel} kr</span></div>`;
     html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;border-top:1px solid rgba(232,224,208,0.12);padding-top:6px;"><span>Lönepott</span><strong>${lonPott} kr</strong></div>`;
     html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Total lönekostnad</span><span>−${totalLon} kr</span></div>`;
@@ -1956,11 +1970,15 @@
       if(wQueueCard) wQueueCard.className='welcome-status-card '+(dotCls==='live'?'queue-live':'queue-dim');
     }
 
+    const isKvällen=shownQueue==='Stängt för kvällen';
     if(wHoursEl){
       if(guestIsClosed){
         const nextDate=(!guestHidden&&!isClosed)?null:getNextOpenDate();
         const nextLabel=nextDate?formatNextOpen(nextDate):null;
         wHoursEl.innerHTML=nextLabel?`Stängt &ndash; öppnar ${escapeHtml(nextLabel)}`:'Stängt idag';
+        wHoursEl.className='welcome-status-value is-closed';
+      }else if(isKvällen){
+        wHoursEl.textContent='Stängt för kvällen';
         wHoursEl.className='welcome-status-value is-closed';
       }else{
         wHoursEl.textContent=openingHours||'Ingen info';
@@ -1969,7 +1987,7 @@
     }
 
     const wHoursLabel=wHoursEl?.previousElementSibling;
-    if(wHoursLabel) wHoursLabel.textContent=guestIsClosed?'Idag':'Öppet idag';
+    if(wHoursLabel) wHoursLabel.textContent=(guestIsClosed||isKvällen)?'Idag':'Öppet idag';
 
     const hiddenBtn=document.getElementById('guestHiddenToggle');
     if(hiddenBtn){
