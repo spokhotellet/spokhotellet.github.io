@@ -13,8 +13,12 @@
   <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
   <link rel="icon" type="image/png" sizes="16x16" href="favicon.png">
   <link rel="shortcut icon" href="favicon.png">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <meta name="theme-color" content="#0a0a0a">
+  <link rel="apple-touch-icon" href="korpen.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Korpen">
+  <meta name="theme-color" content="#0e0b08">
   <link rel="stylesheet" href="app.css">
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <style>
@@ -3063,20 +3067,20 @@
     if(b) b.style.display = 'flex';
   }
 
-  async function activateNotifs(){
+  function activateNotifs(){
     const b = document.getElementById('notifBanner');
     if(b) b.style.display = 'none';
-    try{
-      const perm = await Notification.requestPermission();
-      if(perm === 'granted'){
-        const OS = _oneSignal || window.OneSignal;
-        if(OS){
-          await OS.User.PushSubscription.optIn();
-          if(loggedInUser) OS.User.addTag('name', loggedInUser);
-          OS.User.addTag('inslepp', currentHasInslepp ? 'true' : 'false');
-        }
-      }
-    }catch(e){ console.error('[Push] fel:', e); }
+    Notification.requestPermission().then(function(perm){
+      console.log('[Push] tillstånd:', perm);
+      if(perm !== 'granted') return;
+      const OS = _oneSignal || window.OneSignal;
+      if(!OS){ console.error('[Push] OneSignal inte laddat'); return; }
+      OS.User.PushSubscription.optIn().then(function(){
+        console.log('[Push] prenumererad!');
+        if(loggedInUser) OS.User.addTag('name', loggedInUser);
+        OS.User.addTag('inslepp', currentHasInslepp ? 'true' : 'false');
+      }).catch(function(e){ console.error('[Push] optIn-fel:', e); });
+    });
   }
 
   async function boot(){
