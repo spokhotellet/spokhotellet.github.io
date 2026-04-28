@@ -3032,12 +3032,14 @@
       payload.included_segments = ['All'];
     }
     try{
-      await fetch('https://onesignal.com/api/v1/notifications', {
+      const resp = await fetch('https://onesignal.com/api/v1/notifications', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer os_v2_app_uwykl4u6ivf4npbi4hadhxq3vl2677wvltaezaujwfyq7h2vczatvvuugrch5ssyctkm6daenvtpojuasj3bwlld443bkghpapxz62i' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic os_v2_app_uwykl4u6ivf4npbi4hadhxq3vl2677wvltaezaujwfyq7h2vczatvvuugrch5ssyctkm6daenvtpojuasj3bwlld443bkghpapxz62i' },
         body: JSON.stringify(payload)
       });
-    }catch(_e){}
+      const data = await resp.json();
+      _pushStatus('API: ' + JSON.stringify(data));
+    }catch(e){ _pushStatus('API-fel: ' + e); }
   }
 
   function pushNotifLogin(name){
