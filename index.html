@@ -16,6 +16,7 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="theme-color" content="#0a0a0a">
   <link rel="stylesheet" href="app.css">
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <style>
     @keyframes guestHiddenFill {
       from { transform: scaleX(0); }
@@ -815,6 +816,7 @@
         closeLoginModal();
         selectMenu(isAdmin ? 'admin' : 'profile');
         localStorage.setItem(SESSION_KEY, JSON.stringify({ pw: loggedInKey }));
+        pushNotifLogin(loggedInUser);
       } else {
         const errEl = document.getElementById('loginError');
         const inp2 = document.getElementById('loginPasswordInput');
@@ -1052,13 +1054,28 @@
     updateTopbar();
   }
 
-  async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); checkScheduledClose(); const oh=loadOpeningHours(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':getEffectiveQueueTime(); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
+  async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); checkScheduledClose(); checkOpeningNotification(); const oh=loadOpeningHours(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':getEffectiveQueueTime(); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
 
   function maybeEditHours(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!isAdmin) return; const el=document.getElementById('hoursMenu'); if(el) el.style.display='block'; renderOpenDatesCalendar(); }
 
   function renderOpenDatesCalendar(){ const cal=document.getElementById('openDatesCalendar'); if(!cal) return; const today=todayStr(); const all=loadOpenDates(); const pruned=all.filter(e=>(typeof e==='string'?e:e.date)>=today); if(pruned.length!==all.length) saveOpenDates(pruned).catch(()=>{}); const dates=pruned.slice().sort((a,b)=>(typeof a==='string'?a:a.date).localeCompare(typeof b==='string'?b:b.date)); cal.innerHTML=''; if(!dates.length){ cal.innerHTML='<span style="font-size:12px;color:rgba(232,224,208,0.3);font-style:italic;">Inga datum inlagda</span>'; return; } dates.forEach(e=>{ const d=typeof e==='string'?e:e.date; const tag=document.createElement('span'); tag.style.cssText='display:inline-flex;align-items:center;gap:5px;background:rgba(40,100,40,0.25);border:1px solid rgba(100,200,100,0.25);border-radius:3px;padding:3px 8px;font-size:13px;color:rgba(180,230,160,0.9);'; const full=d.slice(5).replace('-','/'); const timePart=e.hours?` <span style="opacity:0.6;font-size:11px;">${e.hours}</span>`:''; tag.innerHTML=`${full}${timePart}<button onclick="removeOpenDate('${d}')" style="background:none;border:none;color:rgba(255,100,100,0.5);cursor:pointer;padding:0 0 0 4px;font-size:14px;line-height:1;" title="Ta bort">×</button>`; cal.appendChild(tag); }); updateTopbar(); }
   async function addOpenDate(){ const inp=document.getElementById('addOpenDateInput'); const hoursInp=document.getElementById('addOpenHoursInput'); const v=inp?.value; if(!v){alert('Välj ett datum');return;} if(v<todayStr()){alert('Datumet har redan passerat');return;} const hours=(hoursInp?.value||'').trim(); const entry=hours?{date:v,hours}:v; const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==v); dates.push(entry); dates.sort((a,b)=>(typeof a==='string'?a:a.date).localeCompare(typeof b==='string'?b:b.date)); await saveOpenDates(dates); if(inp) inp.value=''; if(hoursInp) hoursInp.value=''; const saved=document.getElementById('openDatesSaved'); if(saved){saved.style.display='block';setTimeout(()=>saved.style.display='none',1500);} renderOpenDatesCalendar(); }
   async function removeOpenDate(d){ const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==d); await saveOpenDates(dates); renderOpenDatesCalendar(); }
+  function checkOpeningNotification(){
+    if(!openingHours||openingHours==='Stängt') return;
+    const today=todayStr();
+    const sentKey='openingNotifSent_'+today;
+    if(localStorage.getItem(sentKey)) return;
+    const range=getOpenHourRange(openingHours); if(!range) return;
+    const now=new Date();
+    const nowMins=now.getHours()*60+now.getMinutes();
+    const openMins=range.start*60;
+    if(nowMins>=openMins&&nowMins<openMins+5){
+      localStorage.setItem(sentKey,'1');
+      sendOneSignalPush('Spökhotellet öppnar nu! 👻',`Öppettider idag: ${openingHours}`,'all');
+    }
+  }
+
   function checkScheduledOpen(){ if(openingHours!=='Stängt') return; const today=todayStr(); const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today); if(!entry||typeof entry==='string'||!entry.hours) return; openingHours=entry.hours; saveOpeningHours(entry.hours).catch(()=>{}); updateTopbar(); refreshCockpitIfOpen(); }
   function checkScheduledClose(){ if(!openingHours||openingHours==='Stängt') return; const range=getOpenHourRange(openingHours); if(!range) return; const now=new Date(); const nowMins=now.getHours()*60+now.getMinutes(); const endMins=range.end*60; let diff=nowMins-endMins; while(diff<-720) diff+=1440; while(diff>720) diff-=1440; if(diff>=-1&&diff<60){ if(queueTime!=='Stängt för kvällen'&&queueTime!=='Stängt'){ saveQueueData({value:'Stängt för kvällen',until:null}).catch(()=>{}); queueTime='Stängt för kvällen'; updateTopbar(); refreshDisplayOverlay(); } return; } if(diff>=60){ openingHours='Stängt'; saveOpeningHours('Stängt').catch(()=>{}); saveQueueData({value:'Stängt',until:null}).catch(()=>{}); queueTime='Stängt'; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } }
 
@@ -1714,7 +1731,12 @@
     let newOpenTicket=null;
     try{
       const label=(document.getElementById('ticketLabelInput')?.value||'').trim();
-      if((adult+child)>0) newOpenTicket=addOpenTicket({label,adult,child,sum:finalSum});
+      if((adult+child)>0){
+        newOpenTicket=addOpenTicket({label,adult,child,sum:finalSum});
+        const parts=[];if(adult>0) parts.push(`${adult} vuxen${adult>1?'a':''}`);if(child>0) parts.push(`${child} barn`);
+        const ticketMsg=parts.join(' + ')+(label?` — ${label}`:'');
+        sendOneSignalPush('Ny biljett 🎟', ticketMsg, null, { field:'tag', key:'inslepp', relation:'=', value:'true' });
+      }
       if(reEntryCount>0){const baseLabel=(label||'Re-entry').trim();for(let k=0;k<reEntryCount;k++){const suffix=reEntryCount>1?` #${k+1}`:'';const id=addReEntry(baseLabel+suffix);if(id) createdReEntryIds.push(id);}}
       const tl=document.getElementById('ticketLabelInput'); if(tl) tl.value='';
     }catch(_e){}
@@ -2240,6 +2262,7 @@
       if(to==='all'){
         await dbSet(STAFF_MSG_KEY,txt);
         _adminMsgJustSaved=true;
+        sendOneSignalPush('Meddelande från admin', txt, 'all');
       } else {
         if(!to){ alert('Välj mottagare.'); return; }
         const messages=loadStaffMessages();
@@ -2247,6 +2270,7 @@
         await dbSet(STAFF_REPLIES_KEY,messages);
         inp.value='';
         _adminDirectMsgJustSent=true;
+        sendOneSignalPush('Meddelande från admin', txt, to);
       }
       renderStaffMsgSection();
       updateMsgBadge();
@@ -2328,6 +2352,7 @@
       await dbSet(STAFF_REPLIES_KEY,messages);
       inp.value='';
       _staffMsgJustSent=true;
+      sendOneSignalPush(`Meddelande från ${loggedInUser||'personal'}`, txt, adminName);
       renderStaffMsgSection();
       updateMsgBadge();
       setTimeout(()=>{ _staffMsgJustSent=false; },2500);
@@ -2974,11 +2999,50 @@
   // Nödutgång: tryck Escape 3 ggr snabbt för att rensa overlay-läge
   (function(){let n=0,t=null;document.addEventListener('keydown',function(e){if(e.key!=='Escape') return;n++;clearTimeout(t);t=setTimeout(()=>{n=0;},800);if(n>=3){localStorage.removeItem('overlayModeV1');location.href=location.href.split('?')[0];}});})();
 
+  async function sendOneSignalPush(heading, message, targetName, filterTag){
+    const payload = {
+      app_id: 'a5b0a5f2-9e45-4bc6-bc28-e1c033de1baa',
+      headings: { sv: heading, en: heading },
+      contents: { sv: message, en: message }
+    };
+    if(filterTag){
+      payload.filters = [filterTag];
+    } else if(targetName && targetName !== 'all'){
+      payload.filters = [{ field: 'tag', key: 'name', relation: '=', value: targetName }];
+    } else {
+      payload.included_segments = ['All'];
+    }
+    try{
+      await fetch('https://onesignal.com/api/v1/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer os_v2_app_uwykl4u6ivf4npbi4hadhxq3vl2677wvltaezaujwfyq7h2vczatvvuugrch5ssyctkm6daenvtpojuasj3bwlld443bkghpapxz62i' },
+        body: JSON.stringify(payload)
+      });
+    }catch(_e){}
+  }
+
+  function pushNotifLogin(name){
+    if(!name) return;
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal){
+      try{
+        if(!OneSignal.User.PushSubscription.optedIn) await OneSignal.User.PushSubscription.optIn();
+        OneSignal.User.addTag('name', name);
+        OneSignal.User.addTag('inslepp', currentHasInslepp ? 'true' : 'false');
+      }catch(_e){}
+    });
+  }
+
   async function boot(){
     // Recensionsvy om URL innehåller ?review
     if(new URLSearchParams(window.location.search).has('review')){ showReviewView(); return; }
     // Kundskärmsläge om URL innehåller ?display
     if(new URLSearchParams(window.location.search).has('display')){ startCustomerDisplayMode(); return; }
+
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal){
+      await OneSignal.init({ appId: 'a5b0a5f2-9e45-4bc6-bc28-e1c033de1baa', promptOptions: { autoPrompt: false } });
+    });
 
     const lo=document.getElementById('logoutBtn');const li=document.getElementById('loginBtn');
     if(lo) lo.style.display='none';if(li) li.style.display='inline-block';
@@ -3000,6 +3064,7 @@
       const pw=s?.pw;const u=pw?users[pw]:null;
       if(u){loggedInKey=pw;loggedInUser=u.name;isAdmin=(pw==='spök123')?true:!!u.admin;currentHasAccess=!!u.hasAccess||u.name==='Adam'||u.name==='Casper';currentHasInslepp=!!u.hasInslepp||u.name==='Adam'||u.name==='Casper';}
     }catch(_e){}
+    if(loggedInUser) pushNotifLogin(loggedInUser);
 
     enforceCoreUsers();
     loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();renderWelcomePrices();renderUpcomingDates();showWelcomeTab('info');bindWelcomeControls();
