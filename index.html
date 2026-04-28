@@ -3066,11 +3066,14 @@
   async function activateNotifs(){
     const b = document.getElementById('notifBanner');
     if(b) b.style.display = 'none';
-    const OS = _oneSignal || window.OneSignal;
-    if(!OS){ console.error('[OneSignal] SDK inte laddat'); return; }
     try{
-      await OS.User.PushSubscription.optIn();
-    }catch(e){ console.error('[OneSignal] optIn error:', e); }
+      const perm = await Notification.requestPermission();
+      console.log('[Push] webbläsartillstånd:', perm);
+      if(perm === 'granted'){
+        const OS = _oneSignal || window.OneSignal;
+        if(OS) await OS.User.PushSubscription.optIn();
+      }
+    }catch(e){ console.error('[Push] fel:', e); }
   }
 
   async function boot(){
