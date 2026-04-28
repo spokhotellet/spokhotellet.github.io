@@ -3031,15 +3031,15 @@
     } else {
       payload.included_segments = ['All'];
     }
-    try{
-      const resp = await fetch('https://onesignal.com/api/v1/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic os_v2_app_uwykl4u6ivf4npbi4hadhxq3vl2677wvltaezaujwfyq7h2vczatvvuugrch5ssyctkm6daenvtpojuasj3bwlld443bkghpapxz62i' },
-        body: JSON.stringify(payload)
-      });
-      const data = await resp.json();
-      _pushStatus('API: ' + JSON.stringify(data));
-    }catch(e){ _pushStatus('API-fel: ' + e); }
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'https://onesignal.com/api/v1/notifications', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('Authorization', 'Basic os_v2_app_uwykl4u6ivf4npbi4hadhxq3vl2677wvltaezaujwfyq7h2vczatvvuugrch5ssyctkm6daenvtpojuasj3bwlld443bkghpapxz62i');
+    xhr.onreadystatechange = function(){
+      if(xhr.readyState === 4) _pushStatus('API ' + xhr.status + ': ' + xhr.responseText.slice(0,120));
+    };
+    xhr.onerror = function(){ _pushStatus('XHR-fel'); };
+    xhr.send(JSON.stringify(payload));
   }
 
   function pushNotifLogin(name){
