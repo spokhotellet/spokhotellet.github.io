@@ -3026,10 +3026,16 @@
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal){
       try{
-        if(!OneSignal.User.PushSubscription.optedIn) await OneSignal.User.PushSubscription.optIn();
+        console.log('[OneSignal] optedIn:', OneSignal.User.PushSubscription.optedIn);
+        console.log('[OneSignal] permission:', OneSignal.Notifications.permission);
+        if(!OneSignal.User.PushSubscription.optedIn){
+          console.log('[OneSignal] anropar optIn...');
+          await OneSignal.User.PushSubscription.optIn();
+          console.log('[OneSignal] klar, optedIn:', OneSignal.User.PushSubscription.optedIn);
+        }
         OneSignal.User.addTag('name', name);
         OneSignal.User.addTag('inslepp', currentHasInslepp ? 'true' : 'false');
-      }catch(_e){}
+      }catch(e){ console.error('[OneSignal] fel:', e); }
     });
   }
 
