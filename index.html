@@ -3066,9 +3066,10 @@
   async function activateNotifs(){
     const b = document.getElementById('notifBanner');
     if(b) b.style.display = 'none';
-    if(!_oneSignal){ console.error('[OneSignal] inte initialiserat än'); return; }
+    const OS = _oneSignal || window.OneSignal;
+    if(!OS){ console.error('[OneSignal] SDK inte laddat'); return; }
     try{
-      await _oneSignal.User.PushSubscription.optIn();
+      await OS.User.PushSubscription.optIn();
     }catch(e){ console.error('[OneSignal] optIn error:', e); }
   }
 
@@ -3080,8 +3081,8 @@
 
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal){
-      await OneSignal.init({ appId: 'a5b0a5f2-9e45-4bc6-bc28-e1c033de1baa', promptOptions: { autoPrompt: false } });
       _oneSignal = OneSignal;
+      try{ await OneSignal.init({ appId: 'a5b0a5f2-9e45-4bc6-bc28-e1c033de1baa', promptOptions: { autoPrompt: false } }); }catch(_e){}
     });
 
     const lo=document.getElementById('logoutBtn');const li=document.getElementById('loginBtn');
