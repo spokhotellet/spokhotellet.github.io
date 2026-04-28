@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
   <link rel="icon" type="image/png" sizes="16x16" href="favicon.png">
   <link rel="shortcut icon" href="favicon.png">
-  <link rel="apple-touch-icon" href="korpen.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="/manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3067,20 +3067,28 @@
     if(b) b.style.display = 'flex';
   }
 
+  function _pushStatus(msg){
+    let el = document.getElementById('_pushDbg');
+    if(!el){ el = document.createElement('div'); el.id = '_pushDbg'; el.style.cssText = 'position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1a1410;border:1px solid #b89650;color:#e8d9b5;padding:10px 14px;border-radius:8px;z-index:9999;font-size:12px;max-width:92vw;word-break:break-all;font-family:monospace;'; document.body.appendChild(el); }
+    el.textContent = msg;
+  }
+
   function activateNotifs(){
     const b = document.getElementById('notifBanner');
     if(b) b.style.display = 'none';
+    _pushStatus('Begär tillstånd...');
     Notification.requestPermission().then(function(perm){
-      console.log('[Push] tillstånd:', perm);
+      _pushStatus('Tillstånd: ' + perm);
       if(perm !== 'granted') return;
       const OS = _oneSignal || window.OneSignal;
-      if(!OS){ console.error('[Push] OneSignal inte laddat'); return; }
+      if(!OS){ _pushStatus('FEL: OneSignal inte laddat'); return; }
+      _pushStatus('Registrerar prenumeration...');
       OS.User.PushSubscription.optIn().then(function(){
-        console.log('[Push] prenumererad!');
+        _pushStatus('Klar! optedIn: ' + OS.User.PushSubscription.optedIn);
         if(loggedInUser) OS.User.addTag('name', loggedInUser);
         OS.User.addTag('inslepp', currentHasInslepp ? 'true' : 'false');
-      }).catch(function(e){ console.error('[Push] optIn-fel:', e); });
-    });
+      }).catch(function(e){ _pushStatus('FEL optIn: ' + e); });
+    }).catch(function(e){ _pushStatus('FEL tillstånd: ' + e); });
   }
 
   async function boot(){
