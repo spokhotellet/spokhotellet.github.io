@@ -3068,10 +3068,13 @@
     if(b) b.style.display = 'none';
     try{
       const perm = await Notification.requestPermission();
-      console.log('[Push] webbläsartillstånd:', perm);
       if(perm === 'granted'){
         const OS = _oneSignal || window.OneSignal;
-        if(OS) await OS.User.PushSubscription.optIn();
+        if(OS){
+          await OS.User.PushSubscription.optIn();
+          if(loggedInUser) OS.User.addTag('name', loggedInUser);
+          OS.User.addTag('inslepp', currentHasInslepp ? 'true' : 'false');
+        }
       }
     }catch(e){ console.error('[Push] fel:', e); }
   }
