@@ -24,6 +24,11 @@
     }
     #guestHiddenBar { animation: none; }
     #guestHiddenBar.filling { animation: guestHiddenFill var(--fill-dur, 0.5s) cubic-bezier(0.4,0,0.2,1) forwards; }
+    #notifBanner { display:none; position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:9000; background:#1a1410; border:1px solid rgba(190,150,80,0.4); border-radius:10px; padding:12px 16px; align-items:center; gap:12px; box-shadow:0 4px 20px rgba(0,0,0,0.6); font-family:'IM Fell English',serif; color:#e8d9b5; max-width:90vw; }
+    #notifBanner span { font-size:14px; }
+    #notifBanner button { background:rgba(190,150,80,0.2); border:1px solid rgba(190,150,80,0.5); color:#e8d9b5; padding:6px 14px; border-radius:6px; cursor:pointer; font-family:'IM Fell English',serif; font-size:13px; white-space:nowrap; }
+    #notifBanner button:hover { background:rgba(190,150,80,0.35); }
+    #notifBannerClose { background:transparent !important; border:none !important; font-size:16px; padding:2px 6px !important; opacity:0.5; }
   </style>
 </head>
 
@@ -97,6 +102,13 @@
         <a href="#" onclick="selectMenu('logout');return false;">Logga ut</a>
       </div>
     </div>
+  </div>
+
+  <!-- ===== PUSH NOTIS BANNER ===== -->
+  <div id="notifBanner" role="alert">
+    <span>🔔 Aktivera pushnotiser</span>
+    <button onclick="activateNotifs()">Aktivera</button>
+    <button id="notifBannerClose" onclick="document.getElementById('notifBanner').style.display='none'" title="Stäng">✕</button>
   </div>
 
   <!-- ===== LOADING OVERLAY ===== -->
@@ -1000,6 +1012,7 @@
   let _displayActive=false, _suppressDisplayPush=false;
   let cart={}, cartHistory=[], totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0, guestHidden=false;
   let loggedInKey='', loggedInUser='', isAdmin=false, currentHasAccess=false, currentHasInslepp=false;
+  let _oneSignal = null;
   let discountApplied=false, _lastPayChoice='Swish';
   let _pendingPayChoice = null;
   let _pendingPaySumText = '';
@@ -3026,17 +3039,28 @@
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal){
       try{
-        console.log('[OneSignal] optedIn:', OneSignal.User.PushSubscription.optedIn);
-        console.log('[OneSignal] permission:', OneSignal.Notifications.permission);
-        if(!OneSignal.User.PushSubscription.optedIn){
-          console.log('[OneSignal] anropar optIn...');
-          await OneSignal.User.PushSubscription.optIn();
-          console.log('[OneSignal] klar, optedIn:', OneSignal.User.PushSubscription.optedIn);
-        }
         OneSignal.User.addTag('name', name);
         OneSignal.User.addTag('inslepp', currentHasInslepp ? 'true' : 'false');
-      }catch(e){ console.error('[OneSignal] fel:', e); }
+        if(!OneSignal.User.PushSubscription.optedIn){
+          showNotifBanner();
+        }
+      }catch(e){}
     });
+  }
+
+  function showNotifBanner(){
+    if(Notification.permission === 'denied') return;
+    const b = document.getElementById('notifBanner');
+    if(b) b.style.display = 'flex';
+  }
+
+  async function activateNotifs(){
+    const b = document.getElementById('notifBanner');
+    if(b) b.style.display = 'none';
+    if(!_oneSignal){ console.error('[OneSignal] inte initialiserat än'); return; }
+    try{
+      await _oneSignal.User.PushSubscription.optIn();
+    }catch(e){ console.error('[OneSignal] optIn error:', e); }
   }
 
   async function boot(){
@@ -3048,6 +3072,7 @@
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal){
       await OneSignal.init({ appId: 'a5b0a5f2-9e45-4bc6-bc28-e1c033de1baa', promptOptions: { autoPrompt: false } });
+      _oneSignal = OneSignal;
     });
 
     const lo=document.getElementById('logoutBtn');const li=document.getElementById('loginBtn');
