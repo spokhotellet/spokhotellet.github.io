@@ -112,6 +112,7 @@
   <div id="notifBanner" role="alert">
     <span>🔔 Aktivera pushnotiser</span>
     <button onclick="activateNotifs()">Aktivera</button>
+    <button onclick="_testNetwork()">Testa nät</button>
     <button id="notifBannerClose" onclick="document.getElementById('notifBanner').style.display='none'" title="Stäng">✕</button>
   </div>
 
@@ -3067,6 +3068,14 @@
     if(Notification.permission !== 'default') return;
     const b = document.getElementById('notifBanner');
     if(b) b.style.display = 'flex';
+  }
+
+  function _testNetwork(){
+    _pushStatus('Testar nätverk...');
+    fetch('https://api.ipify.org?format=json')
+      .then(function(r){ return r.json(); })
+      .then(function(d){ _pushStatus('Nätverk OK: ' + d.ip); })
+      .catch(function(e){ _pushStatus('Nätverk FAIL: ' + e); });
   }
 
   function _pushStatus(msg){
