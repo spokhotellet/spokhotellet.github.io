@@ -929,22 +929,26 @@
 
   const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY,TASK_DESCRIPTIONS_KEY,GUEST_HIDDEN_KEY]);
 
-  const _db = { cache: new Map(), loaded: new Set(), inflight: new Map(), pendingWrites: new Map() };
+  const _db = { cache: new Map(), loaded: new Set(), serverLoaded: new Set(), inflight: new Map(), pendingWrites: new Map() };
 
   let _saveErrorMutedUntil=0;
   function showSaveError(msg){ if(Date.now()<_saveErrorMutedUntil) return; const b=document.getElementById('saveErrorBanner'); const m=document.getElementById('saveErrorMsg'); if(m) m.textContent=msg||'Fel: data kunde inte sparas till servern.'; if(b) b.style.display='block'; }
   function hideSaveError(){ _saveErrorMutedUntil=Date.now()+30000; const b=document.getElementById('saveErrorBanner'); if(b) b.style.display='none'; }
   const PERSIST_CACHE_PREFIX = 'dbcache_v1__';
+  const PROTECTED_SNAPSHOT_KEY = 'saleshistory_protected_v1';
   function _cacheLSKey(key){ return PERSIST_CACHE_PREFIX + key; }
   function persistCacheWrite(key, value){ try{ localStorage.setItem(_cacheLSKey(key), JSON.stringify({t:Date.now(),v:value})); }catch(_e){} }
   function persistCacheRead(key){ try{ const raw=localStorage.getItem(_cacheLSKey(key)); if(!raw) return null; const obj=JSON.parse(raw); if(!obj||!('v' in obj)) return null; return obj.v; }catch(_e){ return null; } }
+  function _snapshotScore(v){ if(!v||typeof v!=='object') return {dates:0,entries:0}; const dates=Object.keys(v).length; const entries=Object.values(v).reduce((s,d)=>s+(Array.isArray(d?.entries)?d.entries.length:0),0); return {dates,entries}; }
+  function _writeProtectedSnapshot(value){ try{ if(!value||typeof value!=='object') return; const existing=_readProtectedSnapshot(); const ex=_snapshotScore(existing?.v); const nw=_snapshotScore(value); if(nw.dates<ex.dates) return; if(nw.dates===ex.dates&&nw.entries<ex.entries) return; localStorage.setItem(PROTECTED_SNAPSHOT_KEY,JSON.stringify({t:Date.now(),v:value})); }catch(_e){} }
+  function _readProtectedSnapshot(){ try{ const raw=localStorage.getItem(PROTECTED_SNAPSHOT_KEY); if(!raw) return null; return JSON.parse(raw); }catch(_e){ return null; } }
   function persistCacheHydrate(keysWithFallback){ keysWithFallback.forEach(({key,fallback})=>{ const v=persistCacheRead(key); if(v===null||typeof v==='undefined'){ _db.cache.set(key,_clone(fallback)); }else{ _db.cache.set(key,_clone(v)); } _db.loaded.add(key); }); }
   function _clone(v){ try { return JSON.parse(JSON.stringify(v)); } catch(_e){ return v; } }
 
-  async function dbFetch(key, fallback){ if(_db.inflight.has(key)) return _db.inflight.get(key); const p = (async ()=>{ try{ const raw = await apiGet(key); const hasPending=_db.pendingWrites.has(key); if(raw == null || raw === ''){ if(!hasPending){ _db.cache.set(key, _clone(fallback)); _db.loaded.add(key); } return _clone(fallback); } if(SERVER_JSON_KEYS.has(key)){ try{ const parsed=JSON.parse(raw); if(!hasPending){ _db.cache.set(key,parsed); _db.loaded.add(key); persistCacheWrite(key,parsed); } return _clone(hasPending?(_db.cache.get(key)??fallback):parsed); } catch(e){ if(!hasPending){ _db.cache.set(key,_clone(fallback)); persistCacheWrite(key,_db.cache.get(key)); _db.loaded.add(key); } return _clone(fallback); } } const str=String(raw); if(!hasPending){ _db.cache.set(key,str); _db.loaded.add(key); persistCacheWrite(key,str); } return hasPending?(_db.cache.get(key)??fallback):str; }finally{ _db.inflight.delete(key); } })(); _db.inflight.set(key, p); return p; }
+  async function dbFetch(key, fallback){ if(_db.inflight.has(key)) return _db.inflight.get(key); const p = (async ()=>{ try{ const raw = await apiGet(key); _db.serverLoaded.add(key); const hasPending=_db.pendingWrites.has(key); if(raw == null || raw === ''){ if(!hasPending){ _db.cache.set(key, _clone(fallback)); _db.loaded.add(key); } return _clone(fallback); } if(SERVER_JSON_KEYS.has(key)){ try{ const parsed=JSON.parse(raw); if(!hasPending){ _db.cache.set(key,parsed); _db.loaded.add(key); persistCacheWrite(key,parsed); if(key===SALESHISTORY_KEY) _writeProtectedSnapshot(parsed); } return _clone(hasPending?(_db.cache.get(key)??fallback):parsed); } catch(e){ if(!hasPending){ _db.cache.set(key,_clone(fallback)); persistCacheWrite(key,_db.cache.get(key)); _db.loaded.add(key); } return _clone(fallback); } } const str=String(raw); if(!hasPending){ _db.cache.set(key,str); _db.loaded.add(key); persistCacheWrite(key,str); } return hasPending?(_db.cache.get(key)??fallback):str; }finally{ _db.inflight.delete(key); } })(); _db.inflight.set(key, p); return p; }
   function dbGet(key, fallback){ if(_db.cache.has(key)) return _clone(_db.cache.get(key)); return _clone(fallback); }
   async function dbEnsure(key, fallback){ if(_db.loaded.has(key)) return dbGet(key, fallback); return dbFetch(key, fallback); }
-  async function dbSet(key, value){ _db.cache.set(key,_clone(value)); _db.loaded.add(key); persistCacheWrite(key,_clone(value)); _db.pendingWrites.set(key,(_db.pendingWrites.get(key)||0)+1); try{ if(SERVER_JSON_KEYS.has(key)) return await apiSet(key, JSON.stringify(value??null)); return await apiSet(key, String(value??'')); } finally { const n=(_db.pendingWrites.get(key)||1)-1; if(n<=0) _db.pendingWrites.delete(key); else _db.pendingWrites.set(key,n); } }
+  async function dbSet(key, value){ _db.cache.set(key,_clone(value)); _db.loaded.add(key); persistCacheWrite(key,_clone(value)); if(key===SALESHISTORY_KEY) _writeProtectedSnapshot(value); _db.pendingWrites.set(key,(_db.pendingWrites.get(key)||0)+1); try{ if(SERVER_JSON_KEYS.has(key)) return await apiSet(key, JSON.stringify(value??null)); return await apiSet(key, String(value??'')); } finally { const n=(_db.pendingWrites.get(key)||1)-1; if(n<=0) _db.pendingWrites.delete(key); else _db.pendingWrites.set(key,n); } }
   async function dbRefreshMany(keysWithFallback){ await Promise.all(keysWithFallback.map(kf=>dbFetch(kf.key,kf.fallback))); }
 
   function defaultDailyStats(){ return {date:todayStr(),guestCount:0,totalIncome:0}; }
@@ -1085,8 +1089,8 @@
   function computeForecastForToday(totalsIntake,admitted){ const target=getForecastTarget(); const fallbackAvg=getForecastFallbackAvg(); const liveAvg=(Number(admitted||0)>0)?(Number(totalsIntake||0)/Number(admitted||0)):0; let avgUsed=fallbackAvg,label='Fallback (tidigt på dagen)'; if(admitted>=10&&liveAvg>0){avgUsed=liveAvg;label='Live-snitt (dagens data)';}else if(admitted>=5){const a=fallbackAvg;const b=(liveAvg>0?liveAvg:fallbackAvg);avgUsed=(a+b)/2;label='Blandad (fallback + live)';} const predicted=Math.round(Number(target||0)*Number(avgUsed||0)); return {target,fallbackAvg,liveAvg,avgUsed,predicted,label}; }
 
   function loadSalesHistory(){ return dbGet(SALESHISTORY_KEY,defaultSalesHistory()); }
-  function saveSalesHistory(h){ const _persist=(data)=>{ const _attempt=(n)=>dbSet(SALESHISTORY_KEY,data||{}).catch(e=>{ if(n>0) return new Promise(r=>setTimeout(r,1500)).then(()=>_attempt(n-1)); showSaveError('⚠ Köpet sparades INTE på servern — notera det manuellt och försök igen!'); }); _attempt(2); }; if(!_db.loaded.has(SALESHISTORY_KEY)){ dbFetch(SALESHISTORY_KEY,defaultSalesHistory()).then(serverHist=>{ const merged=Object.assign({},serverHist,h); _db.cache.set(SALESHISTORY_KEY,_clone(merged)); _persist(merged); }).catch(()=>_persist(h)); }else{ _persist(h); } }
-  function getSimilarDays(hours){ const hist=loadSalesHistory();const today=todayStr(); return Object.entries(hist).filter(([date,d])=>date!==today&&d.hours===hours).map(([date,d])=>{ const fromAdm=Array.isArray(d.admissionsEntries)?d.admissionsEntries.reduce((s,e)=>s+Number(e.n||0),0):0; const admitted=fromAdm||(Number(d.adult||0)+Number(d.child||0)); return {date,admitted}; }).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10); }
+  function saveSalesHistory(h){ const _persist=(data)=>{ const _attempt=(n)=>dbSet(SALESHISTORY_KEY,data||{}).catch(e=>{ if(n>0) return new Promise(r=>setTimeout(r,1500)).then(()=>_attempt(n-1)); showSaveError('⚠ Köpet sparades INTE på servern — notera det manuellt och försök igen!'); }); _attempt(2); }; const _mergeWithServer=(serverHist)=>{ const today=todayStr(); const merged=Object.assign({},h,serverHist); Object.keys(h).forEach(d=>{ if(d>=today || (h[d]?._clientTs||0)>(serverHist[d]?._clientTs||0)) merged[d]=h[d]; }); _db.cache.set(SALESHISTORY_KEY,_clone(merged)); _persist(merged); }; if(!_db.serverLoaded.has(SALESHISTORY_KEY)){ const p=_db.inflight.has(SALESHISTORY_KEY)?_db.inflight.get(SALESHISTORY_KEY):dbFetch(SALESHISTORY_KEY,defaultSalesHistory()); p.then(_mergeWithServer).catch(()=>_persist(h)); }else{ _persist(h); } }
+  function getSimilarDays(hours){ const hist=loadSalesHistory();const today=todayStr(); return Object.entries(hist).filter(([date,d])=>date!==today&&!d._deleted&&d.hours===hours).map(([date,d])=>{ const fromAdm=Array.isArray(d.admissionsEntries)?d.admissionsEntries.reduce((s,e)=>s+Number(e.n||0),0):0; const admitted=fromAdm||(Number(d.adult||0)+Number(d.child||0)); return {date,admitted}; }).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10); }
   let _showSimilarDays=false;
   function toggleSimilarDays(){ _showSimilarDays=!_showSimilarDays; refreshCockpitIfOpen(); }
   function useSimilarDaysAvg(avg){ if(!isAdmin) return; const o=loadDailyForecast(); o.target=Number(avg); saveDailyForecast(o); refreshCockpitIfOpen(); }
@@ -1235,7 +1239,7 @@
     const el=document.getElementById('lonHistorikList'); if(!el) return;
     const hist=loadSalesHistory();
     const today=todayStr();
-    const days=Object.keys(hist).filter(d=>d<today&&Number((hist[d]||{}).income||0)>0).sort((a,b)=>b.localeCompare(a));
+    const days=Object.keys(hist).filter(d=>d<today&&!hist[d]?._deleted&&Number((hist[d]||{}).income||0)>0).sort((a,b)=>b.localeCompare(a));
     if(!days.length){ el.innerHTML='<div class="muted" style="margin-top:8px;">Inga tidigare öppna dagar med inkomst hittades.</div>'; return; }
     const settings=loadWageSettings();
     const bassumma=Math.max(0,Number(settings.bassumma||0));
@@ -1382,7 +1386,7 @@
   function deleteStatsDay(date){ if(!isAdmin||!date) return; window._deletingDate=date; const lbl=document.getElementById('deleteDayLabel'); if(lbl) lbl.textContent=`All statistik för ${date} kommer att tas bort.`; const err=document.getElementById('deleteDayError'); if(err) err.textContent=''; const inp=document.getElementById('deleteDayPassInput'); if(inp) inp.value=''; const m=document.getElementById('deleteDayModal'); if(m) m.style.display='flex'; setTimeout(()=>inp?.focus(),80); }
   function closeDeleteDayModal(){ const m=document.getElementById('deleteDayModal'); if(m) m.style.display='none'; window._deletingDate=null; document.getElementById('deleteDayStep1').style.display=''; document.getElementById('deleteDayStep2').style.display='none'; }
   function confirmDeleteDay(){ const date=window._deletingDate; if(!date) return; const pw=(document.getElementById('deleteDayPassInput')?.value||'').trim(); const u=users[pw]; if(!u||!u.admin){ const err=document.getElementById('deleteDayError'); if(err) err.textContent='Fel lösenord.'; document.getElementById('deleteDayPassInput')?.select(); return; } document.getElementById('deleteDayStep1').style.display='none'; const s2=document.getElementById('deleteDayStep2'); s2.style.display=''; const lbl=document.getElementById('deleteDayConfirmLabel'); if(lbl) lbl.textContent=`All statistik för ${date} tas bort permanent.`; setTimeout(()=>s2.querySelector('button.btn-danger')?.focus(),50); }
-  function executeDayDeletion(){ const date=window._deletingDate; if(!date) return; closeDeleteDayModal(); const hist=loadSalesHistory(); const savedDayHist=hist[date]?JSON.parse(JSON.stringify(hist[date])):null; if(hist[date]) delete hist[date]; saveSalesHistory(hist); _statsDirty=true; let savedDaily=null,savedTickets=null,savedAdmissions=null,savedReEntry=null; if(date===todayStr()){savedDaily={guestCount,totalIncome};savedTickets=JSON.parse(JSON.stringify(loadOpenTickets()));savedAdmissions=JSON.parse(JSON.stringify(loadAdmissions()));savedReEntry=JSON.parse(JSON.stringify(loadReEntry()));guestCount=0;totalIncome=0;saveDailyStats();updateLogSummary();saveOpenTickets({date:todayStr(),seq:0,items:[]});saveAdmissions({date:todayStr(),count:0,entries:[]});saveReEntry({date:todayStr(),passes:[]});cart={};discountApplied=false;renderCart();} renderCockpit();renderStats(); showUndoToast(`Statistik för ${date} raderad`, ()=>{ const h=loadSalesHistory(); if(savedDayHist) h[date]=savedDayHist; saveSalesHistory(h); _statsDirty=true; if(date===todayStr()&&savedDaily){guestCount=savedDaily.guestCount;totalIncome=savedDaily.totalIncome;saveDailyStats();updateLogSummary();if(savedTickets) saveOpenTickets(savedTickets);if(savedAdmissions) saveAdmissions(savedAdmissions);if(savedReEntry) saveReEntry(savedReEntry);renderCart();} renderCockpit();renderStats(); }); }
+  function executeDayDeletion(){ const date=window._deletingDate; if(!date) return; closeDeleteDayModal(); const hist=loadSalesHistory(); const savedDayHist=hist[date]?JSON.parse(JSON.stringify(hist[date])):null; hist[date]={_deleted:true,_clientTs:Date.now()}; saveSalesHistory(hist); _statsDirty=true; let savedDaily=null,savedTickets=null,savedAdmissions=null,savedReEntry=null; if(date===todayStr()){savedDaily={guestCount,totalIncome};savedTickets=JSON.parse(JSON.stringify(loadOpenTickets()));savedAdmissions=JSON.parse(JSON.stringify(loadAdmissions()));savedReEntry=JSON.parse(JSON.stringify(loadReEntry()));guestCount=0;totalIncome=0;saveDailyStats();updateLogSummary();saveOpenTickets({date:todayStr(),seq:0,items:[]});saveAdmissions({date:todayStr(),count:0,entries:[]});saveReEntry({date:todayStr(),passes:[]});cart={};discountApplied=false;renderCart();} renderCockpit();renderStats(); showUndoToast(`Statistik för ${date} raderad`, ()=>{ const h=loadSalesHistory(); if(savedDayHist) h[date]={...savedDayHist,_clientTs:Date.now()}; saveSalesHistory(h); _statsDirty=true; if(date===todayStr()&&savedDaily){guestCount=savedDaily.guestCount;totalIncome=savedDaily.totalIncome;saveDailyStats();updateLogSummary();if(savedTickets) saveOpenTickets(savedTickets);if(savedAdmissions) saveAdmissions(savedAdmissions);if(savedReEntry) saveReEntry(savedReEntry);renderCart();} renderCockpit();renderStats(); }); }
 
   function loadOpenTickets(){ let o=dbGet(OPEN_TICKETS_KEY,defaultOpenTickets()); if(!o||o.date!==todayStr()) o=defaultOpenTickets(); o.seq=Number(o.seq||0); o.items=Array.isArray(o.items)?o.items:[]; return o; }
   function saveOpenTickets(o){ const safe=o&&typeof o==='object'?o:defaultOpenTickets(); if(safe.date!==todayStr()) safe.date=todayStr(); if(!Array.isArray(safe.items)) safe.items=[]; if(typeof safe.seq!=='number') safe.seq=0; const _attempt=(n)=>dbSet(OPEN_TICKETS_KEY,safe).catch(e=>{ if(n>0) return new Promise(r=>setTimeout(r,1500)).then(()=>_attempt(n-1)); showSaveError('⚠ Biljettlistan sparades inte på servern — risk för dubbelinsläpp. Kontrollera uppkopplingen!'); }); _attempt(2); }
@@ -1762,15 +1766,28 @@
   function downloadTextFile(filename,text){ const blob=new Blob([text],{type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},0); }
   function exportDay(dateStr,mode='copy'){ const txt=buildDayExportText(dateStr); if(mode==='download') downloadTextFile(`korpen-${dateStr}.txt`,txt); else copyTextToClipboard(txt); }
 
+  function _getDaySummaryValues(dateStr){
+    const s=summaryForDate(dateStr); const _hd=loadSalesHistory()[dateStr]||{};
+    const _ov=(key,def)=>{ const v=_hd['_ov_'+key]; return (v!==undefined&&v!==null)?Number(v):def; };
+    return {
+      totalInslapp:_ov('inslapp',s.totalInslapp), adult:Number(_hd.adult||0), child:Number(_hd.child||0),
+      reEntryInslapp:_ov('reEntryInslapp',s.reEntryInslapp), buys:Number(_hd.count||0),
+      reEntryBuys:_ov('reEntryBuys',s.reEntryBuys), intakeTotal:Number(_hd.income||0),
+      intakeAdult:_ov('intakeAdult',s.intakeAdult), intakeChild:_ov('intakeChild',s.intakeChild),
+      intakeReEntry:_ov('intakeReEntry',s.intakeReEntry), intakeOther:_ov('intakeOther',s.intakeOther),
+      costs:getCostsForDate(dateStr), hours:_hd.hours||''
+    };
+  }
+
   function showDaySummaryModal(dateStr){
     window._daySummaryDate = dateStr;
-    const s = summaryForDate(dateStr);
-    const costsForDay = getCostsForDate(dateStr);
-    const net = Number(s.intakeTotal||0) - Number(costsForDay||0);
+    const sv = _getDaySummaryValues(dateStr);
+    const net = sv.intakeTotal - sv.costs;
 
-    let guestsPerHour = (dateStr === todayStr()) ? guestBucketsByHour() : guestBucketsByHourFromAdmissionsHistory(dateStr);
+    const _hd0 = loadSalesHistory()[dateStr]||{};
+    let guestsPerHour = dateStr===todayStr()?guestBucketsByHour():guestBucketsByHourFromAdmissionsHistory(dateStr);
     const hasAnyAdmission = guestsPerHour.some(v=>Number(v||0)>0);
-    let intakePerHour = intakeBucketsByHour(dateStr);
+    let intakePerHour = Array.isArray(_hd0._ov_intakePerHour) ? _hd0._ov_intakePerHour.slice() : intakeBucketsByHour(dateStr);
     const dayHoursStr = dateStr === todayStr() ? openingHours : (loadSalesHistory()[dateStr]||{}).hours;
     const dayRange = getOpenHourRange(dayHoursStr);
     let hourOffset = 0;
@@ -1782,93 +1799,70 @@
       `<div class="day-summary-pill ${cls}"><span>${label}</span><strong>${val}</strong></div>`;
 
     let html = '';
+    html += `<div class="day-summary-section"><div class="day-summary-section-title">Gäster</div><div class="day-summary-pills">${pill('Insläppta',sv.totalInslapp,'highlight')}${pill('Vuxna',sv.adult)}${pill('Barn',sv.child)}${pill('Re-entry',sv.reEntryInslapp)}</div></div>`;
+    html += `<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Köp</div><div class="day-summary-pills">${pill('Köptillfällen',sv.buys)}${pill('Vuxna+Barn',sv.adult+sv.child)}${pill('Re-entry köp',sv.reEntryBuys)}</div></div>`;
+    html += `<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Intäkter</div><div class="day-summary-pills">${pill('Totalt',sv.intakeTotal+' kr','highlight')}${pill('Vuxna',sv.intakeAdult+' kr')}${pill('Barn',sv.intakeChild+' kr')}${pill('Re-entry',sv.intakeReEntry+' kr')}${sv.intakeOther>0?pill('Övrigt',sv.intakeOther+' kr'):''}</div></div>`;
+    const payTots=paymentTotalsForDate(dateStr); const payMethods=['Swish','Kort','Kontant'].filter(m=>payTots[m]);
+    if(payMethods.length){ html+=`<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Betalningsmetoder</div><div class="day-summary-pills">${payMethods.map(m=>pill(m,payTots[m]+' kr')).join('')}</div></div>`; }
+    html += `<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Ekonomi</div><div class="day-summary-pills">${pill('Utgifter',sv.costs+' kr')}${pill('Resultat',net+' kr',net>=0?'positive':'negative')}</div></div>`;
+    html += `<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Gäster per timme (insläpp${!hasAnyAdmission?' — inga data':''})</div><div class="day-summary-chart-wrap">${hasAnyAdmission?svgBars24(guestsPerHour,maxG,70,{id:'dsMGChart',unit:'gäster',startHour:hourOffset}):'<div class="muted" style="font-style:italic;padding:8px 0;">Inga insläppsdata för dagen.</div>'}</div>${hasAnyAdmission?'<div id="dsMGChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div>':''}</div>`;
+    if(isAdmin){ html+=`<div class="day-summary-section" style="margin-top:14px;"><div class="day-summary-section-title">Intäkt per timme</div><div class="day-summary-chart-wrap" style="color:rgba(40,167,69,0.75);">${svgBars24(intakePerHour,maxI,70,{id:'dsMIChart',unit:'kr',startHour:hourOffset})}</div><div id="dsMIChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div></div>`; }
 
-    // Gäster
-    html += `<div class="day-summary-section">
-      <div class="day-summary-section-title">Gäster</div>
-      <div class="day-summary-pills">
-        ${pill('Insläppta', s.totalInslapp, 'highlight')}
-        ${pill('Vuxna', s.adult)}
-        ${pill('Barn', s.child)}
-        ${pill('Re-entry', s.reEntryInslapp)}
-      </div>
-    </div>`;
-
-    // Köp
-    html += `<hr class="day-summary-divider">
-    <div class="day-summary-section">
-      <div class="day-summary-section-title">Köp</div>
-      <div class="day-summary-pills">
-        ${pill('Köptillfällen', s.buys)}
-        ${pill('Vuxna+Barn', s.adult+s.child)}
-        ${pill('Re-entry köp', s.reEntryBuys)}
-      </div>
-    </div>`;
-
-    // Intäkter
-    html += `<hr class="day-summary-divider">
-    <div class="day-summary-section">
-      <div class="day-summary-section-title">Intäkter</div>
-      <div class="day-summary-pills">
-        ${pill('Totalt', s.intakeTotal+' kr', 'highlight')}
-        ${pill('Vuxna', s.intakeAdult+' kr')}
-        ${pill('Barn', s.intakeChild+' kr')}
-        ${pill('Re-entry', s.intakeReEntry+' kr')}
-        ${s.intakeOther>0 ? pill('Övrigt', s.intakeOther+' kr') : ''}
-      </div>
-    </div>`;
-
-    // Betalningsmetoder
-    const payTots = paymentTotalsForDate(dateStr);
-    const payMethods = ['Swish','Kort','Kontant'].filter(m=>payTots[m]);
-    if(payMethods.length){
-      html += `<hr class="day-summary-divider">
-      <div class="day-summary-section">
-        <div class="day-summary-section-title">Betalningsmetoder</div>
-        <div class="day-summary-pills">
-          ${payMethods.map(m=>pill(m, payTots[m]+' kr')).join('')}
-        </div>
-      </div>`;
-    }
-
-    // Ekonomi
-    html += `<hr class="day-summary-divider">
-    <div class="day-summary-section">
-      <div class="day-summary-section-title">Ekonomi</div>
-      <div class="day-summary-pills">
-        ${pill('Utgifter', costsForDay+' kr')}
-        ${pill('Resultat', net+' kr', net>=0?'positive':'negative')}
-      </div>
-    </div>`;
-
-    // Diagram
-    html += `<hr class="day-summary-divider">
-    <div class="day-summary-section">
-      <div class="day-summary-section-title">Gäster per timme (insläpp${!hasAnyAdmission?' — inga data':''})</div>
-      <div class="day-summary-chart-wrap">${hasAnyAdmission ? svgBars24(guestsPerHour,maxG,70,{id:'dsMGChart',unit:'gäster',startHour:hourOffset}) : '<div class="muted" style="font-style:italic;padding:8px 0;">Inga insläppsdata för dagen.</div>'}</div>
-      ${hasAnyAdmission ? '<div id="dsMGChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div>' : ''}
-    </div>`;
-    if(isAdmin){
-      html += `<div class="day-summary-section" style="margin-top:14px;">
-        <div class="day-summary-section-title">Intäkt per timme</div>
-        <div class="day-summary-chart-wrap" style="color:rgba(40,167,69,0.75);">${svgBars24(intakePerHour,maxI,70,{id:'dsMIChart',unit:'kr',startHour:hourOffset})}</div>
-        <div id="dsMIChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div>
-      </div>`;
-    }
-
-    const title = document.getElementById('daySummaryTitle');
-    if(title) title.textContent = `Sammanfattning — ${dateStr}`;
-    const subtitle = document.getElementById('daySummarySubtitle');
-    if(subtitle){ const dayHours=(loadSalesHistory()[dateStr]||{}).hours; subtitle.textContent=dayHours&&dayHours!=='Stängt'?`Öppettider: ${dayHours}`:''; }
-    const content = document.getElementById('daySummaryContent');
-    if(content) content.innerHTML = html;
-    const modal = document.getElementById('daySummaryModal');
-    if(modal){ modal.style.display='flex'; }
+    const title=document.getElementById('daySummaryTitle'); if(title) title.textContent=`Sammanfattning — ${dateStr}`;
+    const subtitle=document.getElementById('daySummarySubtitle'); if(subtitle) subtitle.textContent=sv.hours&&sv.hours!=='Stängt'?`Öppettider: ${sv.hours}`:'';
+    const content=document.getElementById('daySummaryContent'); if(content) content.innerHTML=html;
+    const actions=document.querySelector('#daySummaryModal .actions');
+    if(actions) actions.innerHTML=`<button class="btn" onclick="exportDay(window._daySummaryDate,'copy')">Kopiera som text</button>${isAdmin?'<button class="btn" onclick="enterDaySummaryEditMode()">Redigera</button>':''}<button class="btn" onclick="closeDaySummaryModal()">Stäng</button>`;
+    const modal=document.getElementById('daySummaryModal'); if(modal) modal.style.display='flex';
   }
 
   function closeDaySummaryModal(){
     const modal = document.getElementById('daySummaryModal');
     if(modal) modal.style.display='none';
+  }
+
+  function enterDaySummaryEditMode(){
+    const dateStr=window._daySummaryDate; if(!dateStr||!isAdmin) return;
+    const sv=_getDaySummaryValues(dateStr);
+    const is='background:transparent;border:none;border-bottom:1px solid rgba(232,224,208,0.45);color:inherit;font-size:inherit;font-weight:bold;text-align:center;width:100%;padding:2px 0;font-family:inherit;outline:none;-webkit-appearance:none;';
+    const pi=(id,val,t='number',ph='')=>`<input type="${t}" id="${id}" value="${escapeHtml(String(val))}" placeholder="${ph}" style="${is}" ${t==='number'?'min="0"':''}>`;
+    const pe=(label,id,val,t='number',cls='',ph='')=>`<div class="day-summary-pill ${cls}" style="cursor:text;"><span>${label}</span>${pi(id,val,t,ph)}</div>`;
+    const pill=(label,val,cls='')=>`<div class="day-summary-pill ${cls}"><span>${label}</span><strong>${val}</strong></div>`;
+    const net=sv.intakeTotal-sv.costs;
+    let html='';
+    html+=`<div class="day-summary-section"><div class="day-summary-section-title">Gäster</div><div class="day-summary-pills">${pe('Insläppta','dseInslapp',sv.totalInslapp,'number','highlight')}${pe('Vuxna','dseAdult',sv.adult)}${pe('Barn','dseChild',sv.child)}${pe('Re-entry','dseReEntry',sv.reEntryInslapp)}</div></div>`;
+    html+=`<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Köp</div><div class="day-summary-pills">${pe('Köptillfällen','dseBuys',sv.buys)}${pill('Vuxna+Barn',sv.adult+sv.child)}${pe('Re-entry köp','dseReEntryBuys',sv.reEntryBuys)}</div></div>`;
+    html+=`<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Intäkter</div><div class="day-summary-pills">${pe('Totalt','dseIncome',sv.intakeTotal,'number','highlight')}${pe('Vuxna','dseIntakeAdult',sv.intakeAdult)}${pe('Barn','dseIntakeChild',sv.intakeChild)}${pe('Re-entry','dseIntakeReEntry',sv.intakeReEntry)}${pe('Övrigt','dseIntakeOther',sv.intakeOther)}</div></div>`;
+    html+=`<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Ekonomi</div><div class="day-summary-pills">${pe('Utgifter','dseCosts',sv.costs)}${pill('Resultat',net+' kr',net>=0?'positive':'negative')}</div></div>`;
+    html+=`<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Öppettider</div><div class="day-summary-pills">${pe('Öppettider','dseHours',sv.hours,'text','','10:00–22:00')}</div></div>`;
+    const _hde=loadSalesHistory()[dateStr]||{}; const _ovIph=Array.isArray(_hde._ov_intakePerHour)?_hde._ov_intakePerHour:Array.from({length:24},()=>0);
+    const _editRange=getOpenHourRange(sv.hours)||{start:0,end:24}; const _hourIs='width:42px;text-align:center;background:rgba(0,0,0,0.25);border:1px solid rgba(232,224,208,0.25);border-radius:4px;color:inherit;font-family:inherit;font-size:13px;padding:2px 0;-webkit-appearance:none;outline:none;';
+    let _hourCells=''; for(let h=_editRange.start;h<_editRange.end;h++){ _hourCells+=`<div style="text-align:center;"><div class="tiny muted" style="margin-bottom:2px;">${h}</div><input type="number" id="dseIntakeHour${h}" min="0" value="${_ovIph[h]||0}" style="${_hourIs}"></div>`; }
+    html+=`<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Intäkt/timme (kr)</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">${_hourCells}</div></div>`;
+    const content=document.getElementById('daySummaryContent'); if(content) content.innerHTML=html;
+    const actions=document.querySelector('#daySummaryModal .actions');
+    if(actions) actions.innerHTML=`<button class="btn" onclick="saveDaySummaryEdit()">Spara</button><button class="btn" onclick="showDaySummaryModal(window._daySummaryDate)">Avbryt</button>`;
+    document.getElementById('dseAdult')?.focus();
+  }
+
+  function saveDaySummaryEdit(){
+    const dateStr=window._daySummaryDate; if(!dateStr||!isAdmin) return;
+    const n=(id)=>Math.max(0,Number(document.getElementById(id)?.value||0));
+    const hist=loadSalesHistory();
+    if(!hist[dateStr]) hist[dateStr]={adult:0,child:0,income:0,count:0,entries:[],reEntryPasses:[],admissionsEntries:[]};
+    hist[dateStr].adult=n('dseAdult'); hist[dateStr].child=n('dseChild');
+    hist[dateStr].income=n('dseIncome'); hist[dateStr].count=n('dseBuys');
+    hist[dateStr].costs=n('dseCosts');
+    const hours=(document.getElementById('dseHours')?.value||'').trim(); if(hours) hist[dateStr].hours=hours;
+    hist[dateStr]._ov_inslapp=n('dseInslapp'); hist[dateStr]._ov_reEntryInslapp=n('dseReEntry');
+    hist[dateStr]._ov_reEntryBuys=n('dseReEntryBuys'); hist[dateStr]._ov_intakeAdult=n('dseIntakeAdult');
+    hist[dateStr]._ov_intakeChild=n('dseIntakeChild'); hist[dateStr]._ov_intakeReEntry=n('dseIntakeReEntry');
+    hist[dateStr]._ov_intakeOther=n('dseIntakeOther');
+    const _iph=Array.from({length:24},(_,h)=>{ const inp=document.getElementById(`dseIntakeHour${h}`); return inp?Math.max(0,Number(inp.value||0)):0; });
+    if(_iph.some(v=>v>0)) hist[dateStr]._ov_intakePerHour=_iph; else delete hist[dateStr]._ov_intakePerHour;
+    hist[dateStr]._clientTs=Date.now();
+    saveSalesHistory(hist); _statsDirty=true;
+    showDaySummaryModal(dateStr); renderStats(); renderCockpit();
   }
 
   function upsert(parent,id,html){ let el=document.getElementById(id); if(!el){el=document.createElement('div');el.id=id;parent.appendChild(el);} el.innerHTML=html; }
@@ -1925,9 +1919,12 @@
   function renderStats(){
     const root=document.getElementById('statsList');if(!root) return;
     if(!isAdmin){root.innerHTML='<div class="muted" style="font-style:italic;">Endast admin ser historik.</div>';return;}
-    const hist=loadSalesHistory();const dates=Object.keys(hist).sort().reverse();
-    if(!dates.length){root.innerHTML='<div class="muted" style="font-style:italic;">Ingen historik än.</div>';return;}
+    const hist=loadSalesHistory();const dates=Object.keys(hist).filter(d=>!hist[d]?._deleted).sort().reverse();
     root.innerHTML='';
+    const _addDiv=document.createElement('div');_addDiv.style.marginBottom='12px';
+    _addDiv.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;"><button class="btn pill" type="button" onclick="toggleAddDayPanel()">+ Lägg till dag</button><button class="btn pill" type="button" onclick="showLocalBackupModal()" style="opacity:0.75;">Lokal säkerhetskopia</button></div><div id="addDayPanel" style="display:none;background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;margin-top:8px;"><div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;"><label style="flex:1;min-width:110px;font-size:13px;">Datum<br><input type="date" id="addDayDate" style="width:100%;"></label><label style="flex:1;min-width:80px;font-size:13px;">Vuxna<br><input type="number" id="addDayAdult" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:80px;font-size:13px;">Barn<br><input type="number" id="addDayChild" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:100px;font-size:13px;">Intäkt (kr)<br><input type="number" id="addDayIncome" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:110px;font-size:13px;">Öppettider<br><input type="text" id="addDayHours" placeholder="10:00–22:00" style="width:100%;"></label><label style="flex:1;min-width:100px;font-size:13px;">Utgifter (kr)<br><input type="number" id="addDayCosts" value="0" min="0" style="width:100%;"></label></div><div class="row" style="gap:8px;"><button class="btn" type="button" onclick="saveNewDay()">Spara dag</button><button class="btn" type="button" onclick="toggleAddDayPanel()">Avbryt</button></div></div>`;
+    root.appendChild(_addDiv);
+    if(!dates.length){const _nd=document.createElement('div');_nd.className='muted';_nd.style.fontStyle='italic';_nd.textContent='Ingen historik än.';root.appendChild(_nd);return;}
     dates.forEach(date=>{
       const s=hist[date]||{};const totalGuests=(s.adult||0)+(s.child||0);const detailId=`statsDetail-${date}`;const btnId=`statsBtn-${date}`;const hoursLabel=s.hours&&s.hours!=='Stängt'?` • ${s.hours}`:'';const _sEntries=Array.isArray(s.entries)?s.entries:[];const _sPay={};_sEntries.forEach(e=>{const p=e.payType||'—';_sPay[p]=(_sPay[p]||0)+Number(e.sum||0);});const payLabel=['Swish','Kort','Kontant'].filter(m=>_sPay[m]).map(m=>`${m}: ${_sPay[m]} kr`).join(' / ');
       const wrap=document.createElement('div');wrap.className='section';
@@ -1950,6 +1947,50 @@
       else{el.innerHTML=deleteBar+payRow+s.entries.map(e=>{ const isReEntryPurchase=Number(e?.reEntryCreated||0)>0||Number(e?.breakdown?.reEntry||0)>0;let usedBadge='';if(isReEntryPurchase){const day=histAll[date]||{};const passes=Array.isArray(day.reEntryPasses)?day.reEntryPasses:[];const countMap={};passes.forEach(p=>{countMap[p.id]=Number(p.count||0);});const ids=Array.isArray(e.reEntryIds)?e.reEntryIds:[];if(ids.length){usedBadge=ids.map(id=>{const p=passes.find(x=>x.id===id);const label=p?.label||'Re-entry';const n=(countMap[id]??0);return `<span class="pill" style="background:rgba(75,0,130,0.4);border-color:rgba(142,106,216,0.5);">${escapeHtml(label)}: ${n} gånger</span>`;}).join(' ');}else{usedBadge=`<span class="pill" style="background:rgba(75,0,130,0.4);">Re-entry</span>`;}}else if(typeof e.used==='boolean'){if(!window._reactivateTickets) window._reactivateTickets={}; const _rk='_re_'+(e.ticketUid||'').replace(/\W/g,'_')+'_'+date; window._reactivateTickets[_rk]={ticketUid:e.ticketUid,adult:e.adult,child:e.child,label:e.ticketLabel,sum:e.sum}; usedBadge=e.used?'<span class="pill" style="background:rgba(26,58,35,0.5);border-color:rgba(40,167,69,0.4);">Använd</span>':`<span class="pill" style="cursor:pointer;border-color:rgba(255,160,60,0.4);background:rgba(255,100,0,0.1);" onclick="reactivateTicketFromHistory('${_rk}')" title="Klicka för att återaktivera till aktiva biljetter">Ej använd ↩</span>`;}const labelPart=e.ticketLabel?` — <em>${escapeHtml(e.ticketLabel)}</em>`:'';return `<div class="log-entry"><strong>${escapeHtml(e.time)}<br></strong>${(e.items||[]).map(escapeHtml).join('<br>')}<br><em>Summa: ${e.sum} kr</em>${labelPart}${usedBadge?` ${usedBadge}`:``}<br><span class="tiny">Säljare: ${escapeHtml(e.seller||'—')} • Betalning: ${escapeHtml(e.payType||'—')}</span></div>`; }).join('');}
     }
     if(btnEl){const base=btnEl.textContent.replace(/^Visa |^Dölj /,'');btnEl.textContent=(willOpen?'Dölj ':'Visa ')+base;}
+  }
+
+  function saveStatsEdit(date){ if(!isAdmin||!date) return; const adult=Math.max(0,Number(document.getElementById('editAdult-'+date)?.value||0)); const child=Math.max(0,Number(document.getElementById('editChild-'+date)?.value||0)); const income=Math.max(0,Number(document.getElementById('editIncome-'+date)?.value||0)); const hours=(document.getElementById('editHours-'+date)?.value||'').trim(); const costs=Math.max(0,Number(document.getElementById('editCosts-'+date)?.value||0)); const hist=loadSalesHistory(); if(!hist[date]) hist[date]={adult:0,child:0,income:0,count:0,entries:[],reEntryPasses:[],admissionsEntries:[]}; hist[date].adult=adult; hist[date].child=child; hist[date].income=income; if(hours) hist[date].hours=hours; hist[date].costs=costs; saveSalesHistory(hist); _statsDirty=true; renderStats(); renderCockpit(); }
+  function toggleAddDayPanel(){ const p=document.getElementById('addDayPanel'); if(p) p.style.display=p.style.display==='none'?'block':'none'; }
+  function saveNewDay(){ if(!isAdmin) return; const date=(document.getElementById('addDayDate')?.value||'').trim(); if(!date||!/^\d{4}-\d{2}-\d{2}$/.test(date)){alert('Ange ett giltigt datum (ÅÅÅÅ-MM-DD).');return;} const adult=Math.max(0,Number(document.getElementById('addDayAdult')?.value||0)); const child=Math.max(0,Number(document.getElementById('addDayChild')?.value||0)); const income=Math.max(0,Number(document.getElementById('addDayIncome')?.value||0)); const hours=(document.getElementById('addDayHours')?.value||'').trim(); const costs=Math.max(0,Number(document.getElementById('addDayCosts')?.value||0)); const hist=loadSalesHistory(); hist[date]={adult,child,income,count:0,entries:[],reEntryPasses:[],admissionsEntries:[],_clientTs:Date.now()}; if(hours) hist[date].hours=hours; if(costs) hist[date].costs=costs; saveSalesHistory(hist); _statsDirty=true; const p=document.getElementById('addDayPanel'); if(p) p.style.display='none'; renderStats(); renderCockpit(); }
+
+  function showLocalBackupModal(){
+    if(!isAdmin) return;
+    const snap=_readProtectedSnapshot();
+    let localData={},localTs=0;
+    if(snap){ localData=snap.v||{}; localTs=snap.t||0; }
+    const localDates=Object.keys(localData).sort();
+    const serverData=loadSalesHistory();
+    const serverDates=Object.keys(serverData).sort();
+    const missing=localDates.filter(d=>!serverData[d]);
+    const tsStr=localTs?new Date(localTs).toLocaleString('sv-SE'):'okänt';
+    const localLatest=localDates.length?localDates[localDates.length-1]:'—';
+    const serverLatest=serverDates.length?serverDates[serverDates.length-1]:'—';
+    const dateRows=localDates.length?localDates.slice().reverse().map(d=>{ const day=localData[d]||{}; const guests=(day.adult||0)+(day.child||0); const income=day.income||0; const badge=serverData[d]?'':'<span style="color:#f5a623;font-size:11px;margin-left:6px;">● saknas på server</span>'; return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);"><span style="font-size:13px;">${escapeHtml(d)}${badge}</span><span style="font-size:12px;opacity:0.7;">${guests} gäster · ${income} kr</span></div>`; }).join(''):'<div style="opacity:0.5;font-size:13px;padding:8px 0;">Ingen lokal kopia hittades på den här enheten.</div>';
+    const statusBox=missing.length?`<div style="background:rgba(245,166,35,0.12);border:1px solid rgba(245,166,35,0.3);border-radius:8px;padding:10px 12px;margin:12px 0;font-size:13px;">${missing.length} dag${missing.length>1?'ar':''} finns lokalt men saknas på servern: ${missing.map(escapeHtml).join(', ')}</div>`:`<div style="background:rgba(40,167,69,0.12);border:1px solid rgba(40,167,69,0.3);border-radius:8px;padding:10px 12px;margin:12px 0;font-size:13px;">Lokal kopia och server är i synk — inga dagar saknas.</div>`;
+    let m=document.getElementById('localBackupModal');
+    if(!m){ m=document.createElement('div'); m.id='localBackupModal'; m.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);'; m.addEventListener('click',e=>{ if(e.target===m) m.style.display='none'; }); document.body.appendChild(m); }
+    m.innerHTML=`<div style="background:#1a1228;border:1px solid rgba(232,224,208,0.15);border-radius:14px;max-width:460px;width:93%;max-height:82vh;overflow-y:auto;padding:22px;font-family:inherit;color:rgba(232,224,208,0.9);"><h3 style="margin:0 0 3px;font-size:17px;">Lokal säkerhetskopia</h3><p style="font-size:12px;opacity:0.45;margin:0 0 14px;">Data lagrad i webbläsarens minne på <em>den här enheten</em>.</p><div style="display:flex;gap:10px;margin-bottom:4px;"><div style="flex:1;background:rgba(255,255,255,0.05);border-radius:8px;padding:10px;"><div style="font-size:10px;opacity:0.45;margin-bottom:4px;letter-spacing:.05em;">LOKAL KOPIA</div><div style="font-size:14px;font-weight:bold;">${localDates.length} dagar</div><div style="font-size:12px;opacity:0.6;">Senaste: ${escapeHtml(localLatest)}</div><div style="font-size:11px;opacity:0.4;margin-top:4px;">${escapeHtml(tsStr)}</div></div><div style="flex:1;background:rgba(255,255,255,0.05);border-radius:8px;padding:10px;"><div style="font-size:10px;opacity:0.45;margin-bottom:4px;letter-spacing:.05em;">SERVER (nu)</div><div style="font-size:14px;font-weight:bold;">${serverDates.length} dagar</div><div style="font-size:12px;opacity:0.6;">Senaste: ${escapeHtml(serverLatest)}</div></div></div>${statusBox}<div style="max-height:210px;overflow-y:auto;margin-bottom:14px;">${dateRows}</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${missing.length?`<button class="btn" onclick="restoreFromLocalBackup()" style="background:rgba(245,166,35,0.18);border-color:rgba(245,166,35,0.5);">Lägg till ${missing.length} saknade dag${missing.length>1?'ar':''}</button>`:''}<button class="btn" onclick="document.getElementById('localBackupModal').style.display='none'">Stäng</button></div></div>`;
+    m.style.display='flex';
+  }
+
+  function restoreFromLocalBackup(){
+    if(!isAdmin) return;
+    const snap=_readProtectedSnapshot();
+    if(!snap) return;
+    let localData=snap.v||{};
+    const serverData=loadSalesHistory();
+    const missing=Object.keys(localData).filter(d=>!serverData[d]);
+    if(!missing.length){ alert('Inga saknade dagar att återställa.'); return; }
+    const preview=missing.map(d=>{ const day=localData[d]||{}; return `${d}: ${(day.adult||0)+(day.child||0)} gäster, ${day.income||0} kr`; }).join('\n');
+    if(!confirm(`Lägg till ${missing.length} dag${missing.length>1?'ar':''} från lokal kopia till servern?\n\n${preview}`)) return;
+    const merged=Object.assign({},serverData);
+    missing.forEach(d=>{ merged[d]=localData[d]; });
+    saveSalesHistory(merged);
+    _statsDirty=true;
+    const m=document.getElementById('localBackupModal');
+    if(m) m.style.display='none';
+    renderStats(); renderCockpit();
+    showUndoToast(`${missing.length} dag${missing.length>1?'ar':''} återställda från lokal kopia`, ()=>{ const h=loadSalesHistory(); missing.forEach(d=>{ delete h[d]; }); saveSalesHistory(h); _statsDirty=true; renderStats(); renderCockpit(); });
   }
 
   function updateTopbar(){
