@@ -823,6 +823,7 @@
         closeLoginModal();
         selectMenu(isAdmin ? 'admin' : 'profile');
         localStorage.setItem(SESSION_KEY, JSON.stringify({ pw: loggedInKey }));
+        gtag('set', 'user_properties', { user_type: 'personal' });
       } else {
         const errEl = document.getElementById('loginError');
         const inp2 = document.getElementById('loginPasswordInput');
@@ -3076,7 +3077,8 @@
     try{
       const s=JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
       const pw=s?.pw;const u=pw?users[pw]:null;
-      if(u){loggedInKey=pw;loggedInUser=u.name;isAdmin=(pw==='spök123')?true:!!u.admin;currentHasAccess=!!u.hasAccess||u.name==='Adam'||u.name==='Casper';currentHasInslepp=!!u.hasInslepp||u.name==='Adam'||u.name==='Casper';}
+      if(u){loggedInKey=pw;loggedInUser=u.name;isAdmin=(pw==='spök123')?true:!!u.admin;currentHasAccess=!!u.hasAccess||u.name==='Adam'||u.name==='Casper';currentHasInslepp=!!u.hasInslepp||u.name==='Adam'||u.name==='Casper';gtag('set','user_properties',{user_type:'personal'});}
+      else{gtag('set','user_properties',{user_type:'guest'});}
     }catch(_e){}
 
     enforceCoreUsers();
