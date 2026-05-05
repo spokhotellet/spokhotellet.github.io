@@ -2135,6 +2135,9 @@
       setSocialLinks(ig,fb);
       alert('Sociala länkar sparade.');
     });
+    document.getElementById('socialIgBtn')?.addEventListener('click',()=>{ if(!loggedInUser) gtag('event','social_click',{platform:'instagram'}); });
+    document.getElementById('socialFbBtn')?.addEventListener('click',()=>{ if(!loggedInUser) gtag('event','social_click',{platform:'facebook'}); });
+    document.querySelector('.welcome-staff-btn')?.addEventListener('click',()=>{ if(!loggedInUser) gtag('event','staff_login_click'); });
   }
 
   function selectMenu(menu){
@@ -2244,6 +2247,7 @@
     if(tab) tab.classList.add('active');
     const staffBtn=document.querySelector('.welcome-staff-btn');
     if(staffBtn) staffBtn.style.display=name==='info'?'':'none';
+    if(!loggedInUser) gtag('event','tab_click',{tab_name:name});
   }
   function renderWelcomePrices(){ const c=document.getElementById('wsPrices'); if(!c) return; const prods=loadProducts().filter(p=>Number(p.price)>0&&!p.internal); c.innerHTML=`<div class="ds-prices" style="max-width:420px;margin:0 auto;">${prods.map((p,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.08+0.08}s"><span class="ds-price-name">${escapeHtml(p.name)}</span><span class="ds-price-dots"></span><span class="ds-price-val">${p.price} kr</span></div>`).join('')}</div>`; }
 
