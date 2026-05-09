@@ -1156,8 +1156,15 @@
           const td=visits[todayStr()]||{};
           let wg=0,wp=0;Object.values(visits).forEach(d=>{wg+=Number(d.guest||0);wp+=Number(d.personal||0);});
           const tg=Number(td.guest||0),tp=Number(td.personal||0);
-          if(pillsEl) pillsEl.innerHTML=`<span class="pill">Idag: <strong>${tg+tp}</strong></span><span class="pill">Veckan: <strong>${wg+wp}</strong></span>`;
+          if(pillsEl) pillsEl.innerHTML=`<span class="pill">Idag: <strong>${tg+tp}</strong></span><span class="pill">Veckan: <strong>${wg+wp}</strong></span><button id="webbRefreshBtn" title="Uppdatera" style="background:none;border:none;color:rgba(232,224,208,0.5);cursor:pointer;font-size:16px;padding:0 4px;line-height:1;margin-left:4px;">↻</button>`;
           if(wrapEl) wrapEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-top:8px;">${svgBars2([tg,tp],['Gäster','Personal'],'Idag',['rgba(232,180,60,0.9)','rgba(100,160,220,0.9)'])}${svgBars2([wg,wp],['Gäster','Personal'],'Senaste 7 dagarna',['rgba(232,180,60,0.5)','rgba(100,160,220,0.5)'])}</div>`;
+          const rb=document.getElementById('webbRefreshBtn');
+          if(rb) rb.addEventListener('click',()=>{
+            rb.style.transition='transform 0.4s';rb.style.transform='rotate(360deg)';
+            setTimeout(()=>{rb.style.transition='';rb.style.transform='';},400);
+            window._webbVisitsCache=null;
+            apiGet(WEB_VISITS_KEY).then(raw=>{let v={};try{v=JSON.parse(raw||'{}');}catch(_e){}window._webbVisitsCache=v;_renderWebbData(v);}).catch(()=>{});
+          });
         }
         if(window._webbVisitsCache) _renderWebbData(window._webbVisitsCache);
         else apiGet(WEB_VISITS_KEY).then(raw=>{
