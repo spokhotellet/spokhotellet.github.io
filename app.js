@@ -145,8 +145,9 @@
   const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1'; const DISPLAY_TICKER_KEY='displayTickerTextV1'; const DISPLAY_IMAGES_KEY='displayImagesV1';
   const SHIFT_PLAN_KEY='shiftPlanV1'; const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1'; const WAGE_SETTINGS_KEY='wageSettingsV1'; const TASK_DESCRIPTIONS_KEY='taskDescriptionsV1'; const GUEST_HIDDEN_KEY='guestHiddenV1';
 
-  function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests') ? v : 'guests'; }
-  function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode === 'intake' ? 'intake' : 'guests'); }
+  const WEB_VISITS_KEY = 'webVisitsV1';
+  function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests' || v === 'webb') ? v : 'guests'; }
+  function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode); }
 
   const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY,TASK_DESCRIPTIONS_KEY,GUEST_HIDDEN_KEY]);
 
@@ -1100,6 +1101,17 @@
   function guestBucketsByHour(){ const out=Array.from({length:24},()=>0); const a=loadAdmissions(); (a.entries||[]).forEach(e=>{const h=new Date(e.ts).getHours();out[h]+=Number(e.n||0);}); return out; }
 
   function svgBars24(dataArr,maxVal,height=80,opts={}){ const pad=4,wPer=18,gap=6,yAx=32;const id=opts.id||('chart_'+Math.random().toString(36).slice(2,9));const unit=opts.unit||'';const barAreaW=dataArr.length*(wPer+gap)+pad*2-gap;const width=yAx+barAreaW+yAx;const h=height+pad*2+12;const scale=maxVal>0?height/maxVal:0;const fmt=v=>v>=1000?Math.round(v/100)/10+'k':String(v);let bars='';dataArr.forEach((v,i)=>{const barH=Math.round(v*scale);const x=yAx+pad+i*(wPer+gap);const y=pad+(height-barH);const barHour=(opts.startHour||0)+i;const h0=String(barHour%24).padStart(2,'0');const h1=String((barHour+1)%24).padStart(2,'0');const tooltip=`${h0}:00–${h1}:00: ${v}${unit?' '+unit:''}`;bars+=`<rect x="${x}" y="${y}" width="${wPer}" height="${barH}" rx="2" ry="2" onclick="cockpitBarClick('${id}',${barHour},${v},'${unit}')" style="cursor:pointer" fill="currentColor" fill-opacity="0.85"><title>${tooltip}</title></rect>`;});let labels='';const startHour=opts.startHour||0;for(let i=0;i<dataArr.length;i++){const hour=(startHour+i)%24;const x=yAx+pad+i*(wPer+gap)+Math.floor(wPer/2);labels+=`<text x="${x}" y="${h-2}" font-size="10" text-anchor="middle" fill="currentColor" fill-opacity="0.75">${String(hour).padStart(2,'0')}</text>`;}const midVal=Math.round(maxVal/2);const rightX=yAx+barAreaW+3;const yAxisL=`<text x="${yAx-3}" y="${pad+6}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.55">${fmt(maxVal)}</text><text x="${yAx-3}" y="${pad+Math.round(height/2)+3}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.4">${fmt(midVal)}</text><text x="${yAx-3}" y="${pad+height}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.35">0</text>`;const yAxisR=`<text x="${rightX}" y="${pad+6}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.55">${fmt(maxVal)}</text><text x="${rightX}" y="${pad+Math.round(height/2)+3}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.4">${fmt(midVal)}</text><text x="${rightX}" y="${pad+height}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.35">0</text>`;const grid=`<line x1="${yAx}" y1="${pad}" x2="${yAx+barAreaW}" y2="${pad}" stroke="currentColor" stroke-opacity="0.07" stroke-width="1"/><line x1="${yAx}" y1="${pad+Math.round(height/2)}" x2="${yAx+barAreaW}" y2="${pad+Math.round(height/2)}" stroke="currentColor" stroke-opacity="0.05" stroke-width="1"/>`;return `<svg id="${id}" width="${width}" height="${h}" viewBox="0 0 ${width} ${h}" style="display:block;margin:0 auto;">${grid}${bars}${labels}${yAxisL}${yAxisR}</svg>`; }
+  function svgBars2(values,labels,title,colors){
+    const max=Math.max(...values,1);const h=80;const bW=64;const gap=20;const pad=16;
+    const totalW=pad*2+values.length*(bW+gap)-gap;
+    if(!colors) colors=['rgba(232,180,60,0.85)','rgba(100,160,220,0.85)'];
+    const top=20;const yAx=28;const fullW=yAx+totalW;
+    const gridLines=4;let grid='';
+    for(let i=0;i<=gridLines;i++){const val=Math.round(max/gridLines*i);const y=top+h-Math.round(val/max*h);grid+=`<line x1="${yAx}" y1="${y}" x2="${fullW}" y2="${y}" stroke="currentColor" stroke-opacity="${i===0?0.12:0.06}" stroke-width="1"/>`;grid+=`<text x="${yAx-4}" y="${y+4}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.4">${val}</text>`;}
+    let bars='';values.forEach((v,i)=>{const bH=Math.max(Math.round(v/max*h),v>0?2:0);const x=yAx+pad+i*(bW+gap);const y=top+h-bH;bars+=`<rect x="${x}" y="${y}" width="${bW}" height="${bH}" rx="3" fill="${colors[i]}"/>`;bars+=`<text x="${x+bW/2}" y="${y-6}" font-size="13" text-anchor="middle" fill="currentColor" font-weight="bold">${v}</text>`;bars+=`<text x="${x+bW/2}" y="${top+h+16}" font-size="11" text-anchor="middle" fill="currentColor" fill-opacity="0.6">${labels[i]}</text>`;});
+    const svg=`<svg width="${fullW}" height="${top+h+22}" viewBox="0 0 ${fullW} ${top+h+22}" style="display:block;margin:0 auto;">${grid}${bars}</svg>`;
+    return `<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(232,224,208,0.1);border-radius:10px;padding:14px 12px 10px;text-align:center;min-width:160px;flex:1;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.45;margin-bottom:12px;">${title}</div>${svg}</div>`;
+  }
   function cockpitBarClick(chartId,hour,value,unit){ const info=document.getElementById(chartId+'-info'); if(!info) return; const start=String(hour).padStart(2,'0')+':00';const end=String((hour+1)%24).padStart(2,'0')+':00'; info.textContent=`${start}–${end}: ${value} ${unit}`.trim(); info.classList.remove('muted'); }
 
   function renderCockpit(){
@@ -1112,21 +1124,22 @@
     const buyWasOpen=document.getElementById('buyPanel')?.style.display==='block';
     const detWasOpen=document.getElementById('intakeDetails')?.style.display==='block';
     const savedReconcile=document.getElementById('admitReconcilePanel')?.innerHTML||'';
-    const html=`<div class="section" style="margin-bottom:12px;"><div class="row" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;font-family:'IM Fell English SC',serif;letter-spacing:0.3px;">Cockpit – idag (${today})</h3><div class="row">${isAdmin?`<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button><button class="btn pill" type="button" id="tabIntake" aria-selected="false">Intäkt</button>`:`<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button>`}</div></div><div id="cockpitPills" class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px;"></div><div id="admitReconcilePanel"></div><div style="margin-top:10px;"><div id="cockpitChartLabel" class="tiny muted" style="margin-bottom:4px;"></div><div id="cockpitChartWrap" style="overflow:auto;"></div><div id="cockpitChart-info" class="tiny muted" aria-live="polite"></div></div></div>`;
+    const html=`<div class="section" style="margin-bottom:12px;"><div class="row" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;font-family:'IM Fell English SC',serif;letter-spacing:0.3px;">Cockpit – idag (${today})</h3><div class="row">${isAdmin?`<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button><button class="btn pill" type="button" id="tabIntake" aria-selected="false">Intäkt</button><button class="btn pill" type="button" id="tabWebb" aria-selected="false">Webb</button>`:`<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button><button class="btn pill" type="button" id="tabWebb" aria-selected="false">Webb</button>`}</div></div><div id="cockpitPills" class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px;"></div><div id="admitReconcilePanel"></div><div style="margin-top:10px;"><div id="cockpitChartLabel" class="tiny muted" style="margin-bottom:4px;"></div><div id="cockpitChartWrap" style="overflow:auto;"></div><div id="cockpitChart-info" class="tiny muted" aria-live="polite"></div></div></div>`;
     upsert(statsRoot,'cockpitWrap',html);
     if(savedReconcile){const rp=document.getElementById('admitReconcilePanel');if(rp)rp.innerHTML=savedReconcile;}
     const btnG=document.getElementById('tabGuests');const btnI=document.getElementById('tabIntake');
     const pillsEl=document.getElementById('cockpitPills');const labelEl=document.getElementById('cockpitChartLabel');const wrapEl=document.getElementById('cockpitChartWrap');const infoEl=document.getElementById('cockpitChart-info');
     function setCockpitMode(mode){
-      saveCockpitTab(mode);const isGuests=(mode==='guests');
-      btnG?.setAttribute('aria-selected',isGuests?'true':'false');btnI?.setAttribute('aria-selected',isGuests?'false':'true');
+      saveCockpitTab(mode);const isGuests=(mode==='guests');const isWebb=(mode==='webb');
+      const btnW=document.getElementById('tabWebb');
+      btnG?.setAttribute('aria-selected',isGuests?'true':'false');btnI?.setAttribute('aria-selected',(!isGuests&&!isWebb)?'true':'false');btnW?.setAttribute('aria-selected',isWebb?'true':'false');
       if(infoEl){infoEl.textContent='';infoEl.classList.add('muted');}
       if(isGuests){
         const guestTarget=getForecastTarget();
         if(pillsEl) pillsEl.innerHTML=`<span class="pill">Insläppta idag: <strong>${admitted}</strong></span><span class="pill">Vuxna: ${totals.adult}</span><span class="pill">Barn: ${totals.child}</span><span class="pill">Re-Entry: <strong>${reEntryAdmitted}</strong></span><span class="pill">Dagens prognos: <strong>${guestTarget}</strong></span><span class="pill">Köp: ${totals.receipts}</span>${isAdmin?`<button class="btn pill" type="button" onclick="showAdmissionReconcile()" style="margin-left:auto;opacity:0.7;">Stäm av</button>`:''}`;
         if(labelEl) labelEl.textContent='Gäster per timme';
         if(wrapEl) wrapEl.innerHTML=svgBars24(guestsPerHour,Math.max(maxG,5),90,{id:'cockpitChart',unit:'gäster',startHour:hourOffset});
-      }else{
+      }else if(!isWebb){
         const fc=computeForecastForToday(totals.intake,admitted);const fcNote=`${fc.label} • ${admitted} insläppta`;
         if(pillsEl) pillsEl.innerHTML=`<span class="pill">Dagens intäkt: <strong>${totals.intake} kr</strong></span><span class="pill" style="${net>=0?'border-color:rgba(40,167,69,0.5);':'border-color:rgba(192,57,43,0.5);'}">Resultat: <strong>${net} kr</strong></span><span class="pill">Beräknad intäkt: <strong>~ ${fc.predicted} kr</strong></span><button class="btn pill" type="button" id="buyBtn" style="margin-left:auto;">Köp: <strong>${totals.receipts}</strong></button><button class="btn pill" type="button" id="intakeDetailsBtn">+</button><div id="buyPanel" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill">Köptillfällen: <strong>${totals.receipts}</strong></span><span class="pill">Biljetter sålda: <strong>${totals.adult+totals.child}</strong></span><span class="pill">Vuxen: <strong>${totals.adult}</strong></span><span class="pill">Barn: <strong>${totals.child}</strong></span><span class="pill">Övrigt: <strong>${totals.intakeOther||0} kr</strong></span><span class="pill">Re-entry köp: <strong>${reEntryPurchasesForDate(todayStr())}</strong></span></div><div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px;">${['Swish','Kort','Kontant'].map(m=>payTots[m]?`<span class="pill">${m}: <strong>${payTots[m]} kr</strong></span>`:'').join('')}</div></div><div id="intakeDetails" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setDailyCostsViaPrompt()':''}">Utgifter: <strong>${costs} kr</strong></span>${(()=>{if(costs<=0) return '';const be=fc.avgUsed>0?Math.ceil(costs/fc.avgUsed):null;if(!be) return '';const covered=totals.intake>=costs;return `<span class="pill" style="${covered?'border-color:rgba(40,167,69,0.5);':''}">Nollpunkt: <strong>~${be} besökare</strong>${covered?' ✓':''}</span>`;})()}<span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setForecastTargetViaPrompt()':''}">Prognos insläppta: <strong>${fc.target}</strong></span><span class="pill tiny" style="opacity:.9;">${escapeHtml(fcNote)}</span>${isAdmin?`<span class="pill clickable" onclick="setForecastFallbackAvgViaPrompt()">Fallback-snitt: <strong>${Math.round(fc.fallbackAvg)} kr/p</strong></span>`:``}</div>${(()=>{ const hrs=loadOpeningHours(); const sim=getSimilarDays(hrs); if(!sim.length) return ''; const avg=Math.round(sim.reduce((s,d)=>s+d.admitted,0)/sim.length); const toggleBtn='<button class="btn pill" type="button" onclick="toggleSimilarDays()" style="font-size:12px;">'+(_showSimilarDays?'▲':'▼')+' Liknande dagar ('+sim.length+')</button>'; if(!_showSimilarDays) return '<div style="margin-top:8px;">'+toggleBtn+'</div>'; const rows=sim.map(d=>'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;"><span>'+d.date+'</span><span>'+d.admitted+' gäster</span></div>').join(''); const useBtn=isAdmin?'<button class="btn pill" type="button" onclick="useSimilarDaysAvg('+avg+')">Använd som prognos</button>':''; return '<div style="margin-top:8px;">'+toggleBtn+'<div style="margin-top:6px;background:rgba(0,0,0,.25);border-radius:8px;padding:8px 12px;">'+rows+'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><strong style="font-size:13px;">Snitt: '+avg+' gäster</strong>'+useBtn+'</div></div></div>'; })()}</div>`;
         if(buyWasOpen){const p=document.getElementById('buyPanel');if(p) p.style.display='block';}
@@ -1135,10 +1148,28 @@
         const detBtn=document.getElementById('intakeDetailsBtn');if(detBtn&&!detBtn._bound){detBtn.addEventListener('click',()=>{const buy=document.getElementById('buyPanel');const det=document.getElementById('intakeDetails');const open=det&&det.style.display==='block';if(det) det.style.display=open?'none':'block';if(!open&&buy) buy.style.display='none';});detBtn._bound=true;}
         if(labelEl) labelEl.textContent='Intäkt per timme';
         if(wrapEl) wrapEl.innerHTML=svgBars24(intakePerHour,Math.max(maxI,100),90,{id:'cockpitChart',unit:'kr',startHour:hourOffset});
+      } else if(isWebb){
+        if(pillsEl) pillsEl.innerHTML='';
+        if(labelEl) labelEl.textContent='';
+        if(wrapEl) wrapEl.innerHTML='';
+        function _renderWebbData(visits){
+          const td=visits[todayStr()]||{};
+          let wg=0,wp=0;Object.values(visits).forEach(d=>{wg+=Number(d.guest||0);wp+=Number(d.personal||0);});
+          const tg=Number(td.guest||0),tp=Number(td.personal||0);
+          if(pillsEl) pillsEl.innerHTML=`<span class="pill">Idag: <strong>${tg+tp}</strong></span><span class="pill">Veckan: <strong>${wg+wp}</strong></span>`;
+          if(wrapEl) wrapEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-top:8px;">${svgBars2([tg,tp],['Gäster','Personal'],'Idag',['rgba(232,180,60,0.9)','rgba(100,160,220,0.9)'])}${svgBars2([wg,wp],['Gäster','Personal'],'Senaste 7 dagarna',['rgba(232,180,60,0.5)','rgba(100,160,220,0.5)'])}</div>`;
+        }
+        if(window._webbVisitsCache) _renderWebbData(window._webbVisitsCache);
+        else apiGet(WEB_VISITS_KEY).then(raw=>{
+          let visits={};try{visits=JSON.parse(raw||'{}');}catch(_e){}
+          window._webbVisitsCache=visits;
+          _renderWebbData(visits);
+        }).catch(()=>{});
       }
     }
     if(btnG&&!btnG._bound){btnG.addEventListener('click',()=>setCockpitMode('guests'));btnG._bound=true;}
     if(btnI&&!btnI._bound){btnI.addEventListener('click',()=>setCockpitMode('intake'));btnI._bound=true;}
+    const btnWEnd=document.getElementById('tabWebb');if(btnWEnd&&!btnWEnd._bound){btnWEnd.addEventListener('click',()=>setCockpitMode('webb'));btnWEnd._bound=true;}
     setCockpitMode(getSavedCockpitTab());
   }
 
@@ -2142,7 +2173,7 @@
       case 'kassa':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}if(!currentHasAccess&&!isAdmin){alert('Du har inte access till kassan.');return selectMenu('profile');}const tbK=document.querySelector('.topbar');if(tbK)tbK.style.display='';document.getElementById('kassaContainer').style.display='block';renderProductButtons();syncDisplayOwnership();const closed=(openingHours==='Stängt'&&!isAdmin);document.getElementById('closedMessage').style.display=closed?'block':'none';document.querySelector('.products').style.display=closed?'none':'flex';document.querySelector('.cart-table').style.display=closed?'none':'table';document.getElementById('checkout').style.display=closed?'none':'block';document.getElementById('discountBtn').style.display=closed?'none':'block';document.getElementById('total').style.display=closed?'none':'block';break;}
       case 'profile':{ if(!loggedInUser){document.getElementById('welcomeMessage').style.display='flex';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');const tb=document.querySelector('.topbar');if(tb)tb.style.display='none';const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';return;}const tb2=document.querySelector('.topbar');if(tb2)tb2.style.display='';document.getElementById('profileContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadProfile();markMsgSeen();break;}
       case 'admin':{ if(!isAdmin){alert('Endast admin.');return selectMenu('profile');}const tbA=document.querySelector('.topbar');if(tbA)tbA.style.display='';document.getElementById('adminSettings').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');initUserSelect();break;}
-      case 'stats':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}const tbS=document.querySelector('.topbar');if(tbS)tbS.style.display='';document.getElementById('statsContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadDailyStats();openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();loadDailyCosts();loadDailyForecast();renderCockpit();renderStats();break;}
+      case 'stats':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}const tbS=document.querySelector('.topbar');if(tbS)tbS.style.display='';document.getElementById('statsContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadDailyStats();openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();loadDailyCosts();loadDailyForecast();saveCockpitTab('guests');renderCockpit();renderStats();break;}
       case 'logout': logout(); return;
       default:{ document.getElementById('welcomeMessage').style.display='flex';document.body.classList.add('welcome-bg-on');const tb=document.querySelector('.topbar');if(tb)tb.style.display='none';const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';}
     }
@@ -2291,6 +2322,14 @@
       const pw=s?.pw;const u=pw?users[pw]:null;
       if(u){loggedInKey=pw;loggedInUser=u.name;isAdmin=(pw==='spök123')?true:!!u.admin;currentHasAccess=!!u.hasAccess||u.name==='Adam'||u.name==='Casper';currentHasInslepp=!!u.hasInslepp||u.name==='Adam'||u.name==='Casper';}
     }catch(_e){}
+    (()=>{
+      const PING_KEY='webVisitLastPing';const THROTTLE=30*60*1000;
+      const last=Number(localStorage.getItem(PING_KEY)||0);
+      if(Date.now()-last>THROTTLE){
+        localStorage.setItem(PING_KEY,String(Date.now()));
+        apiSet('webVisit', loggedInUser ? 'personal' : 'guest').catch(()=>{});
+      }
+    })();
 
     enforceCoreUsers();
     loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();renderWelcomePrices();renderUpcomingDates();showWelcomeTab('info');bindWelcomeControls();
