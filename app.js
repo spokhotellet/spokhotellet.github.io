@@ -1109,8 +1109,8 @@
     const gridLines=4;let grid='';
     for(let i=0;i<=gridLines;i++){const val=Math.round(max/gridLines*i);const y=top+h-Math.round(val/max*h);grid+=`<line x1="${yAx}" y1="${y}" x2="${fullW}" y2="${y}" stroke="currentColor" stroke-opacity="${i===0?0.12:0.06}" stroke-width="1"/>`;grid+=`<text x="${yAx-4}" y="${y+4}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.4">${val}</text>`;}
     let bars='';values.forEach((v,i)=>{const bH=Math.max(Math.round(v/max*h),v>0?2:0);const x=yAx+pad+i*(bW+gap);const y=top+h-bH;bars+=`<rect x="${x}" y="${y}" width="${bW}" height="${bH}" rx="3" fill="${colors[i]}"/>`;bars+=`<text x="${x+bW/2}" y="${y-6}" font-size="13" text-anchor="middle" fill="currentColor" font-weight="bold">${v}</text>`;bars+=`<text x="${x+bW/2}" y="${top+h+16}" font-size="11" text-anchor="middle" fill="currentColor" fill-opacity="0.6">${labels[i]}</text>`;});
-    const svg=`<svg width="${fullW}" height="${top+h+22}" viewBox="0 0 ${fullW} ${top+h+22}" style="display:block;margin:0 auto;">${grid}${bars}</svg>`;
-    return `<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(232,224,208,0.1);border-radius:10px;padding:14px 12px 10px;text-align:center;min-width:160px;flex:1;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.45;margin-bottom:12px;">${title}</div>${svg}</div>`;
+    const svg=`<svg width="100%" viewBox="0 0 ${fullW} ${top+h+22}" style="display:block;">${grid}${bars}</svg>`;
+    return `<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(232,224,208,0.1);border-radius:10px;padding:14px 12px 10px;text-align:center;flex:1 1 130px;min-width:0;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.45;margin-bottom:12px;">${title}</div>${svg}</div>`;
   }
   function cockpitBarClick(chartId,hour,value,unit){ const info=document.getElementById(chartId+'-info'); if(!info) return; const start=String(hour).padStart(2,'0')+':00';const end=String((hour+1)%24).padStart(2,'0')+':00'; info.textContent=`${start}–${end}: ${value} ${unit}`.trim(); info.classList.remove('muted'); }
 
