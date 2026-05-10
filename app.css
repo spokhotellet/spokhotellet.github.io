@@ -616,6 +616,15 @@
       margin: 16px 0;
       font-family: 'IM Fell English SC', serif;
     }
+    #deviceNotRegisteredMessage {
+      display: none;
+      color: #d4872a;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+      margin: 16px 0;
+      font-family: 'IM Fell English SC', serif;
+    }
 
     .products {
       display: flex;

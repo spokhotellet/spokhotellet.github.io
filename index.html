@@ -364,32 +364,46 @@
     </div>
 
     <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('displayAdminContent', this); loadDisplayAdminStatus()">Visa Kundskärm</button>
+      <button class="disclosure" type="button" onclick="adminAccordion('displayAdminContent', this); loadDisplayAdminStatus()">Visa Skärmar &amp; Enheter</button>
       <div id="displayAdminContent" class="content">
-        <div id="displayAdminStatus" class="muted" style="margin-bottom:10px;">–</div>
-        <button id="displayAdminDisconnectBtn" class="btn btn-danger" style="display:none" onclick="adminDisconnectDisplay()">Koppla från</button>
-        <h4>Swish-nummer</h4>
-        <div class="row" style="gap:8px;">
-          <input id="swishNumberInput" class="input" placeholder="t.ex. 1234567890" style="flex:1;">
-          <button class="btn btn-green" onclick="saveSwishNumber()">Spara</button>
+        <div style="display:flex;gap:0;border-bottom:1px solid rgba(232,224,208,0.12);margin-bottom:16px;">
+          <button id="displayTab_enheter" onclick="selectDisplayTab('enheter')" style="background:none;border:none;border-bottom:2px solid #d4872a;color:#f0ebe2;font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Kassaenheter</button>
+          <button id="displayTab_kundskarm" onclick="selectDisplayTab('kundskarm')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Kundskärm</button>
         </div>
-        <div id="swishNumberConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
-        <h4>Info-slides (kötidsdisplay)</h4>
-        <div class="tiny muted" style="margin-bottom:6px;">Varje del visas som en egen informationssida i displayen. Separera med <strong>|</strong></div>
-        <div class="row" style="gap:8px;">
-          <input id="displayTickerInput" class="input" placeholder="t.ex. Välkommen! | Kort film ca 30 min" style="flex:1;">
-          <button class="btn btn-green" onclick="saveDisplayTicker()">Spara</button>
+
+        <div id="displayPanel_enheter">
+          <div class="tiny muted" style="margin-bottom:10px;">Endast registrerade enheter kan använda kassan. Logga in som admin på en enhet och registrera den här.</div>
+          <div id="devicesAdminList"></div>
+          <button id="registerThisDeviceBtn" class="btn btn-green" onclick="registerThisDevice()" style="display:none;">Registrera denna enhet som kassaenhet</button>
+          <div id="deviceRegisteredNote" class="tiny" style="display:none;color:rgba(100,200,100,0.8);margin-top:6px;">✓ Denna enhet är registrerad som kassaenhet</div>
         </div>
-        <div id="displayTickerConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
-        <h4 style="margin-top:16px;">Bildslides (kötidsdisplay)</h4>
-        <div class="tiny muted" style="margin-bottom:6px;">En bild-URL per rad. Bilderna visas som helskärmsslides i displayen.</div>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <textarea id="displayImagesInput" class="admin-textarea" rows="4" placeholder="https://example.com/bild1.jpg&#10;https://example.com/bild2.png"></textarea>
-          <div style="display:flex;justify-content:flex-end;">
-            <button class="btn btn-green" onclick="saveDisplayImages()">Spara</button>
+
+        <div id="displayPanel_kundskarm" style="display:none;">
+          <div id="displayAdminStatus" class="muted" style="margin-bottom:10px;">–</div>
+          <button id="displayAdminDisconnectBtn" class="btn btn-danger" style="display:none" onclick="adminDisconnectDisplay()">Koppla från</button>
+          <h4>Swish-nummer</h4>
+          <div class="row" style="gap:8px;">
+            <input id="swishNumberInput" class="input" placeholder="t.ex. 1234567890" style="flex:1;">
+            <button class="btn btn-green" onclick="saveSwishNumber()">Spara</button>
           </div>
+          <div id="swishNumberConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
+          <h4 style="margin-top:16px;">Info-slides (kötidsdisplay)</h4>
+          <div class="tiny muted" style="margin-bottom:6px;">Varje del visas som en egen informationssida i displayen. Separera med <strong>|</strong></div>
+          <div class="row" style="gap:8px;">
+            <input id="displayTickerInput" class="input" placeholder="t.ex. Välkommen! | Kort film ca 30 min" style="flex:1;">
+            <button class="btn btn-green" onclick="saveDisplayTicker()">Spara</button>
+          </div>
+          <div id="displayTickerConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
+          <h4 style="margin-top:16px;">Bildslides (kötidsdisplay)</h4>
+          <div class="tiny muted" style="margin-bottom:6px;">En bild-URL per rad. Bilderna visas som helskärmsslides i displayen.</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <textarea id="displayImagesInput" class="admin-textarea" rows="4" placeholder="https://example.com/bild1.jpg&#10;https://example.com/bild2.png"></textarea>
+            <div style="display:flex;justify-content:flex-end;">
+              <button class="btn btn-green" onclick="saveDisplayImages()">Spara</button>
+            </div>
+          </div>
+          <div id="displayImagesConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
         </div>
-        <div id="displayImagesConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
       </div>
     </div>
 
@@ -604,6 +618,7 @@
     <h1><button id="displayBtn" onclick="toggleDisplayBtn()" title="Koppla kundskärm" aria-label="Koppla kundskärm"><svg width="13" height="11" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="1" width="24" height="16" rx="2"/><path d="M9 21h8M13 17v4"/></svg></button>Spökhotellet Korpen<button id="kassaLockBtn" onclick="lockKassa()" title="Lås kassan" aria-label="Lås kassan"><svg width="11" height="13" viewBox="0 0 22 26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="16" height="13" rx="2"/><path d="M7 11V7a4 4 0 0 1 8 0v4"/></svg></button><button id="kbHelpBtn" onclick="toggleKbHelp()" title="Tangentbordsgenvägar" aria-label="Visa tangentbordsgenvägar">?</button></h1>
     <div style="text-align:center;margin:-10px 0 12px;"><span id="kassaClock" style="font-family:monospace;font-size:13px;opacity:0.35;letter-spacing:0.5px;"></span></div>
     <div id="closedMessage">Kassan är stängd</div>
+    <div id="deviceNotRegisteredMessage">Denna enhet är inte registrerad som kassaenhet</div>
     <div class="products"></div>
     <button id="discountBtn" title="Använd 50% rabatt en gång på denna kund">50% rabatt (1 gång)</button>
     <div id="cartFooter">
