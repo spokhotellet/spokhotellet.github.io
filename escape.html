@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Spelvärd — Korpen</title>
+<link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #f5efe0;
+  --ink: #1a1209;
+  --ink-muted: #4a3c28;
+  --ink-faint: #8a7a60;
+  --red: #8b1a1a;
+  --border: #2a1f0e;
+  --bg: #0e0a05;
+  --green: #3a6b2f;
+  --gold: #ffd700;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; width: 100%; overflow: hidden; background: var(--bg); font-family: 'EB Garamond', serif; }
+
+.app { height: 100%; display: flex; flex-direction: column; max-width: 680px; margin: 0 auto; }
+
+/* ── HEADER ──────────────────────────── */
+.header {
+  flex-shrink: 0; background: var(--paper);
+  border-bottom: 2px double var(--border);
+  padding: 10px 18px 8px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.header h1 { font-family: 'UnifrakturMaguntia', cursive; font-size: 24px; line-height: 1; }
+.header p  { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--ink-muted); }
+.header-right { text-align: right; }
+#live-clock  { font-family: 'Playfair Display', serif; font-size: 22px; letter-spacing: 1px; }
+#stats-line  { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-faint); }
+
+/* ── TIMER ───────────────────────────── */
+.timer-wrap {
+  flex-shrink: 0; background: var(--ink);
+  padding: 18px 20px 16px;
+}
+.timer-display {
+  font-family: 'Playfair Display', serif;
+  font-size: 88px; font-weight: 700; letter-spacing: 4px; line-height: 1;
+  text-align: center; color: var(--gold); transition: color 0.4s;
+}
+.timer-wrap.warning .timer-display { color: #ffaa44; }
+.timer-wrap.expired .timer-display {
+  color: #fff; font-size: 44px; letter-spacing: 3px;
+  animation: throb 0.8s ease-in-out infinite;
+}
+@keyframes throb { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+.timer-bar-outer { background: rgba(255,255,255,0.1); border-radius: 3px; height: 5px; margin: 10px 0 14px; overflow: hidden; }
+.timer-bar-inner { height: 100%; background: var(--gold); border-radius: 3px; transition: width 1s linear, background 0.4s; }
+.timer-wrap.warning .timer-bar-inner { background: #ffaa44; }
+
+.timer-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.tb {
+  flex: 1; min-height: 50px;
+  font-family: 'EB Garamond', serif; font-size: 14px;
+  letter-spacing: 1px; text-transform: uppercase;
+  border-radius: 3px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.09); color: var(--paper);
+  transition: background 0.1s, transform 0.08s;
+}
+.tb:active { transform: scale(0.96); background: rgba(255,255,255,0.2); }
+.tb.start  { background: var(--green); border-color: var(--green); font-size: 16px; }
+.tb.ghost  { background: none; border-color: rgba(255,255,255,0.2); color: rgba(245,239,224,0.5); font-size: 13px; flex: none; padding: 0 18px; }
+.tb.end    { background: var(--red); border-color: var(--red); }
+.tb.pause  { background: rgba(255,200,0,0.15); border-color: rgba(255,200,0,0.35); color: #ffd; }
+
+/* ── SCROLL ──────────────────────────── */
+.scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── CAMERA ──────────────────────────── */
+.camera-wrap { background: #000; }
+#cam-video { width: 100%; max-height: 290px; object-fit: cover; display: block; }
+.cam-toggle {
+  width: 100%; padding: 13px 16px; background: #141414;
+  border: none; border-top: 1px solid rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.45); font-family: 'EB Garamond', serif;
+  font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.cam-toggle:active { background: #1e1e1e; }
+#cam-badge { font-size: 10px; letter-spacing: 1px; padding: 2px 7px; border-radius: 10px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.3); }
+#cam-badge.live { background: rgba(58,107,47,0.35); color: #8fca80; }
+
+
+/* ── GEAR BTN (header) ───────────────── */
+.gear-btn {
+  flex-shrink: 0; background: none;
+  border: 1px solid var(--ink-faint); border-radius: 2px;
+  font-size: 18px; line-height: 1; padding: 7px 11px;
+  cursor: pointer; color: var(--ink-muted); transition: background 0.1s;
+  align-self: center;
+}
+.gear-btn:active  { background: rgba(0,0,0,0.08); }
+.gear-btn.playing { color: var(--green); border-color: var(--green); }
+
+/* ── VOLUME ROWS (setup) ─────────────── */
+.setup-vol-row { align-items: center; margin-top: -4px; padding-left: 34px; }
+.setup-vol-label { font-size: 11px; color: rgba(245,239,224,0.4); letter-spacing: 1px; text-transform: uppercase; min-width: 54px; flex-shrink: 0; }
+.setup-vol-slider { flex: 1; accent-color: var(--gold); cursor: pointer; }
+.setup-vol-pct { font-size: 11px; color: rgba(245,239,224,0.45); min-width: 36px; text-align: right; flex-shrink: 0; }
+
+/* ── DURATION + TIMED INPUTS (setup) ─── */
+.setup-dur-input, .setup-timed-min {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 2px;
+  font-family: 'Playfair Display', serif; font-weight: 700;
+  color: var(--gold); text-align: center; padding: 6px 8px;
+}
+.setup-dur-input  { font-size: 28px; width: 74px; }
+.setup-timed-min  { font-size: 18px; width: 56px; }
+.setup-dur-input:focus, .setup-timed-min:focus { outline: 1px solid rgba(255,215,0,0.4); }
+
+/* ── CLUES ───────────────────────────── */
+.clues-wrap { background: var(--paper); padding: 16px 16px 40px; }
+.clues-heading {
+  font-family: 'Playfair Display', serif; font-size: 12px; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase; color: var(--ink-muted);
+  border-bottom: 1px solid var(--ink-faint); padding-bottom: 6px; margin-bottom: 12px;
+}
+.clue-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.clue-card {
+  background: #eee8d5; border: 1px solid var(--ink-faint);
+  border-radius: 4px; padding: 13px 12px 10px; cursor: pointer;
+  text-align: left; position: relative;
+  transition: background 0.1s, transform 0.08s;
+  -webkit-user-select: none; user-select: none;
+}
+.clue-card:active  { transform: scale(0.97); background: #e0d8c0; }
+.clue-card.sent    { background: #d0c8b8; border-color: #9a8a70; }
+.clue-card.flash   { background: rgba(255,215,0,0.25); }
+.clue-audio-dot    { position: absolute; top: 7px; right: 8px; font-size: 13px; color: var(--ink-faint); display: none; }
+.clue-card.has-audio .clue-audio-dot { display: block; }
+.clue-num { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--red); line-height: 1; }
+.clue-card.sent .clue-num { color: var(--ink-faint); }
+.clue-lbl { font-size: 13px; color: var(--ink-muted); margin-top: 3px; line-height: 1.3; }
+.clue-sent-txt { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-faint); margin-top: 5px; }
+
+/* ── AUDIO SETUP OVERLAY ─────────────── */
+#audio-setup {
+  position: fixed; inset: 0; z-index: 400;
+  background: var(--bg); display: none; flex-direction: column;
+}
+.setup-header {
+  background: var(--paper); border-bottom: 2px double var(--border);
+  padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.setup-header h2 { font-family: 'Playfair Display', serif; font-size: 18px; font-style: italic; }
+.setup-close {
+  background: none; border: 1px solid var(--ink-faint); border-radius: 2px;
+  font-family: 'EB Garamond', serif; font-size: 13px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--ink-muted); padding: 6px 14px; cursor: pointer;
+}
+.setup-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; }
+
+.setup-section {
+  background: rgba(245,239,224,0.07);
+  border: 1px solid rgba(245,239,224,0.12);
+  border-radius: 4px; padding: 14px; margin-bottom: 12px;
+}
+.setup-section-title {
+  font-family: 'Playfair Display', serif; font-size: 11px; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase; color: rgba(245,239,224,0.4);
+  margin-bottom: 12px;
+}
+.setup-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.setup-row:last-child { margin-bottom: 0; }
+.setup-num {
+  font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700;
+  color: var(--red); min-width: 24px; flex-shrink: 0;
+}
+.setup-label-input {
+  flex: 1; background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 2px;
+  font-family: 'EB Garamond', serif; font-size: 14px; color: var(--paper);
+  padding: 7px 10px; min-width: 0;
+}
+.setup-label-input:focus { outline: 1px solid rgba(255,215,0,0.4); }
+.setup-file-btn {
+  flex-shrink: 0; padding: 7px 12px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 2px;
+  font-family: 'EB Garamond', serif; font-size: 12px;
+  letter-spacing: 1px; text-transform: uppercase;
+  color: rgba(245,239,224,0.6); cursor: pointer; white-space: nowrap;
+}
+.setup-file-btn:active { background: rgba(255,255,255,0.18); }
+.setup-file-btn.loaded { border-color: rgba(58,107,47,0.6); color: #8fca80; }
+.setup-file-name {
+  font-size: 11px; color: rgba(245,239,224,0.35);
+  margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── COUNTDOWN OVERLAY ───────────────── */
+#countdown-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(14,10,5,0.97);
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+#countdown-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 200px; font-weight: 700; line-height: 1;
+  color: var(--gold); will-change: transform, opacity;
+}
+#countdown-num.pop { animation: cdpop 0.85s cubic-bezier(0.22,1,0.36,1) forwards; }
+@keyframes cdpop {
+  0%   { transform: scale(1.6); opacity: 0; }
+  25%  { transform: scale(0.92); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+#countdown-num.go { color: #fff; font-size: 100px; letter-spacing: 8px; animation: gopop 0.5s cubic-bezier(0.22,1,0.36,1) forwards; }
+@keyframes gopop {
+  0%   { transform: scale(1.3); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ── LAST SESSION ────────────────────── */
+.last-panel {
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(245,239,224,0.07);
+}
+.last-heading {
+  font-family: 'Playfair Display', serif; font-size: 10px;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(245,239,224,0.3); margin-bottom: 10px;
+}
+.last-outcome {
+  font-family: 'Playfair Display', serif; font-size: 22px;
+  font-style: italic; margin-bottom: 6px;
+}
+.last-outcome.escaped { color: #4a8c3f; }
+.last-outcome.failed  { color: var(--red); }
+.last-details { display: flex; gap: 18px; flex-wrap: wrap; }
+.last-detail  { font-size: 13px; color: rgba(245,239,224,0.45); }
+
+/* ── OUTCOME OVERLAY ─────────────────── */
+#outcome-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(14,10,5,0.93);
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px; padding: 24px;
+}
+#outcome-overlay h2 {
+  font-family: 'Playfair Display', serif; font-size: 28px;
+  color: var(--paper); font-style: italic; text-align: center;
+}
+.outcome-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.outcome-btn {
+  min-width: 160px; padding: 18px 20px;
+  font-family: 'EB Garamond', serif; font-size: 15px;
+  letter-spacing: 2px; text-transform: uppercase;
+  border-radius: 4px; cursor: pointer; border: none; transition: opacity 0.1s;
+}
+.outcome-btn:active { opacity: 0.8; }
+.outcome-btn.escaped { background: var(--green); color: var(--paper); }
+.outcome-btn.failed  { background: var(--red);   color: var(--paper); }
+.outcome-cancel {
+  background: none; border: 1px solid rgba(245,239,224,0.2); border-radius: 3px;
+  font-family: 'EB Garamond', serif; font-size: 13px; letter-spacing: 2px;
+  text-transform: uppercase; color: rgba(245,239,224,0.4); padding: 10px 28px; cursor: pointer;
+}
+.outcome-cancel:active { background: rgba(255,255,255,0.08); }
+
+/* ── TOAST ───────────────────────────── */
+#toast {
+  position: fixed; bottom: 20px; left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--ink); color: var(--paper);
+  font-family: 'EB Garamond', serif; font-size: 14px; letter-spacing: 1px;
+  padding: 10px 22px; border-radius: 3px; transition: transform 0.22s;
+  pointer-events: none; z-index: 600; white-space: nowrap;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div>
+      <h1 id="hdr-title-el">Escaperoom</h1>
+      <p id="hdr-sub-el"></p>
+    </div>
+    <div class="header-right">
+      <div id="live-clock"></div>
+      <div id="stats-line"></div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="gear-btn" id="bg-btn" onclick="toggleBgMusic()" title="Bakgrundsmusik">♩</button>
+      <button class="gear-btn" onclick="openSetup()" title="Inställningar">⚙</button>
+    </div>
+  </header>
+
+  <!-- TIMER -->
+  <div class="timer-wrap" id="timer-wrap">
+    <div class="timer-display" id="timer-display">10:00</div>
+    <div class="timer-bar-outer"><div class="timer-bar-inner" id="timer-bar" style="width:100%"></div></div>
+    <div class="timer-btns">
+      <!-- Pre-session -->
+      <div id="pre-btns" style="display:flex;gap:8px;width:100%">
+        <button class="tb start" onclick="beginCountdown()">▶ Starta</button>
+      </div>
+      <!-- Active session -->
+      <div id="active-btns" style="display:none;gap:8px;width:100%;flex-wrap:wrap">
+        <button class="tb pause" id="pause-btn" onclick="togglePause()">⏸ Pausa</button>
+        <button class="tb" onclick="addTime(2)">+2 min</button>
+        <button class="tb" onclick="addTime(5)">+5 min</button>
+        <button class="tb end" onclick="confirmEnd()">✓ Avsluta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCROLL AREA -->
+  <div class="scroll-area">
+
+    <!-- KAMERA -->
+    <div class="camera-wrap">
+      <video id="cam-video" autoplay playsinline muted style="display:none"></video>
+      <button class="cam-toggle" onclick="toggleCamera()">
+        <span>📷</span>
+        <span id="cam-lbl">Starta kamera</span>
+        <span id="cam-badge">AV</span>
+      </button>
+    </div>
+
+    <!-- SENASTE SPELET -->
+    <div id="last-session-wrap"></div>
+
+    <!-- LEDTRÅDAR -->
+    <div class="clues-wrap" id="clues-wrap" style="display:none">
+      <div class="clues-heading">Ledtrådar</div>
+      <div class="clue-grid" id="clue-grid"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- AUDIO SETUP OVERLAY -->
+<div id="audio-setup">
+  <div class="setup-header">
+    <h2>Ljud &amp; ledtrådar</h2>
+    <button class="setup-close" onclick="closeSetup()">Klar</button>
+  </div>
+  <div class="setup-scroll">
+
+    <!-- Rubrik -->
+    <div class="setup-section">
+      <div class="setup-section-title">Rubrik</div>
+      <div class="setup-row">
+        <input class="setup-label-input" id="hdr-title" placeholder="Titel…" maxlength="40"
+          oninput="document.querySelector('.header h1').textContent=this.value||'Spelvärd';saveHeader()">
+      </div>
+      <div class="setup-row">
+        <input class="setup-label-input" id="hdr-sub" placeholder="Undertitel…" maxlength="60"
+          oninput="document.querySelector('.header p').textContent=this.value;saveHeader()">
+      </div>
+    </div>
+
+    <!-- Speltid -->
+    <div class="setup-section">
+      <div class="setup-section-title">Speltid</div>
+      <div class="setup-row" style="align-items:center;gap:12px">
+        <input type="number" id="dur-input" class="setup-dur-input" min="1" max="99" value="10"
+          oninput="setDuration(+this.value)">
+        <span style="font-size:14px;color:rgba(245,239,224,0.5);letter-spacing:1px;text-transform:uppercase">minuter</span>
+      </div>
+    </div>
+
+    <!-- Bakgrundsmusik -->
+    <div class="setup-section">
+      <div class="setup-section-title">Bakgrundsmusik</div>
+      <div class="setup-row">
+        <div style="flex:1">
+          <button class="setup-file-btn" id="bg-pick-btn" onclick="pickBgMusic()" style="width:100%">Välj ljudfil…</button>
+          <div class="setup-file-name" id="bg-file-name">Ej vald</div>
+        </div>
+      </div>
+      <div class="setup-row setup-vol-row">
+        <span class="setup-vol-label">Volym</span>
+        <input type="range" class="setup-vol-slider" id="bg-vol-slider" min="0" max="100" value="80"
+          oninput="bgAudio.volume=bgVolume=this.value/100;document.getElementById('bg-vol-pct').textContent=this.value+'%';saveVolumes()">
+        <span class="setup-vol-pct" id="bg-vol-pct">80%</span>
+      </div>
+    </div>
+
+    <!-- Startljud -->
+    <div class="setup-section">
+      <div class="setup-section-title">Startljud</div>
+      <div class="setup-row">
+        <div style="flex:1">
+          <button class="setup-file-btn" id="start-pick-btn" onclick="pickStartSound()" style="width:100%">Välj ljudfil…</button>
+          <div class="setup-file-name" id="start-file-name">Ej vald</div>
+        </div>
+      </div>
+      <div class="setup-row setup-vol-row">
+        <span class="setup-vol-label">Volym</span>
+        <input type="range" class="setup-vol-slider" id="start-vol-slider" min="0" max="100" value="100"
+          oninput="startAudio.volume=startVolume=this.value/100;document.getElementById('start-vol-pct').textContent=this.value+'%';saveVolumes()">
+        <span class="setup-vol-pct" id="start-vol-pct">100%</span>
+      </div>
+    </div>
+
+    <!-- Tidsinställda ljud -->
+    <div class="setup-section">
+      <div class="setup-section-title">Tidsinställda ljud</div>
+      <div id="setup-timed"></div>
+    </div>
+
+    <!-- Ledtrådar -->
+    <div class="setup-section">
+      <div class="setup-section-title">Ledtrådar</div>
+      <div id="setup-clues"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- NEDRÄKNING -->
+<div id="countdown-overlay">
+  <div id="countdown-num"></div>
+</div>
+
+<!-- UTFALL -->
+<div id="outcome-overlay">
+  <h2>Klarade gruppen?</h2>
+  <div class="outcome-row">
+    <button class="outcome-btn escaped" onclick="endSession('escaped')">Ja — de tog sig ut!</button>
+    <button class="outcome-btn failed"  onclick="endSession('failed')">Nej — misslyckades</button>
+  </div>
+  <button class="outcome-cancel" onclick="cancelEnd()">Avbryt</button>
+</div>
+
+<div id="toast"></div>
+
+<!-- Dolda file inputs -->
+<input type="file" id="bg-input"    accept="audio/*" style="display:none">
+<input type="file" id="start-input" accept="audio/*" style="display:none">
+<input type="file" id="clue-input"  accept="audio/*" style="display:none">
+<input type="file" id="timed-input" accept="audio/*" style="display:none">
+
+<script>
+// ── KONSTANTER ───────────────────────────────────
+const WARN_MS      =  3 * 60 * 1000;
+const N_CLUES      = 5;
+const N_TIMED      = 3;
+const STATS_KEY    = 'korpen_escape_stats_v2';
+const LABELS_KEY   = 'korpen_escape_labels_v2';
+const DURATION_KEY = 'korpen_escape_duration_v1';
+const TIMED_KEY    = 'korpen_timed_v1';
+const LAST_KEY     = 'korpen_escape_last_v1';
+
+let durationMin  = 10;
+let lastSession  = (() => { try { return JSON.parse(localStorage.getItem(LAST_KEY)); } catch(e) {} return null; })();
+
+// ── STATE ────────────────────────────────────────
+let running = false, paused = false;
+let pausedMs = 0, resumedAt = null, extraMs = 0;
+let timerIv = null, warnedAt3 = false;
+let camStream = null;
+
+const bgAudio = new Audio();
+bgAudio.loop   = true;
+bgAudio.volume = 0.8;
+let bgReady    = false;
+let bgFileName = null;
+
+const startAudio = new Audio();
+let startReady   = false;
+let startVolume  = 1.0;
+let startFileName = null;
+
+const clueAudios   = Array.from({length: N_CLUES}, () => new Audio());
+const clueSent     = Array(N_CLUES).fill(false);
+let clueFileNames  = Array(N_CLUES).fill(null);
+let _cluePickTarget = -1;
+
+let bgVolume    = 0.8;
+let clueVolumes = Array(N_CLUES).fill(1.0);
+
+const timedCues = Array.from({ length: N_TIMED }, () => ({
+  audio: new Audio(), ready: false, fileName: null, volume: 1.0, minLeft: 0, fired: false
+}));
+let _timedPickTarget = -1;
+
+let clueLabels = (() => {
+  try {
+    const s = JSON.parse(localStorage.getItem(LABELS_KEY));
+    if (Array.isArray(s) && s.length >= N_CLUES) return s.slice(0, N_CLUES);
+  } catch(e) {}
+  return null;
+})() || ['Tidningsdatum','Direktörens namn','Annons sida 3','Redaktörens initialer','Dödsannonsen'];
+
+let stats = (() => {
+  try {
+    const s = JSON.parse(localStorage.getItem(STATS_KEY) || '{}');
+    const today = new Date().toISOString().slice(0,10);
+    return s.date === today ? s : { date: today, sessions: 0, escaped: 0 };
+  } catch(e) { return { date: new Date().toISOString().slice(0,10), sessions: 0, escaped: 0 }; }
+})();
+
+// ── UTILS ─────────────────────────────────────────
+const VOLUMES_KEY = 'korpen_escape_volumes_v1';
+const HEADER_KEY  = 'korpen_escape_header_v1';
+function saveHeader() {
+  localStorage.setItem(HEADER_KEY, JSON.stringify({
+    title: document.getElementById('hdr-title-el').textContent,
+    sub:   document.getElementById('hdr-sub-el').textContent
+  }));
+}
+function loadHeader() {
+  try {
+    const h = JSON.parse(localStorage.getItem(HEADER_KEY));
+    if (!h) return;
+    if (h.title !== undefined) document.getElementById('hdr-title-el').textContent = h.title || 'Escaperoom';
+    if (h.sub   !== undefined) document.getElementById('hdr-sub-el').textContent = h.sub;
+  } catch(e) {}
+}
+function saveStats()  { localStorage.setItem(STATS_KEY,  JSON.stringify(stats)); }
+function saveLabels() { localStorage.setItem(LABELS_KEY, JSON.stringify(clueLabels)); }
+function saveVolumes() {
+  localStorage.setItem(VOLUMES_KEY, JSON.stringify({ bg: bgVolume, start: startVolume, clues: clueVolumes }));
+}
+function loadVolumes() {
+  try {
+    const v = JSON.parse(localStorage.getItem(VOLUMES_KEY));
+    if (!v) return;
+    if (typeof v.bg    === 'number') { bgVolume    = v.bg;    bgAudio.volume    = v.bg; }
+    if (typeof v.start === 'number') { startVolume = v.start; startAudio.volume = v.start; }
+    if (Array.isArray(v.clues)) v.clues.forEach((vol, i) => {
+      if (i < N_CLUES && typeof vol === 'number') { clueVolumes[i] = vol; clueAudios[i].volume = vol; }
+    });
+  } catch(e) {}
+}
+function saveTimedSettings() {
+  localStorage.setItem(TIMED_KEY, JSON.stringify(
+    timedCues.map(c => ({ minLeft: c.minLeft, volume: c.volume }))
+  ));
+}
+function loadTimedSettings() {
+  try {
+    const data = JSON.parse(localStorage.getItem(TIMED_KEY));
+    if (!Array.isArray(data)) return;
+    data.forEach((d, i) => {
+      if (i >= N_TIMED) return;
+      if (typeof d.minLeft === 'number') timedCues[i].minLeft = d.minLeft;
+      if (typeof d.volume  === 'number') { timedCues[i].volume = d.volume; timedCues[i].audio.volume = d.volume; }
+    });
+  } catch(e) {}
+}
+function loadDuration() {
+  const v = parseInt(localStorage.getItem(DURATION_KEY), 10);
+  if (v > 0) { durationMin = v; document.getElementById('timer-display').textContent = fmtMs(durationMin * 60000); }
+}
+function setDuration(min) {
+  min = Math.max(1, Math.min(99, Math.round(min) || 1));
+  durationMin = min;
+  localStorage.setItem(DURATION_KEY, min);
+  if (!running) {
+    document.getElementById('timer-display').textContent = fmtMs(durationMin * 60000);
+    document.getElementById('timer-bar').style.width = '100%';
+  }
+  const inp = document.getElementById('dur-input');
+  if (inp) inp.value = min;
+}
+
+// ── INDEXEDDB (ljudfiler) ──────────────────────────
+let _db = null;
+function dbOpen() {
+  return new Promise((res, rej) => {
+    if (_db) { res(_db); return; }
+    const req = indexedDB.open('korpen_audio_v1', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('files');
+    req.onsuccess = e => { _db = e.target.result; res(_db); };
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+async function dbSave(key, file) {
+  try {
+    const buf = await file.arrayBuffer();
+    const db  = await dbOpen();
+    await new Promise((res, rej) => {
+      const req = db.transaction('files','readwrite').objectStore('files')
+                    .put({ buf, name: file.name, type: file.type }, key);
+      req.onsuccess = res; req.onerror = rej;
+    });
+  } catch(e) {}
+}
+async function dbLoad(key) {
+  try {
+    const db = await dbOpen();
+    return await new Promise(res => {
+      const req = db.transaction('files').objectStore('files').get(key);
+      req.onsuccess = e => res(e.target.result || null);
+      req.onerror   = () => res(null);
+    });
+  } catch(e) { return null; }
+}
+async function loadSavedAudio() {
+  const bgData = await dbLoad('bg');
+  if (bgData) {
+    bgAudio.src = URL.createObjectURL(new Blob([bgData.buf], { type: bgData.type }));
+    bgAudio.load();
+    bgReady = true; bgFileName = bgData.name.replace(/\.[^.]+$/, '');
+    document.getElementById('bg-file-name').textContent = bgFileName;
+    document.getElementById('bg-pick-btn').classList.add('loaded');
+    document.getElementById('bg-pick-btn').textContent = '✓ ' + bgFileName;
+    bgAudio.play().catch(() => {});
+  }
+  const startData = await dbLoad('start');
+  if (startData) {
+    startAudio.src = URL.createObjectURL(new Blob([startData.buf], { type: startData.type }));
+    startAudio.load();
+    startReady = true; startFileName = startData.name.replace(/\.[^.]+$/, '');
+    document.getElementById('start-file-name').textContent = startFileName;
+    document.getElementById('start-pick-btn').classList.add('loaded');
+    document.getElementById('start-pick-btn').textContent = '✓ ' + startFileName;
+  }
+  for (let i = 0; i < N_CLUES; i++) {
+    const data = await dbLoad('clue-' + i);
+    if (data) {
+      clueAudios[i].src = URL.createObjectURL(new Blob([data.buf], { type: data.type }));
+      clueAudios[i].load(); clueFileNames[i] = data.name;
+    }
+  }
+  for (let i = 0; i < N_TIMED; i++) {
+    const data = await dbLoad('timed-' + i);
+    if (data) {
+      timedCues[i].audio.src = URL.createObjectURL(new Blob([data.buf], { type: data.type }));
+      timedCues[i].audio.load();
+      timedCues[i].ready = true; timedCues[i].fileName = data.name;
+    }
+  }
+  renderClues();
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtMs(ms) {
+  const s = Math.ceil(ms / 1000);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2,'0');
+}
+
+let _toastT = null;
+function toast(msg, dur = 2600) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => el.classList.remove('show'), dur);
+}
+
+function beep(freq = 440, dur = 0.18, vol = 0.3) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    o.start(); o.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
+function playAlarm() {
+  let i = 0;
+  const iv = setInterval(() => { beep(880, 0.14, 0.45); if (++i >= 6) clearInterval(iv); }, 225);
+}
+
+// ── COUNTDOWN ─────────────────────────────────────
+function beginCountdown() {
+  const overlay = document.getElementById('countdown-overlay');
+  const num     = document.getElementById('countdown-num');
+  overlay.style.display = 'flex';
+
+  const steps = [
+    { text: '3', freq: 440, cls: ''   },
+    { text: '2', freq: 554, cls: ''   },
+    { text: '1', freq: 659, cls: ''   },
+    { text: 'GÅ', freq: 880, cls: 'go' },
+  ];
+  let i = 0;
+
+  function step() {
+    const s = steps[i];
+    num.className = '';
+    num.textContent = s.text;
+    // Force reflow so animation re-triggers
+    void num.offsetWidth;
+    num.className = s.cls || 'pop';
+    i++;
+    if (i < steps.length) {
+      setTimeout(step, 1000);
+    } else {
+      setTimeout(() => {
+        overlay.style.display = 'none';
+        launchSession();
+      }, 650);
+    }
+  }
+  step();
+}
+
+// ── SESSION ───────────────────────────────────────
+function launchSession() {
+  pausedMs = 0; extraMs = 0; resumedAt = Date.now();
+  running = true; paused = false; warnedAt3 = false;
+  clueSent.fill(false);
+
+  document.getElementById('pre-btns').style.display    = 'none';
+  document.getElementById('active-btns').style.display = 'flex';
+  document.getElementById('clues-wrap').style.display      = 'block';
+  document.getElementById('last-session-wrap').innerHTML   = '';
+
+  timedCues.forEach(c => { c.fired = false; });
+  if (startReady) { startAudio.currentTime = 0; startAudio.play().catch(() => {}); }
+
+  requestWakeLock();
+  renderClues();
+  timerIv = setInterval(tick, 500);
+}
+
+function elapsed()   { return paused ? pausedMs : (running ? pausedMs + Date.now() - resumedAt : 0); }
+function totalMs()   { return durationMin * 60000 + extraMs; }
+function remaining() { return Math.max(0, totalMs() - elapsed()); }
+
+function tick() {
+  if (!running || paused) return;
+  const rem = remaining(), total = totalMs();
+  const pct  = (rem / total) * 100;
+  const warn = rem < WARN_MS && rem > 0;
+
+  const wrap = document.getElementById('timer-wrap');
+  const disp = document.getElementById('timer-display');
+  const bar  = document.getElementById('timer-bar');
+
+  if (rem <= 0) {
+    wrap.className   = 'timer-wrap expired';
+    disp.textContent = 'TIDSSLUT';
+    bar.style.width  = '0%';
+    clearInterval(timerIv);
+    playAlarm();
+    toast('Tidsslut!', 5000);
+    return;
+  }
+  if (warn && !warnedAt3) { warnedAt3 = true; beep(440, 0.3, 0.35); toast('3 minuter kvar!'); }
+  timedCues.forEach(cue => {
+    if (cue.ready && !cue.fired && cue.minLeft > 0 && rem <= cue.minLeft * 60000) {
+      cue.fired = true; cue.audio.currentTime = 0; cue.audio.play().catch(() => {});
+    }
+  });
+
+  wrap.className   = 'timer-wrap' + (warn ? ' warning' : '');
+  disp.textContent = fmtMs(rem);
+  bar.style.width  = pct.toFixed(1) + '%';
+}
+
+function togglePause() {
+  if (!running) return;
+  if (paused) {
+    resumedAt = Date.now(); paused = false;
+    document.getElementById('pause-btn').textContent = '⏸ Pausa';
+  } else {
+    pausedMs = elapsed(); paused = true;
+    document.getElementById('pause-btn').textContent = '▶ Fortsätt';
+    startAudio.pause();
+    clueAudios.forEach(a => a.pause());
+    timedCues.forEach(c => c.audio.pause());
+  }
+}
+
+function addTime(min) { extraMs += min * 60 * 1000; toast(`+${min} min tillagda`); }
+
+function confirmEnd() {
+  if (running && !paused) { pausedMs = elapsed(); paused = true; }
+  clearInterval(timerIv); timerIv = null;
+  startAudio.pause(); startAudio.currentTime = 0;
+  clueAudios.forEach(a => { a.pause(); a.currentTime = 0; });
+  timedCues.forEach(c => { c.audio.pause(); c.audio.currentTime = 0; });
+  document.getElementById('outcome-overlay').style.display = 'flex';
+}
+
+function cancelEnd() {
+  document.getElementById('outcome-overlay').style.display = 'none';
+  if (running) {
+    resumedAt = Date.now(); paused = false;
+    document.getElementById('pause-btn').textContent = '⏸ Pausa';
+    timerIv = setInterval(tick, 500);
+  }
+}
+
+function endSession(outcome) {
+  const timeLeftMs  = remaining();
+  const cluesUsed   = clueSent.filter(Boolean).length;
+
+  document.getElementById('outcome-overlay').style.display = 'none';
+  stats.sessions++;
+  if (outcome === 'escaped') stats.escaped++;
+  saveStats(); renderStats();
+  beep(outcome === 'escaped' ? 880 : 330, 0.25, 0.3);
+  toast(outcome === 'escaped' ? 'Grattis — de tog sig ut!' : 'Sessionen avslutad.');
+
+  lastSession = { outcome, timeLeftMs, cluesUsed, cluesTotal: clueSent.filter((_,i) => !!clueAudios[i].src).length };
+  localStorage.setItem(LAST_KEY, JSON.stringify(lastSession));
+
+  running = false; paused = false; pausedMs = 0; extraMs = 0;
+  clearInterval(timerIv); timerIv = null; releaseWakeLock();
+
+  document.getElementById('timer-wrap').className      = 'timer-wrap';
+  document.getElementById('timer-display').textContent = fmtMs(durationMin * 60000);
+  document.getElementById('timer-bar').style.width     = '100%';
+  document.getElementById('active-btns').style.display = 'none';
+  document.getElementById('pre-btns').style.display    = 'flex';
+  document.getElementById('clues-wrap').style.display  = 'none';
+  clueSent.fill(false); renderClues();
+  renderLastSession();
+}
+
+function renderLastSession() {
+  const wrap = document.getElementById('last-session-wrap');
+  if (!lastSession) { wrap.innerHTML = ''; return; }
+  const { outcome, timeLeftMs, cluesUsed, cluesTotal } = lastSession;
+  const escaped  = outcome === 'escaped';
+  const timeStr  = timeLeftMs > 0 ? fmtMs(timeLeftMs) + ' kvar' : 'Tidsslut';
+  const clueStr  = cluesTotal > 0
+    ? `${cluesUsed} av ${cluesTotal} ledtråd${cluesTotal !== 1 ? 'ar' : ''}`
+    : `${cluesUsed} ledtråd${cluesUsed !== 1 ? 'ar' : ''}`;
+  wrap.innerHTML = `
+    <div class="last-panel">
+      <div class="last-heading">Senaste spelet</div>
+      <div class="last-outcome ${escaped ? 'escaped' : 'failed'}">${escaped ? '✓ Klarade sig' : '✗ Misslyckades'}</div>
+      <div class="last-details">
+        <span class="last-detail">⏱ ${timeStr}</span>
+        <span class="last-detail">💡 ${clueStr}</span>
+      </div>
+    </div>`;
+}
+
+// ── KAMERA ────────────────────────────────────────
+async function toggleCamera() {
+  if (camStream) {
+    camStream.getTracks().forEach(t => t.stop()); camStream = null;
+    document.getElementById('cam-video').style.display = 'none';
+    document.getElementById('cam-lbl').textContent     = 'Starta kamera';
+    document.getElementById('cam-badge').textContent   = 'AV';
+    document.getElementById('cam-badge').classList.remove('live');
+    return;
+  }
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
+    });
+    const v = document.getElementById('cam-video');
+    v.srcObject = camStream; v.style.display = 'block';
+    await v.play();
+    document.getElementById('cam-lbl').textContent   = 'Stäng kamera';
+    document.getElementById('cam-badge').textContent = 'LIVE';
+    document.getElementById('cam-badge').classList.add('live');
+  } catch(e) { toast('Kamera ej tillgänglig'); }
+}
+
+// ── MUSIK ─────────────────────────────────────────
+function pickBgMusic() { document.getElementById('bg-input').click(); }
+
+function toggleBgMusic() {
+  if (!bgReady) { toast('Ingen bakgrundsmusik laddad'); return; }
+  if (bgAudio.paused) bgAudio.play().catch(() => {});
+  else bgAudio.pause();
+}
+function updateBgBtn() {
+  const btn = document.getElementById('bg-btn');
+  if (!btn) return;
+  btn.textContent = bgAudio.paused ? '♩' : '♫';
+  btn.classList.toggle('playing', !bgAudio.paused);
+}
+bgAudio.addEventListener('play',  updateBgBtn);
+bgAudio.addEventListener('pause', updateBgBtn);
+
+document.getElementById('bg-input').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  bgAudio.src = URL.createObjectURL(f); bgAudio.load();
+  bgReady = true; bgFileName = f.name.replace(/\.[^.]+$/, '');
+  document.getElementById('bg-file-name').textContent = bgFileName;
+  document.getElementById('bg-pick-btn').classList.add('loaded');
+  document.getElementById('bg-pick-btn').textContent = '✓ ' + bgFileName;
+  bgAudio.play().catch(() => {});
+  dbSave('bg', f);
+});
+
+document.getElementById('start-input').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  startAudio.src = URL.createObjectURL(f); startAudio.load();
+  startReady = true; startFileName = f.name.replace(/\.[^.]+$/, '');
+  document.getElementById('start-file-name').textContent = startFileName;
+  document.getElementById('start-pick-btn').classList.add('loaded');
+  document.getElementById('start-pick-btn').textContent = '✓ ' + startFileName;
+  dbSave('start', f);
+  e.target.value = '';
+});
+
+
+// ── AUDIO SETUP ───────────────────────────────────
+function pickStartSound() { document.getElementById('start-input').click(); }
+
+function openSetup() {
+  renderSetupClues();
+  renderSetupTimedCues();
+  const bv = Math.round(bgVolume * 100);
+  document.getElementById('bg-vol-slider').value = bv;
+  document.getElementById('bg-vol-pct').textContent = bv + '%';
+  const sv = Math.round(startVolume * 100);
+  document.getElementById('start-vol-slider').value = sv;
+  document.getElementById('start-vol-pct').textContent = sv + '%';
+  document.getElementById('dur-input').value = durationMin;
+  document.getElementById('hdr-title').value = document.getElementById('hdr-title-el').textContent;
+  document.getElementById('hdr-sub').value   = document.getElementById('hdr-sub-el').textContent;
+  document.getElementById('audio-setup').style.display = 'flex';
+}
+function closeSetup() {
+  // Spara etiketter från inputs
+  document.querySelectorAll('#setup-clues .setup-label-input').forEach((inp, i) => {
+    if (inp.value.trim()) clueLabels[i] = inp.value.trim();
+  });
+  saveLabels();
+  renderClues();
+  document.getElementById('audio-setup').style.display = 'none';
+}
+
+function renderSetupClues() {
+  const wrap = document.getElementById('setup-clues');
+  wrap.innerHTML = clueLabels.map((lbl, i) => {
+    const volPct = Math.round(clueVolumes[i] * 100);
+    return `
+    <div class="setup-row">
+      <div class="setup-num">${i + 1}</div>
+      <input class="setup-label-input" value="${esc(lbl)}" placeholder="Ledtrådsbeskrivning…" maxlength="40">
+      <button class="setup-file-btn${clueFileNames[i] ? ' loaded' : ''}" onclick="pickClueFile(${i})">
+        ${clueFileNames[i] ? '✓ ' + esc(clueFileNames[i].replace(/\.[^.]+$/, '')) : 'Välj ljud'}
+      </button>
+    </div>
+    <div class="setup-row setup-vol-row">
+      <span class="setup-vol-label">Volym</span>
+      <input type="range" class="setup-vol-slider" min="0" max="100" value="${volPct}"
+        oninput="clueAudios[${i}].volume=clueVolumes[${i}]=this.value/100;this.nextElementSibling.textContent=this.value+'%';saveVolumes()">
+      <span class="setup-vol-pct">${volPct}%</span>
+    </div>`;
+  }).join('');
+}
+
+function renderSetupTimedCues() {
+  const wrap = document.getElementById('setup-timed');
+  wrap.innerHTML = timedCues.map((cue, i) => {
+    const volPct   = Math.round(cue.volume * 100);
+    const shortName = cue.fileName ? cue.fileName.replace(/\.[^.]+$/, '') : null;
+    return `
+    <div class="setup-row">
+      <span class="setup-vol-label">Vid</span>
+      <input type="number" class="setup-timed-min" min="0" max="99" value="${cue.minLeft || ''}"
+        placeholder="—" oninput="timedCues[${i}].minLeft=+this.value||0;saveTimedSettings()">
+      <span style="font-size:12px;color:rgba(245,239,224,0.4);letter-spacing:1px;text-transform:uppercase;flex-shrink:0">min kvar</span>
+      <button class="setup-file-btn${cue.ready ? ' loaded' : ''}" style="flex:1;min-width:0" onclick="pickTimedFile(${i})">
+        ${shortName ? '✓ ' + esc(shortName) : 'Välj ljud'}
+      </button>
+    </div>
+    <div class="setup-row setup-vol-row">
+      <span class="setup-vol-label">Volym</span>
+      <input type="range" class="setup-vol-slider" min="0" max="100" value="${volPct}"
+        oninput="timedCues[${i}].audio.volume=timedCues[${i}].volume=this.value/100;this.nextElementSibling.textContent=this.value+'%';saveTimedSettings()">
+      <span class="setup-vol-pct">${volPct}%</span>
+    </div>`;
+  }).join('');
+}
+
+function pickTimedFile(i) {
+  _timedPickTarget = i;
+  document.getElementById('timed-input').click();
+}
+
+document.getElementById('timed-input').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const i = _timedPickTarget; if (i < 0) return;
+  timedCues[i].audio.src = URL.createObjectURL(f); timedCues[i].audio.load();
+  timedCues[i].ready = true; timedCues[i].fileName = f.name;
+  dbSave('timed-' + i, f);
+  renderSetupTimedCues();
+  toast(`Tidsinställt ljud ${i + 1}: ${f.name.replace(/\.[^.]+$/, '')}`);
+  e.target.value = '';
+});
+
+function pickClueFile(i) {
+  _cluePickTarget = i;
+  document.getElementById('clue-input').click();
+}
+
+document.getElementById('clue-input').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const i = _cluePickTarget; if (i < 0) return;
+  clueAudios[i].src = URL.createObjectURL(f); clueAudios[i].load();
+  clueFileNames[i]  = f.name;
+  dbSave('clue-' + i, f);
+  // Uppdatera knappen i setup
+  const btns = document.querySelectorAll('#setup-clues .setup-file-btn');
+  if (btns[i]) {
+    btns[i].textContent = '✓ ' + f.name.replace(/\.[^.]+$/, '');
+    btns[i].classList.add('loaded');
+  }
+  toast(`Ledtråd ${i + 1}: ${f.name.replace(/\.[^.]+$/, '')}`);
+  // Nollställ så nästa pick fungerar
+  e.target.value = '';
+});
+
+// ── LEDTRÅDAR ─────────────────────────────────────
+function renderClues() {
+  const grid = document.getElementById('clue-grid');
+  grid.innerHTML = clueLabels
+    .map((lbl, i) => ({ lbl, i }))
+    .filter(({ i }) => !!clueAudios[i].src)
+    .map(({ lbl, i }) => `
+      <button class="clue-card has-audio${clueSent[i] ? ' sent' : ''}"
+        id="clue-${i}" onclick="clueClick(${i})">
+        <span class="clue-audio-dot">♪</span>
+        <div class="clue-num">${i + 1}</div>
+        <div class="clue-lbl">${esc(lbl)}</div>
+        ${clueSent[i] ? '<div class="clue-sent-txt">Skickad</div>' : ''}
+      </button>`)
+    .join('');
+}
+
+function clueClick(i) {
+  if (clueAudios[i].src) {
+    clueAudios[i].currentTime = 0;
+    clueAudios[i].play().catch(() => {});
+    const el = document.getElementById(`clue-${i}`);
+    if (el) { el.classList.add('flash'); setTimeout(() => el?.classList.remove('flash'), 500); }
+  }
+  if (!clueSent[i]) {
+    clueSent[i] = true; renderClues();
+    toast(`Ledtråd ${i + 1} skickad`);
+    beep(660, 0.1, 0.2);
+  } else {
+    toast(`Ledtråd ${i + 1} redan skickad`);
+  }
+}
+
+// ── STATS ─────────────────────────────────────────
+function renderStats() {
+  const pct = stats.sessions > 0
+    ? Math.round((stats.escaped / stats.sessions) * 100) + '% flyktkvot'
+    : '—';
+  document.getElementById('stats-line').textContent =
+    `${stats.sessions} session${stats.sessions !== 1 ? 'er' : ''} idag · ${pct}`;
+}
+
+// ── WAKE LOCK ─────────────────────────────────────
+let _wakeLock = null;
+async function requestWakeLock() {
+  try { _wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
+}
+function releaseWakeLock() { _wakeLock?.release().catch(() => {}); _wakeLock = null; }
+document.addEventListener('visibilitychange', () => {
+  if (!_wakeLock && document.visibilityState === 'visible' && running) requestWakeLock();
+});
+
+// ── KLOCKA ────────────────────────────────────────
+function updateClock() {
+  const n = new Date();
+  document.getElementById('live-clock').textContent =
+    String(n.getHours()).padStart(2,'0') + ':' +
+    String(n.getMinutes()).padStart(2,'0') + ':' +
+    String(n.getSeconds()).padStart(2,'0');
+}
+
+// ── INIT ──────────────────────────────────────────
+// Rensa eventuellt korrupt clueLabels-data (> N_CLUES element)
+try {
+  const raw = JSON.parse(localStorage.getItem(LABELS_KEY));
+  if (Array.isArray(raw) && raw.length > N_CLUES)
+    localStorage.setItem(LABELS_KEY, JSON.stringify(raw.slice(0, N_CLUES)));
+} catch(e) {}
+
+loadVolumes();
+loadTimedSettings();
+loadDuration();
+loadHeader();
+renderLastSession();
+renderStats();
+renderClues();
+setInterval(updateClock, 1000);
+updateClock();
+loadSavedAudio();
+</script>
+</body>
+</html>
