@@ -484,6 +484,10 @@
       .gh-hero::before { background-image: url("hotellarkiv-1936-mobil.jpg"); }
       .gh-hero::after { background: linear-gradient(180deg, rgba(18,24,27,0.5), rgba(18,26,30,0.38) 55%, var(--soot) 100%); }
     }
+    /* Stående skärm: samma skrivbord vridet ett kvarts varv, så att föremålen ramar in texten upptill och nedtill i stället för att beskäras bort */
+    @media (orientation: portrait) {
+      .gh-hero::before { background-image: url("hotellarkiv-1936-staende.jpg"); }
+    }
     .gh-hero-frame { position: absolute; inset: calc(var(--nav-h) + 8px) clamp(12px, 3vw, 36px) 24px; border: 1px solid var(--gas-dim); pointer-events: none; }
     .gh-hero-frame::after { content: ''; position: absolute; inset: 5px; border: 1px solid var(--line); }
     #welcomeMessage .welcome-hero { position: relative; z-index: 2; width: min(720px, 100%); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0; padding: 0; }

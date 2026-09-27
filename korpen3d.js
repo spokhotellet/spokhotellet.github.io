@@ -22,7 +22,10 @@
 
   const mobile=matchMedia('(max-width: 800px)').matches;
   const finePointer=matchMedia('(hover: hover) and (pointer: fine)');
-  const photoUrl=mobile?'hotellarkiv-1936-mobil.jpg':'hotellarkiv-1936.jpg';
+  // Stående skärm får skrivbordet vridet ett kvarts varv (samma val som i app.css)
+  const portrait=matchMedia('(orientation: portrait)');
+  const photoFor=()=>portrait.matches?'hotellarkiv-1936-staende.jpg':mobile?'hotellarkiv-1936-mobil.jpg':'hotellarkiv-1936.jpg';
+  let photoUrl=photoFor();
 
   // Öppnad som fil: hämta inbäddade kopior av bilderna (korpen3d-lokalt.js), eftersom WebGL inte får läsa file://-bilder
   if(location.protocol==='file:'&&!window.KORPEN3D_BILDER){
@@ -53,7 +56,7 @@
   /* ---------- Skrivbordet ---------- */
   const tex=new THREE.Texture(photo);
   tex.colorSpace=THREE.NoColorSpace; tex.anisotropy=4; tex.needsUpdate=true;
-  const photoAspect=photo.naturalWidth/photo.naturalHeight;
+  let photoAspect=photo.naturalWidth/photo.naturalHeight;
 
   const deskMat=new THREE.ShaderMaterial({
     uniforms:{
@@ -175,6 +178,17 @@
   new ResizeObserver(resize).observe(hero);
   resize();
 
+  // Telefonen vrids: byt till fotot för den nya ledden
+  portrait.addEventListener('change',async()=>{
+    const url=photoFor(); if(url===photoUrl) return; photoUrl=url;
+    let im; try{ im=await loadImage(url); }catch(e){ return; }
+    if(url!==photoUrl) return;
+    tex.image=im; tex.needsUpdate=true;
+    deskMat.uniforms.uTexel.value.set(1/im.naturalWidth, 1/im.naturalHeight);
+    photoAspect=im.naturalWidth/im.naturalHeight;
+    resize();
+  });
+
   /* ---------- Ficklampan ---------- */
   const target=new THREE.Vector2(0.15,0.1), light=new THREE.Vector2(0.15,0.1);
   let lastMove=-1e9, hasPointer=false;
@@ -194,7 +208,9 @@
 
     // Ficklampan: följer pekaren, annars en långsam vandring över skrivbordet
     if(!hasPointer||now-lastMove>3500){
-      const wx=Math.sin(clock*0.13)*0.34+Math.sin(clock*0.051+1.3)*0.1, wy=Math.sin(clock*0.097+0.6)*0.26;
+      // på stående skärm ligger föremålen upptill och nedtill, så vandringen går mer på höjden
+      const ax=portrait.matches?0.2:0.34, ay=portrait.matches?0.34:0.26;
+      const wx=Math.sin(clock*0.13)*ax+Math.sin(clock*0.051+1.3)*0.1, wy=Math.sin(clock*0.097+0.6)*ay;
       target.set(wx*viewW, wy*viewH);
     }
     light.lerp(target, 1-Math.pow(0.02, dt));
