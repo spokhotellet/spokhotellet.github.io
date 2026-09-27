@@ -3,27 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Spökhotellet Korpen</title>
-  <meta name="description" content="En skräckupplevelse du sent glömmer. Vågar du checka in på Spökhotellet Korpen?">
-  <meta property="og:title" content="Spökhotellet Korpen">
-  <meta property="og:description" content="En skräckupplevelse du sent glömmer. Vågar du checka in?">
-  <meta property="og:image" content="korpen.png">
+  <title>Spökhotellet Korpen – skräckattraktion i en ladugård</title>
+  <meta name="description" content="Spökhotellet Korpen är en skräckattraktion byggd i en ladugård. Vågar du checka in på ett hotell som inte borde finnas?">
+  <meta property="og:title" content="Spökhotellet Korpen – skräckattraktion">
+  <meta property="og:description" content="En skräckattraktion byggd i en ladugård. Vågar du checka in?">
+  <meta property="og:image" content="https://spokhotellet.github.io/hotellarkiv-1936.jpg">
+  <meta property="og:url" content="https://spokhotellet.github.io/">
   <meta property="og:type" content="website">
-  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="favicon.png">
-  <link rel="shortcut icon" href="favicon.png">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <meta name="theme-color" content="#0a0a0a">
+  <meta property="og:locale" content="sv_SE">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://spokhotellet.github.io/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preload" as="image" href="hotellarkiv-1936.jpg" media="(min-width: 801px)">
+  <link rel="preload" as="image" href="hotellarkiv-1936-mobil.jpg" media="(max-width: 800px)">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700&family=Cutive+Mono&family=Gloock&family=Caveat:wght@500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#182024">
   <link rel="stylesheet" href="app.css">
-  <style>
-    @keyframes guestHiddenFill {
-      from { transform: scaleX(0); }
-      to   { transform: scaleX(1); }
-    }
-    #guestHiddenBar { animation: none; }
-    #guestHiddenBar.filling { animation: guestHiddenFill var(--fill-dur, 0.5s) cubic-bezier(0.4,0,0.2,1) forwards; }
-  </style>
+  <link rel="stylesheet" href="lager.css">
 </head>
 
 <body>
@@ -35,7 +36,7 @@
   <div id="offlineBanner">Ingen serveranslutning — visar cachad data</div>
 
   <!-- Save error banner -->
-  <div id="saveErrorBanner" role="alert" style="display:none">
+  <div id="saveErrorBanner" role="alert" style="display:none;">
     <span id="saveErrorMsg"></span>
     <button onclick="hideSaveError()">OK</button>
   </div>
@@ -53,10 +54,10 @@
     <div class="login-box">
       <button class="login-close" onclick="closeLoginModal()" aria-label="Stäng">✕</button>
       <div class="login-logo">
-        <img src="korpen.png" alt="Spökhotellet Korpen" class="login-logo-img" onerror="this.style.display='none'">
+        <img src="korpen.png" alt="Spökhotellet Korpen" class="login-logo-img" width="974" height="573" loading="lazy" decoding="async" onerror="this.style.display='none'">
       </div>
       <h2 class="login-title" id="loginTitle">Spökhotellet Korpen</h2>
-      <p class="login-subtitle">Ange ditt lösenord för att fortsätta</p>
+      <p class="login-subtitle">Personalingång. Ange namn och lösenord.</p>
       <div class="login-field">
         <label class="login-label" for="loginNameInput">Namn</label>
         <input type="text" id="loginNameInput" class="login-input" placeholder="Ditt namn" autocomplete="username" autocorrect="off" autocapitalize="words" spellcheck="false">
@@ -67,233 +68,455 @@
       </div>
       <div class="login-error" id="loginError" role="alert"></div>
       <button class="login-submit" onclick="submitLogin()">Träd in</button>
-      <p class="login-hint">Gäster behöver inte logga in</p>
+      <p class="login-hint">Gäster behöva ej logga in.</p>
     </div>
   </div>
 
-  <!-- ===== TOPBAR ===== -->
+  <!-- ===== TOPPRAD FÖR PERSONALEN: meny, dagens status och användare ===== -->
   <div class="topbar">
-    <div id="queueTopbar" class="status clickable" onclick="maybeEditQueueTime(event)">
-      <span id="queueAutoSymbol" style="font-size:0.6em;opacity:0.3;margin-right:2px;vertical-align:middle;line-height:1;"></span>Kö: <span id="queueTimeText">Ingen info</span>
-    </div>
-    <div class="status" id="openBlock">
-      <span class="open-label">Öppet idag:</span>
-      <span id="openHoursText" class="open-time clickable" onclick="maybeEditHours(event)">Ingen info</span>
+    <span class="tb-brand" aria-hidden="true"><span>Spökhotellet</span>Korpen</span>
+    <nav id="staffNav" class="staff-nav" aria-label="Personalmeny" hidden>
+      <button type="button" data-go="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span>Min sida</span><i class="sn-badge" id="snProfileBadge" hidden></i></button>
+      <button type="button" data-go="kassa" id="snKassa"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="9" width="18" height="11" rx="1"/><path d="M7 9V5h10v4M7 14h2M11 14h2M15 14h2M7 17h10"/></svg><span>Kassa</span></button>
+      <button type="button" data-go="inslapp" id="snInslapp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h11v17M16 7l3 1v13M3 21h18"/><circle cx="13" cy="13" r="0.9" fill="currentColor"/></svg><span>Insläpp</span></button>
+      <button type="button" data-go="stats"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Statistik</span></button>
+      <button type="button" data-go="admin" id="snAdmin"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v15H5z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Hantera</span><i class="sn-badge" id="snAdminBadge" hidden></i></button>
+    </nav>
+    <div class="tb-status">
+      <button type="button" class="tb-chip" id="openBlock" onclick="maybeEditHours(event)" aria-label="Dagens öppettid"><span class="status-dot dead" id="tbOpenDot"></span><span class="open-label">Idag</span> <span id="openHoursText" class="open-time">Ingen info</span></button>
+      <button type="button" class="tb-chip" id="queueTopbar" onclick="maybeEditQueueTime(event)" aria-label="Kötid"><span class="open-label">Kö</span> <span id="queueTimeText">Ingen info</span><span id="queueAutoSymbol" class="tb-auto" title="Räknas automatiskt"></span></button>
     </div>
     <div class="user-menu">
       <button id="loginBtn" onclick="openLoginModal()" style="display:inline-block;">Logga in</button>
-      <button id="logoutBtn" style="display:none;position:relative;">
-        <span id="msgBadgeDot" class="msg-badge-dot" style="display:none;position:absolute;top:5px;right:5px;margin:0;"></span>
-        <div id="logoutName">Namn</div>
-        <div style="font-size:11px;color:rgba(232,224,208,0.5);font-family:'IM Fell English',serif;font-style:italic;">Meny</div>
-      </button>
+      <button id="logoutBtn" style="display:none;" aria-haspopup="true"><span id="logoutName">Namn</span><svg width="10" height="7" viewBox="0 0 10 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg><span id="msgBadgeDot" hidden></span></button>
       <div id="userDropdown" class="dropdown">
-        <a href="#" id="kassaLink" onclick="selectMenu('kassa');return false;">Kassa</a>
-        <a href="#" onclick="selectMenu('profile');return false;" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">Min sida<span class="msg-badge-dot" id="dropdownProfileBadge" style="display:none;position:static;margin:0;"></span></a>
-        <a href="#" onclick="selectMenu('stats');return false;">Statistik</a>
-        <a href="#" id="adminLink" onclick="selectMenu('admin');return false;">Hantera</a>
-        <a href="#" id="ticketsLink" onclick="openRecentTicketsFull();hideDropdown();return false;">Insläpp</a>
         <a href="#" onclick="selectMenu('logout');return false;">Logga ut</a>
       </div>
     </div>
   </div>
 
-  <!-- ===== LOADING OVERLAY ===== -->
-  <div id="welcomeLoading" aria-hidden="true">
-    <div class="wl-ember"></div>
-    <p class="wl-text">laddar…</p>
+  <!-- ===== LADDSKÄRM (visas bara när inga cachade uppgifter finns) ===== -->
+  <div id="welcomeLoading" role="status" aria-live="polite" hidden>
+    <div class="wl-card">
+      <svg class="wl-key" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="18" cy="18" r="10"/><circle cx="18" cy="18" r="4"/><path d="M25 25l24 24M36 36l5-5M42 42l5-5"/></svg>
+      <div class="wl-word"><span>Spökhotellet</span><strong>Korpen</strong></div>
+      <div class="wl-bar" aria-hidden="true"><span></span></div>
+      <p class="wl-text">Ett ögonblick. Receptionen hämtar dagens uppgifter…</p>
+    </div>
   </div>
 
-  <!-- ===== VÄLKOMST ===== -->
+  <!-- ===== GÄSTSIDAN ===== -->
   <div class="welcome-message" id="welcomeMessage">
-    <div class="welcome-inner">
 
-      <!-- Hero -->
+    <a class="gh-skip" href="#om">Till innehållet</a>
+
+    <!-- Toppmeny som följer med vid scroll -->
+    <header class="gh-nav" id="ghNav">
+      <div class="gh-progress" id="ghProgress" aria-hidden="true"></div>
+      <div class="gh-nav-inner">
+        <a class="gh-brand" href="#top" aria-label="Spökhotellet Korpen – till början">
+          <span class="gh-brand-top">Spökhotellet</span>
+          <span class="gh-brand-main">Korpen</span>
+        </a>
+        <nav class="gh-links" id="ghLinks" aria-label="Huvudmeny">
+          <a href="#besok" data-spy="besok">Besök &amp; priser</a>
+          <a href="#gastbok" data-spy="gastbok">Gästbok</a>
+          <a href="#regler" data-spy="regler">Ordningsregler</a>
+          <a href="#arkiv" data-spy="arkiv">Historia</a>
+          <a href="#kontakt" data-spy="kontakt">Kontakt</a>
+          <button type="button" class="gh-links-staff" onclick="openLoginModal()">Personalingång</button>
+        </nav>
+        <div class="gh-actions">
+          <a class="gh-status" id="ghStatus" href="#besok" aria-live="polite">
+            <span class="gh-status-label">Receptionen idag</span>
+            <span class="gh-status-value"><span class="status-dot dead" id="ghStatusDot"></span><span id="ghStatusText">–</span></span>
+          </a>
+          <button type="button" class="gh-burger" id="ghBurger" aria-expanded="false" aria-controls="ghLinks" aria-label="Öppna menyn">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="gh-hero" id="top">
+      <div class="gh-hero-frame" aria-hidden="true"></div>
+      <!-- EXPERIMENT: dammlager i hero (lager.css), reserv när three.js-scenen inte körs. Stäng av med ?lager=av -->
+      <div class="lx-scene" aria-hidden="true">
+        <div class="lx-layer lx-dust"></div>
+      </div>
       <div class="welcome-hero">
-        <img id="welcomeKorpenLogo" src="korpen.png" alt="Spökhotellet Korpen" onerror="this.style.display='none'">
         <p class="welcome-hotel-name" id="welcomeHotelName">Välkommen</p>
+        <img id="welcomeKorpenLogo" src="korpen.png" alt="Spökhotellet Korpen" width="974" height="573" fetchpriority="high" onerror="this.style.display='none'">
+        <p class="gh-hero-title">Vågar ni checka in?</p>
         <h1 id="welcomeHeadline"></h1>
         <p class="welcome-tagline" id="welcomeTagline"></p>
-      </div>
 
-      <!-- Status – alltid synlig ovanför flikarna -->
-      <div class="welcome-status-row" id="welcomeStatusRow">
-        <div class="welcome-status-card">
-          <span class="welcome-status-label">Kötid</span>
-          <span class="welcome-status-value" id="queueTimeDisplay">
-            <span class="status-dot dead"></span>Ingen info
-          </span>
+        <!-- Receptionens lägesrapport -->
+        <div class="welcome-status-row" id="welcomeStatusRow">
+          <div class="welcome-status-card">
+            <span class="welcome-status-label">Kötid</span>
+            <span class="welcome-status-value" id="queueTimeDisplay">
+              <span class="status-dot dead"></span>Ingen info
+            </span>
+          </div>
+          <div class="welcome-status-card">
+            <span class="welcome-status-label">Öppet idag</span>
+            <span class="welcome-status-value" id="welcomeOpenHoursText">Ingen info</span>
+          </div>
+          <div class="welcome-status-card gh-price-card" id="ghPriceCard" style="display:none;">
+            <span class="welcome-status-label">Entré</span>
+            <span class="welcome-status-value" id="ghPriceFrom"></span>
+          </div>
         </div>
-        <div class="welcome-status-card">
-          <span class="welcome-status-label">Öppet idag</span>
-          <span class="welcome-status-value" id="welcomeOpenHoursText">Ingen info</span>
-        </div>
-      </div>
-      <div id="welcomeAdminBar">
-        <span onclick="maybeEditQueueTime(event)">✎ kötid</span>
-        <span onclick="maybeEditHours(event)">✎ öppettider</span>
-      </div>
+        <p class="gh-hero-social">Öppettiderna finns även på <a class="js-social-ig" target="_blank" rel="noopener">Instagram</a> och <a class="js-social-fb" target="_blank" rel="noopener">Facebook</a>.</p>
 
-      <!-- Välkomsttext & recensioner – ovanför flikarna -->
-      <div id="welcomeInfoText"></div>
-      <div id="welcomeReviews" style="display:none;"></div>
-
-      <!-- Flikar -->
-      <div class="ws-tabs">
-        <button class="ws-tab active" data-tab="info" onclick="showWelcomeTab('info')">Info</button>
-        <button class="ws-tab" data-tab="priser" onclick="showWelcomeTab('priser')">Priser</button>
-        <button class="ws-tab" data-tab="kontakt" onclick="showWelcomeTab('kontakt')">Kontakt</button>
-        <button class="ws-tab" data-tab="oppettider" id="tabOppettider" style="display:none;" onclick="showWelcomeTab('oppettider')">Öppettider</button>
-      </div>
-
-      <!-- Panel: Priser -->
-      <div class="ws-panel" id="panel-priser" style="display:none;">
-        <div class="ws-prices" id="wsPrices"></div>
-      </div>
-
-      <!-- Panel: Info -->
-      <div class="ws-panel" id="panel-info" style="display:none;">
-        <div class="welcome-info-panel" id="welcomeInfoPanel">
-          <div id="welcomeFaqContent"></div>
+        <a class="gh-hero-rating" id="ghHeroRating" href="#gastbok" hidden></a>
+        <div class="gh-hero-actions">
+          <a class="gh-btn" href="#besok">Planera ert besök <span aria-hidden="true">↓</span></a>
         </div>
       </div>
+    </section>
 
-      <!-- Panel: Öppettider -->
-      <div class="ws-panel" id="panel-oppettider" style="display:none;">
-        <div id="wsOpenDates"></div>
-      </div>
-
-      <!-- Panel: Kontakt -->
-      <div class="ws-panel" id="panel-kontakt" style="display:none;">
-        <div class="welcome-social" id="welcomeSocial">
-          <a id="socialIgBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
-            Instagram
-          </a>
-          <a id="socialFbBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-            Facebook
-          </a>
-        </div>
-      </div>
-
-      <button class="welcome-staff-btn" onclick="openLoginModal()">
-        — Personalinloggning —
-      </button>
-
+    <div class="gh-ribbon" aria-hidden="true">
+      <span>Skräckattraktion</span>
+      <i>—</i>
+      <span>Spökhotellet Korpen · Grundat 2022</span>
+      <i>—</i>
+      <span>Byggd i en ladugård</span>
     </div>
-  </div>
 
-  <!-- ===== ÖPPETTIDER (admin) ===== -->
-  <div id="hoursMenu">
-    <label style="font-family:'IM Fell English SC',serif;">Öppettid:</label>
-    <select id="preset" onchange="presetSelected(this.value)">
-      <option value="Stängt">-- Välj --</option>
-      <option value="Stängt">Stängt</option>
-      <option value="10:00–22:00">10:00–22:00</option>
-      <option value="10:00–17:00">10:00–17:00</option>
-      <option value="18:00–21:00">18:00–21:00</option>
-      <option value="custom">Ange själv...</option>
-    </select>
-    <input id="customHours" class="input" placeholder="16:30–20:00" style="display:none; width:260px;" />
-    <button class="btn btn-green" onclick="applyCustomHours()">Spara</button>
+    <main class="gh-main" id="ghMain">
 
-    <div style="margin-top:14px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px;">
-      <label style="font-family:'IM Fell English SC',serif; font-size:13px; display:block; margin-bottom:8px; color:rgba(232,224,208,0.6);">Kommande öppna dagar</label>
-      <div id="openDatesCalendar" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; justify-content:center;"></div>
-      <div style="display:flex; gap:6px; align-items:flex-end; flex-wrap:wrap;">
-        <div>
-          <div style="font-size:11px;color:rgba(232,224,208,0.4);margin-bottom:3px;">Datum</div>
-          <input type="date" id="addOpenDateInput" class="input" style="width:145px;" />
+      <!-- Telegram (säsongsmeddelande från admin, dolt när tomt) -->
+      <aside class="gh-telegram gh-reveal" aria-label="Meddelande från hotellet">
+        <div class="gh-telegram-head">
+          <span class="gh-telegram-org">Telegrafverket</span>
+          <span class="gh-telegram-word">Telegram</span>
+          <span class="gh-telegram-to">Till hotellets gäster</span>
         </div>
-<div>
-          <div style="font-size:11px;color:rgba(232,224,208,0.4);margin-bottom:3px;">Öppettider</div>
-          <select id="addOpenHoursInput" class="input" style="width:140px;">
-            <option value="">-- Välj --</option>
-            <option value="10:00–22:00">10:00–22:00</option>
-            <option value="10:00–17:00">10:00–17:00</option>
-            <option value="18:00–21:00">18:00–21:00</option>
-          </select>
+        <div id="welcomeInfoText"></div>
+      </aside>
+
+      <!-- Om attraktionen -->
+      <section class="gh-section gh-intro" id="om">
+        <figure class="gh-postcard gh-reveal">
+          <img src="vykort-korpen.jpg" alt="Gammalt vykort: Hotell Korpens fasad en månljus höstkväll, med skylten Hotell Korpen, tända fönster, en stege mot väggen och cyklar vid muren." width="800" height="1200" loading="lazy" decoding="async">
+          <figcaption>Vykort från Hotell Korpen. Odaterat.</figcaption>
+          <!-- EXPERIMENT: en korp på väg ut ur vykortet (lager.css) -->
+          <img class="lx-perch lx-perch-postcard" src="lager/korp-vingar-upp.webp" alt="" width="509" height="520" loading="lazy" decoding="async" aria-hidden="true">
+        </figure>
+        <div class="gh-intro-text gh-reveal">
+          <span class="gh-kicker"><span class="gh-plate">N:o 1</span>Om attraktionen</span>
+          <h2 class="gh-title">Spökhotellet Korpen, ett fiktivt hotell och skräckattraktion</h2>
+          <p>Spökhotellet Korpen är en skräckattraktion som ni går igenom till fots. Den är byggd i en ladugård, som vi har inrett till det fiktiva Hotell Korpen från 1930‑talet.</p>
+          <p>Där inne möter ni hotellets personal och gäster, och allt är inte som det ska. Ni kan inte boka rum eller övernatta hos oss. Det enda ni checkar in för är skräcken.</p>
+          <ul class="gh-facts">
+            <li><span>Vad</span>Skräckattraktion att gå igenom</li>
+            <li><span>Var</span>I en ladugård</li>
+            <li><span>Biljett</span>Köps på plats i receptionen</li>
+          </ul>
+          <a class="gh-link gh-intro-link" href="#besok">Priser &amp; öppettider ↓</a>
         </div>
-        <button class="btn btn-green" onclick="addOpenDate()">+ Lägg till</button>
-        <div id="guestHiddenToggle" onclick="toggleGuestHidden()" style="cursor:pointer; margin-left:auto; text-align:center; padding:5px 12px; border-radius:4px; border:1px solid rgba(232,224,208,0.15); background:rgba(232,224,208,0.05); position:relative; overflow:hidden;">
-          <span id="guestHiddenBar" style="position:absolute; bottom:0; left:0; width:100%; height:2px; background:rgba(200,160,50,0.85); transform:scaleX(0); transform-origin:left; border-radius:0 0 4px 4px;"></span>
-          <div style="font-size:13px; font-family:'IM Fell English SC',serif; color:rgba(232,224,208,0.7);">Test</div>
-          <div style="font-size:10px; font-family:'IM Fell English',serif; font-style:italic; color:rgba(232,224,208,0.35); margin-top:1px;">Dölj öppettid för gäster</div>
+      </section>
+
+      <!-- Besök & priser -->
+      <section class="gh-section" id="besok">
+        <header class="gh-section-head gh-reveal">
+          <span class="gh-kicker"><span class="gh-plate">N:o 2</span>Receptionen</span>
+          <h2 class="gh-title">Inför ert besök.</h2>
+          <p class="gh-sub">Priser, öppethållande och vad som är bra att veta.</p>
+        </header>
+        <div class="gh-visit">
+          <div class="gh-ticket gh-reveal">
+            <div class="gh-tariff">
+              <div class="gh-tariff-head"><span>Hotell Korpen</span><span>Tariff</span></div>
+              <span class="gh-card-kicker">Välkommen att checka in</span>
+              <h3 class="gh-card-title">Biljettpriser</h3>
+              <div class="ws-prices" id="wsPrices"></div>
+              <p class="gh-tariff-note">Avgiften erlägges i receptionen vid incheckning.</p>
+            </div>
+            <div class="gh-stub-slot">
+              <button type="button" class="gh-stub" id="ghStub" aria-label="Kontrollavi">
+                <span class="gh-stub-face gh-stub-front"><span class="gh-stub-kicker">Kontrollavi · behålles</span><span class="gh-stub-no">N:o <span id="ghStubNo">0001</span></span></span>
+                <span class="gh-stub-face gh-stub-back" aria-hidden="true">HJÄLP!</span>
+              </button>
+            </div>
+          </div>
+          <div class="gh-letter gh-reveal">
+            <div class="gh-letter-head">
+              <span class="gh-letter-name">Hotell Korpen</span>
+              <span class="gh-letter-sub">Meddelande från receptionen</span>
+            </div>
+            <span class="gh-card-kicker">Öppethållande</span>
+            <h3 class="gh-card-title">När öppnas dörrarna?</h3>
+            <p class="gh-letter-today"><span id="ghLetterToday">–</span></p>
+            <div id="wsOpenDates"></div>
+            <p class="gh-letter-social">Öppettiderna kungöras även på <a class="js-social-ig" target="_blank" rel="noopener">Instagram</a> och <a class="js-social-fb" target="_blank" rel="noopener">Facebook</a>.</p>
+            <p class="gh-letter-sign">Med vänlig hälsning,<br><em>Receptionen</em></p>
+          </div>
         </div>
+        <div class="gh-faq gh-reveal" id="fragor">
+          <h3 class="gh-faq-title">Bra att veta före ankomsten</h3>
+          <div class="welcome-info-panel" id="welcomeInfoPanel">
+            <div id="welcomeFaqContent"></div>
+          </div>
+        </div>
+
+        <!-- Hur läskigt är det? Ett registerkort som gästen fyller i -->
+        <form class="gh-regcard gh-reveal" id="ghQuiz" aria-labelledby="ghQuizTitle">
+          <div class="gh-regcard-head">
+            <span>Hotell Korpen</span>
+            <span>Registerkort N:o <span id="ghQuizNo">—</span></span>
+          </div>
+          <h3 class="gh-regcard-title" id="ghQuizTitle">Hur läskigt är det?</h3>
+          <p class="gh-regcard-lead">Fyll i kortet, så ger receptionen ett råd inför besöket.</p>
+          <fieldset class="gh-regcard-q">
+            <legend>1. Vilka ingå i sällskapet?</legend>
+            <label><input type="radio" name="who" value="0"><span>Endast vuxna</span></label>
+            <label><input type="radio" name="who" value="1"><span>Tonåringar</span></label>
+            <label><input type="radio" name="who" value="2"><span>Yngre barn</span></label>
+          </fieldset>
+          <fieldset class="gh-regcard-q">
+            <legend>2. Hur lätt bli ni rädda?</legend>
+            <label><input type="radio" name="fear" value="0"><span>Knappast alls</span></label>
+            <label><input type="radio" name="fear" value="1"><span>Något</span></label>
+            <label><input type="radio" name="fear" value="2"><span>Mycket</span></label>
+          </fieldset>
+          <fieldset class="gh-regcard-q">
+            <legend>3. Tåla ni mörker och plötsliga ljud?</legend>
+            <label><input type="radio" name="dark" value="0"><span>Gärna</span></label>
+            <label><input type="radio" name="dark" value="1"><span>Kanske</span></label>
+            <label><input type="radio" name="dark" value="2"><span>Helst inte</span></label>
+          </fieldset>
+          <div class="gh-regcard-result" id="ghQuizResult" aria-live="polite" hidden></div>
+          <div class="gh-regcard-foot">
+            <button type="submit" class="gh-btn gh-btn-small">Lämna in kortet</button>
+            <button type="reset" class="gh-regcard-reset">Fyll i på nytt</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Gästboken -->
+      <section class="gh-section gh-guestbook" id="gastbok">
+        <div class="gh-ledger gh-reveal">
+          <div class="gh-ledger-head">
+            <span class="gh-ledger-kicker">Hotell Korpen · Gästbok</span>
+            <h2 class="gh-ledger-title">Ett ord efter utcheckningen.</h2>
+          </div>
+          <div id="welcomeReviews"></div>
+          <div class="gh-ledger-foot">
+            <a class="gh-btn gh-btn-small" href="?review">Skriv i gästboken</a>
+            <!-- EXPERIMENT: fjäderpennan ligger bredvid gästboken (lager.css) -->
+            <img class="lx-quill" src="lager/fjaderpenna.webp" alt="" width="400" height="675" loading="lazy" decoding="async" aria-hidden="true">
+          </div>
+        </div>
+      </section>
+
+      <!-- Ordningsregler -->
+      <section class="gh-section" id="regler">
+        <div class="gh-notice gh-reveal">
+          <span class="gh-notice-top">Anslag</span>
+          <h2 class="gh-notice-title">Ordningsregler</h2>
+          <p class="gh-notice-sub">för hotellets gäster</p>
+          <ol class="gh-notice-list">
+            <li><span>§ 1</span>Samtliga gäster anmäla sig i receptionen och erlägga avgift före inträdet.</li>
+            <li><span>§ 2</span>Sällskap ombedes hålla samman. Korridorerna äro mörka.</li>
+            <li><span>§ 3</span>Gästerna ombedes icke vidröra hotellets personal eller inredning.</li>
+            <li><span>§ 4</span>Den som ej önskar bli skrämd ombedes vänta utanför hotellet.</li>
+          </ol>
+          <p class="gh-notice-sign">Direktionen</p>
+        </div>
+      </section>
+
+      <!-- Berättelsen: ur hotellets arkiv -->
+      <section class="gh-section gh-archive" id="arkiv">
+        <div class="gh-archive-text gh-reveal">
+          <span class="gh-tab">Ur hotellets arkiv · Mapp 1936</span>
+          <h2 class="gh-title">Sedan 1892 har Hotellet Korpen tagit emot gäster. <span class="gh-hand">Somliga stannade.</span></h2>
+          <p>Hotell Korpen byggdes av herr Arvid Janson och drevs av familjen i över fyrtio år. Hösten 1936 hände något i huset som tidningarna aldrig riktigt kunde förklara.</p>
+          <p>Personalen står, som förr, till er tjänst. Skulle någon av dem plötsligt bli stående och stirra tomt framför sig, ber vi er vänligen att inte störa.</p>
+          <figure class="gh-photo">
+            <div class="gh-photo-img">
+              <img src="personalen-1936.jpg" alt="Hotell Korpens personal uppställd i en korridor: kocken, två städerskor, en portier i hatt och två unga män i hotelluniform." width="1100" height="733" loading="lazy" decoding="async">
+            </div>
+            <figcaption>Personalen samlad i korridoren, sommaren 1921.</figcaption>
+          </figure>
+        </div>
+        <div class="gh-archive-papers">
+        <figure class="gh-clipping gh-reveal">
+          <div class="gh-clipping-meta"><span>N:r 272</span><span>Pris 10 öre</span></div>
+          <div class="gh-clipping-masthead">Nordstads Tidning</div>
+          <div class="gh-clipping-date">Måndagen den 23 november 1936</div>
+          <h3 class="gh-clipping-title">Oväder över Hotell Korpen</h3>
+          <p class="gh-clipping-deck">Fönsterrutor krossade. Direktören vill ej uttala sig.</p>
+          <div class="gh-clipping-body">
+            <p>Under natten till i dag drog ett oväder av sällsynt styrka in över trakten. Grannar till Hotell Korpen uppgiva, att marken skakade och att ljus syntes i samtliga fönster långt efter det att huset släckts.</p>
+            <p>Då vår medarbetare i morse besökte platsen, befunnos flera rutor på andra våningen krossade. Glaset låg, märkligt nog, ute på gatan.</p>
+            <p>Direktör Janson har ej velat lämna några upplysningar. Kökschefen Ahlberg, som anträffades i köksingången, stod länge tyst och tycktes ej höra frågan.</p>
+            <p id="ghClipLast">Hotellet mottager gäster som vanligt.</p>
+          </div>
+          <span class="gh-clipping-stamp" aria-hidden="true">Arkivexemplar</span>
+        </figure>
+        <figure class="gh-clipping gh-clipping-ad gh-reveal" aria-label="Annons för Hotell Korpen">
+          <div class="gh-ad-kicker">Annons</div>
+          <img class="gh-ad-logo" src="hotell-korpen.png" alt="Hotell Korpen" width="600" height="316" loading="lazy" decoding="async">
+          <p class="gh-ad-line">Moderna rum med varmt och kallt vatten<br>Förnämligt kök · Telefon 272</p>
+          <p class="gh-ad-foot">Resande hälsas välkomna. <em>A. Janson.</em></p>
+        </figure>
+        </div>
+      </section>
+
+
+
+      <!-- Korrespondens -->
+      <section class="gh-section gh-contact" id="kontakt">
+        <div class="gh-contact-text gh-postcard-back gh-reveal">
+          <span class="gh-postmark" aria-hidden="true"><span>Spökhotellet</span><b>2022</b><span>Korpen</span></span>
+          <!-- EXPERIMENT: en korp som bär bud (lager.css) -->
+          <img class="lx-perch lx-perch-letter" src="lager/korp-glidflykt.webp" alt="" width="520" height="340" loading="lazy" decoding="async" aria-hidden="true">
+          <span class="gh-kicker">Korrespondens</span>
+          <h2 class="gh-title">Hotellet har mer att berätta.</h2>
+          <p class="gh-sub">Följ Korpen för nyheter, öppettider och glimtar från hotellet. Frågor inför besöket besvaras gärna på Instagram och Facebook.</p>
+          <div class="welcome-social" id="welcomeSocial">
+            <a id="socialIgBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">Instagram <span aria-hidden="true">↗</span></a>
+            <a id="socialFbBtn" class="social-btn" href="#" target="_blank" rel="noopener" style="display:none;">Facebook <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="gh-footer">
+      <div class="gh-footer-inner">
+        <span class="gh-brand gh-footer-brand"><span class="gh-brand-top">Spökhotellet</span><span class="gh-brand-main">Korpen</span></span>
+        <p class="gh-footer-small">En skräckattraktion i en ladugård. Hotell Korpen och dess historia är påhittade.</p>
+        <button class="welcome-staff-btn" onclick="openLoginModal()">Personalingång →</button>
       </div>
-      <div id="openDatesSaved" style="display:none; color:#6f6; font-style:italic; font-size:12px; margin-top:6px; font-family:'IM Fell English',serif;">Sparat!</div>
-    </div>
+    </footer>
+
+    <a href="#top" class="gh-to-top" id="ghToTop" aria-label="Tillbaka till början">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 13V1M1 7l6-6 6 6"/></svg>
+    </a>
+
+    <!-- Snabbrad på mobilen -->
+    <nav class="gh-dock" id="ghDock" aria-label="Snabbval">
+      <a href="#besok" class="gh-dock-status"><span class="status-dot dead" id="ghDockDot"></span><span id="ghDockText">–</span></a>
+      <a href="#besok">Priser</a>
+      <a href="#ghQuiz">Hur läskigt?</a>
+    </nav>
   </div>
 
   <!-- ===== KÖTID ===== -->
   <div id="queueMenu">
-    <label style="font-family:'IM Fell English SC',serif;">Kötid:</label>
+    <label class="u-f--label">Kötid:</label>
     <select id="queuePreset" onchange="applyQueuePreset(this.value)">
       <option value="">-- Välj --</option>
       <option>Stängt</option>
-      <option>Tillfälligt Stängt</option>
+      <option value="Tillfälligt Stängt">Tillfälligt stängt</option>
       <option>0–5 min</option>
       <option>5–10 min</option>
       <option>10–15 min</option>
       <option>15–20 min</option>
       <option>20–25 min</option>
       <option>25–30 min</option>
-      <option>Stängt för kvällen</option>
+      <option value="Stängt för kvällen">Stängt för idag</option>
     </select>
-    <div id="queueStatusRow" style="font-size:12px;opacity:0.55;margin-top:6px;font-style:italic;">↺ Auto</div>
+    <div class="u-fs-12 u-mt-6 u-italic" id="queueStatusRow" style="opacity:0.55;">↺ Auto</div>
   </div>
 
   <!-- ===== ADMIN ===== -->
   <div id="adminSettings">
-    <h3>Hantera</h3>
+    <header class="rx-head">
+      <p class="rx-kicker" id="admDateLine">Receptionen</p>
+      <h3>Hantera</h3>
+    </header>
 
-    <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('personalContent', this)">Visa Personalinställningar</button>
+    <!-- Menyn: sorterad efter när man behöver sakerna -->
+    <nav class="adm-nav" id="admNav" aria-label="Hantera">
+      <div class="adm-nav-group"><span class="adm-nav-label">Idag</span>
+        <button type="button" data-adm="lage">Översikt</button>
+        <button type="button" data-adm="oppnastang">Öppna &amp; stäng</button>
+        <button type="button" data-adm="meddelanden">Meddelanden <span class="adm-badge" id="admMsgBadge" hidden>!</span></button>
+      </div>
+      <div class="adm-nav-group"><span class="adm-nav-label">Planering</span>
+        <button type="button" data-adm="dagar">Öppetdagar</button>
+        <button type="button" data-adm="schema">Schema</button>
+        <button type="button" data-adm="produkter">Produkter &amp; priser</button>
+        <button type="button" data-adm="sidan">Redigera sidan</button>
+      </div>
+      <div class="adm-nav-group"><span class="adm-nav-label">Uppföljning</span>
+        <button type="button" data-adm="recensioner">Recensioner <span class="adm-badge" id="admReviewBadge" hidden></span></button>
+        <button type="button" data-adm="loner">Löner</button>
+      </div>
+      <div class="adm-nav-group"><span class="adm-nav-label">Inställningar</span>
+        <button type="button" data-adm="personal">Personal</button>
+        <button type="button" data-adm="katalog">Kompetenser &amp; uppgifter</button>
+        <button type="button" data-adm="skarmar">Skärmar &amp; enheter</button>
+        <button type="button" data-adm="checklistor">Checklistor</button>
+        <button type="button" data-adm="logg">Ändringslogg</button>
+      </div>
+    </nav>
+
+    <div class="adm-main">
+    <section class="adm-panel" data-panel="lage" id="admLage" aria-label="Läget"></section>
+    <section class="adm-panel" data-panel="oppnastang" id="admOppnaStang" aria-label="Öppna och stäng" hidden></section>
+    <section class="adm-panel" data-panel="meddelanden" id="admMeddelanden" aria-label="Meddelanden" hidden>
+      <h4 class="adm-panel-title">Meddelanden</h4>
+      <p class="adm-intro">Anslaget visas överst på allas Min sida tills du tar bort det. Direktmeddelanden går till en person, som kan svara.</p>
+    </section>
+    <section class="adm-panel" data-panel="dagar" id="admDagar" aria-label="Öppetdagar" hidden></section>
+    <section class="adm-panel" data-panel="schema" id="admSchema" aria-label="Schema" hidden></section>
+
+    <div class="section adm-panel" data-panel="personal" hidden>
+      <h4 class="adm-panel-title">Personal</h4>
       <div id="personalContent" class="content">
+
+        <div id="admStaffTable"></div>
 
         <!-- Medarbetarval — alltid synligt -->
         <div id="userSelectSection">
-          <h4>Välj medarbetare</h4>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <select id="userSelect" style="width:auto; max-width:180px;"></select>
-            <button id="addUserPlusBtn" class="btn btn-green" onclick="openAddUserPanel()" style="padding:4px 12px; font-size:18px; line-height:1; flex-shrink:0;" title="Lägg till medarbetare">+</button>
+          <h4>Redigera en person</h4>
+          <div class="adm-pick-row">
+            <label class="adm-pick"><span class="ui-mini-label">Välj person</span><select id="userSelect"></select></label>
+            <button id="addUserPlusBtn" class="btn btn-green u-noshrink" onclick="openAddUserPanel()">Lägg till person</button>
           </div>
           <div class="admin-password">
             <span class="label">Lösenord</span>
-            <span id="selectedUserPassword" class="value">–</span>
+            <span class="value">Dolt</span>
+            <button type="button" class="adm-linkbtn" id="admPwChange" onclick="admSetPassword()">Byt lösenord</button>
           </div>
         </div>
 
         <!-- Underflikar -->
-        <div id="persTabRow" style="display:flex; gap:0; margin-top:14px; margin-bottom:16px; border-bottom:1px solid rgba(232,224,208,0.12);">
-          <button id="persTab_idag" onclick="selectPersonalTab('idag')" style="background:none;border:none;border-bottom:2px solid #d4872a;color:#f0ebe2;font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Allmänt</button>
-          <button id="persTab_schema" onclick="selectPersonalTab('schema')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Schema</button>
+        <div class="ui-tabs u-mt-14 u-mb-16" id="persTabRow">
+          <button class="ui-tab is-active" id="persTab_idag" onclick="selectPersonalTab('idag')">Allmänt</button>
+          <button class="ui-tab" id="persTab_schema" onclick="selectPersonalTab('schema')">Personens schema</button>
         </div>
 
         <!-- Panel: Allmänt -->
         <div id="persPanel_idag">
           <h4>Åtkomst</h4>
-          <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="accessCheckbox"> Kassa-access</label>
-          <small id="adamNote" style="display:none; color:#9f9;"></small>
-          <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="insleppCheckbox"> Insläpp-access</label>
-          <small id="insleppNote" style="display:none; color:#9f9;"></small>
+          <label class="u-mb-6" style="display:block;"><input type="checkbox" id="accessCheckbox"> Kassa-access</label>
+          <small id="adamNote" style="display:none;color:var(--ok);"></small>
+          <label class="u-mb-6" style="display:block;"><input type="checkbox" id="insleppCheckbox"> Insläpp-access</label>
+          <small id="insleppNote" style="display:none;color:var(--ok);"></small>
           <h4>Lön</h4>
-          <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="voluntarCheckbox"> Volontär (ingen bassumma)</label>
+          <label class="u-mb-6" style="display:block;"><input type="checkbox" id="voluntarCheckbox"> Volontär (ingen bassumma)</label>
           <h4>Kompetenser</h4>
           <div id="adminSkillsOptions" class="row"></div>
-          <button id="saveAdminBtn" class="btn btn-green" style="margin-top:12px;">Spara ändringar</button>
-          <div id="adminConfirm" style="display:none;color:#6f6;margin-top:10px;font-family:'IM Fell English',serif;font-style:italic;"></div>
-          <button id="deleteUserBtn" class="btn btn-danger" style="margin-top:16px; width:100%; display:none;" onclick="openDeleteUserModal()">Ta bort medarbetare</button>
+          <button id="saveAdminBtn" class="btn btn-green u-mt-12">Spara ändringar</button>
+          <div class="ui-hint-ok" id="adminConfirm" style="display:none;"></div>
+          <button id="deleteUserBtn" class="btn btn-danger u-mt-16 u-w100" onclick="openDeleteUserModal()" style="display:none;">Ta bort medarbetare</button>
         </div>
 
         <!-- Panel: Schema -->
         <div id="persPanel_schema" style="display:none;">
           <div id="schemaEmployeeRows"></div>
-          <div class="row" style="margin-top:14px; justify-content:flex-end;">
+          <div class="row u-mt-14 u-jc-end">
             <button class="btn btn-green" onclick="saveSchemaForEmployee()">Spara schema</button>
           </div>
-          <div id="schemaSavedConfirm" style="display:none; color:#6f6; font-style:italic; font-size:12px; margin-top:6px; font-family:'IM Fell English',serif;">Sparat!</div>
+          <div class="ui-hint-ok" id="schemaSavedConfirm" style="display:none;">Sparat!</div>
         </div>
 
         <!-- Panel: Lägg till ny medarbetare -->
@@ -301,16 +524,16 @@
           <h4>Ny medarbetare</h4>
           <div class="admin-field">
             <label class="admin-label" for="newUserName">Användarnamn</label>
-            <input id="newUserName" class="input" placeholder="Användarnamn" style="width:100%;" autocomplete="off">
+            <input id="newUserName" class="input u-w100" placeholder="Användarnamn" autocomplete="off">
           </div>
           <div class="admin-field">
             <label class="admin-label" for="newUserPass">Lösenord</label>
-            <input id="newUserPass" class="input" placeholder="Lösenord" style="width:100%;" autocomplete="off">
-            <div id="newUserPassWarn" style="display:none; color:rgba(220,100,80,0.9); font-family:'IM Fell English',serif; font-style:italic; font-size:12px; margin-top:4px;"></div>
+            <input id="newUserPass" class="input u-w100" placeholder="Lösenord" autocomplete="off">
+            <div class="ui-hint-err" id="newUserPassWarn" style="display:none;"></div>
           </div>
-          <label style="display:block; margin-bottom:6px;"><input type="checkbox" id="newUserAccessCheckbox"> Kassa-access</label>
-          <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="newUserInsleppCheckbox"> Insläpp-access</label>
-          <div class="row" style="gap:8px;">
+          <label class="u-mb-6" style="display:block;"><input type="checkbox" id="newUserAccessCheckbox"> Kassa-access</label>
+          <label class="u-mb-10" style="display:block;"><input type="checkbox" id="newUserInsleppCheckbox"> Insläpp-access</label>
+          <div class="row u-gap-8">
             <button id="addUserBtn" class="btn btn-primary">Lägg till</button>
             <button class="btn" onclick="closeAddUserPanel()">Avbryt</button>
           </div>
@@ -319,173 +542,111 @@
       </div>
     </div>
 
-    <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('catalogContent', this); selectCatalogTab('kompetenser')">Visa Kompetenser &amp; uppgifter</button>
+    <div class="section adm-panel" data-panel="katalog" hidden>
+      <h4 class="adm-panel-title">Kompetenser &amp; uppgifter</h4>
       <div id="catalogContent" class="content">
-        <div style="display:flex;gap:0;border-bottom:1px solid rgba(232,224,208,0.12);margin-bottom:14px;">
-          <button id="catTab_kompetenser" onclick="selectCatalogTab('kompetenser')" style="background:none;border:none;border-bottom:2px solid #d4872a;color:#f0ebe2;font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Kompetenser</button>
-          <button id="catTab_uppgifter" onclick="selectCatalogTab('uppgifter')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Uppgifter</button>
-          <button id="catTab_beskrivningar" onclick="selectCatalogTab('beskrivningar')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Beskrivningar</button>
+        <div class="ui-tabs u-mb-14">
+          <button class="ui-tab is-active" id="catTab_kompetenser" onclick="selectCatalogTab('kompetenser')">Kompetenser</button>
+          <button class="ui-tab" id="catTab_uppgifter" onclick="selectCatalogTab('uppgifter')">Uppgifter</button>
+          <button class="ui-tab" id="catTab_beskrivningar" onclick="selectCatalogTab('beskrivningar')">Beskrivningar</button>
         </div>
         <div id="catPanel_kompetenser">
           <div id="skillCatalogList"></div>
-          <div class="row" style="margin-top:10px;">
-            <input id="newSkillInput" class="input" placeholder="Ny kompetens…" style="flex:1;">
+          <div class="row u-mt-10">
+            <input id="newSkillInput" class="input u-flex1" placeholder="Ny kompetens…">
             <button id="addSkillBtn" class="btn btn-green">Lägg till</button>
           </div>
         </div>
         <div id="catPanel_uppgifter" style="display:none;">
           <div id="taskCatalogList"></div>
-          <div class="row" style="margin-top:10px;">
-            <input id="newTaskInput" class="input" placeholder="Ny uppgift…" style="flex:1;">
+          <div class="row u-mt-10">
+            <input id="newTaskInput" class="input u-flex1" placeholder="Ny uppgift…">
             <button id="addTaskBtn" class="btn btn-green">Lägg till</button>
           </div>
         </div>
         <div id="catPanel_beskrivningar" style="display:none;">
-          <div class="tiny muted" style="margin-bottom:10px;">Beskrivningarna visas på personalens Min sida under deras uppgift.</div>
+          <div class="tiny muted u-mb-10">Beskrivningarna visas på personalens Min sida under deras uppgift.</div>
           <div id="taskDescList"></div>
         </div>
       </div>
     </div>
 
-    <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('productsContent', this)">Visa Produkter</button>
+    <div class="section adm-panel" data-panel="produkter" hidden>
+      <h4 class="adm-panel-title">Produkter &amp; priser</h4>
       <div id="productsContent" class="content">
         <div id="productsList"></div>
-        <div class="row" style="justify-content:space-between; margin-top:8px; flex-wrap:wrap; gap:8px;">
-          <div class="row" style="flex-wrap:wrap; gap:6px;">
+        <div class="row u-jc-between u-mt-8 u-wrap u-gap-8">
+          <div class="row u-wrap u-gap-6">
             <input id="pNewName" class="input" placeholder="Produktnamn">
             <input id="pNewPrice" class="input" type="number" min="0" step="1" placeholder="Pris" style="width:80px;">
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;"><input type="checkbox" id="pNewInternal"> Intern</label>
+            <label class="u-ai-center u-gap-4 u-fs-12 u-pointer" style="display:flex;"><input type="checkbox" id="pNewInternal"> Intern</label>
           </div>
           <button id="pAddBtn" class="btn btn-green">Lägg till produkt</button>
         </div>
       </div>
     </div>
 
-    <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('displayAdminContent', this); loadDisplayAdminStatus()">Visa Skärmar &amp; Enheter</button>
+    <div class="section adm-panel" data-panel="skarmar" hidden>
+      <h4 class="adm-panel-title">Skärmar &amp; enheter</h4>
       <div id="displayAdminContent" class="content">
-        <div style="display:flex;gap:0;border-bottom:1px solid rgba(232,224,208,0.12);margin-bottom:16px;">
-          <button id="displayTab_enheter" onclick="selectDisplayTab('enheter')" style="background:none;border:none;border-bottom:2px solid #d4872a;color:#f0ebe2;font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Kassaenheter</button>
-          <button id="displayTab_kundskarm" onclick="selectDisplayTab('kundskarm')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Kundskärm</button>
+        <div class="ui-tabs u-mb-16">
+          <button class="ui-tab is-active" id="displayTab_enheter" onclick="selectDisplayTab('enheter')">Kassaenheter</button>
+          <button class="ui-tab" id="displayTab_kundskarm" onclick="selectDisplayTab('kundskarm')">Kundskärm</button>
         </div>
 
         <div id="displayPanel_enheter">
-          <div class="tiny muted" style="margin-bottom:10px;">Endast registrerade enheter kan använda kassan. Logga in som admin på en enhet och registrera den här.</div>
+          <div class="tiny muted u-mb-10">Endast registrerade enheter kan använda kassan. Logga in som admin på en enhet och registrera den här.</div>
           <div id="devicesAdminList"></div>
+          <h4 class="u-mt-16">Senast hörda enheter</h4>
+          <div id="admDeviceSeen" class="rx-seen"></div>
           <button id="registerThisDeviceBtn" class="btn btn-green" onclick="registerThisDevice()" style="display:none;">Registrera denna enhet som kassaenhet</button>
-          <div id="deviceRegisteredNote" class="tiny" style="display:none;color:rgba(100,200,100,0.8);margin-top:6px;">✓ Denna enhet är registrerad som kassaenhet</div>
+          <div id="deviceRegisteredNote" class="tiny u-mt-6" style="display:none;color:rgba(100,200,100,0.8);">✓ Denna enhet är registrerad som kassaenhet</div>
         </div>
 
         <div id="displayPanel_kundskarm" style="display:none;">
-          <div id="displayAdminStatus" class="muted" style="margin-bottom:10px;">–</div>
-          <button id="displayAdminDisconnectBtn" class="btn btn-danger" style="display:none" onclick="adminDisconnectDisplay()">Koppla från</button>
+          <div id="displayAdminStatus" class="muted u-mb-10">–</div>
+          <button id="displayAdminDisconnectBtn" class="btn btn-danger" onclick="adminDisconnectDisplay()" style="display:none;">Koppla från</button>
           <h4>Swish-nummer</h4>
-          <div class="row" style="gap:8px;">
-            <input id="swishNumberInput" class="input" placeholder="t.ex. 1234567890" style="flex:1;">
+          <div class="row u-gap-8">
+            <input id="swishNumberInput" class="input u-flex1" placeholder="t.ex. 1234567890">
             <button class="btn btn-green" onclick="saveSwishNumber()">Spara</button>
           </div>
-          <div id="swishNumberConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
-          <h4 style="margin-top:16px;">Info-slides (kötidsdisplay)</h4>
-          <div class="tiny muted" style="margin-bottom:6px;">Varje del visas som en egen informationssida i displayen. Separera med <strong>|</strong></div>
-          <div class="row" style="gap:8px;">
-            <input id="displayTickerInput" class="input" placeholder="t.ex. Välkommen! | Kort film ca 30 min" style="flex:1;">
+          <div class="ui-hint-ok" id="swishNumberConfirm" style="display:none;">Sparat!</div>
+          <h4 class="u-mt-16">Info-slides (kötidsdisplay)</h4>
+          <div class="tiny muted u-mb-6">Varje del visas som en egen informationssida i displayen. Separera med <strong>|</strong></div>
+          <div class="row u-gap-8">
+            <input id="displayTickerInput" class="input u-flex1" placeholder="t.ex. Välkommen! | Kort film ca 30 min">
             <button class="btn btn-green" onclick="saveDisplayTicker()">Spara</button>
           </div>
-          <div id="displayTickerConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
-          <h4 style="margin-top:16px;">Bildslides (kötidsdisplay)</h4>
-          <div class="tiny muted" style="margin-bottom:6px;">En bild-URL per rad. Bilderna visas som helskärmsslides i displayen.</div>
-          <div style="display:flex;flex-direction:column;gap:8px;">
+          <div class="ui-hint-ok" id="displayTickerConfirm" style="display:none;">Sparat!</div>
+          <h4 class="u-mt-16">Bildslides (kötidsdisplay)</h4>
+          <div class="tiny muted u-mb-6">En bild-URL per rad. Bilderna visas som helskärmsslides i displayen.</div>
+          <div class="u-col u-gap-8" style="display:flex;">
             <textarea id="displayImagesInput" class="admin-textarea" rows="4" placeholder="https://example.com/bild1.jpg&#10;https://example.com/bild2.png"></textarea>
-            <div style="display:flex;justify-content:flex-end;">
+            <div class="u-jc-end" style="display:flex;">
               <button class="btn btn-green" onclick="saveDisplayImages()">Spara</button>
             </div>
           </div>
-          <div id="displayImagesConfirm" style="display:none;color:#6f6;font-style:italic;font-size:12px;margin-top:6px;font-family:'IM Fell English',serif;">Sparat!</div>
+          <div class="tiny muted u-mt-10 u-mb-6">Eller välj bland hotellets bilder:</div>
+          <div class="adm-image-picker" id="admImagePicker"></div>
+          <div class="ui-hint-ok" id="displayImagesConfirm" style="display:none;">Sparat!</div>
         </div>
       </div>
     </div>
 
-    <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('welcomeEditContent', this)">Visa Välkomstsida</button>
-      <div id="welcomeEditContent" class="content">
-        <div style="display:flex; gap:0; border-bottom:1px solid rgba(232,224,208,0.12); margin-bottom:16px;">
-          <button id="welTab_rubriker" onclick="selectWelcomeTab('rubriker')" style="background:none;border:none;border-bottom:2px solid #d4872a;color:#f0ebe2;font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Rubriker</button>
-          <button id="welTab_text" onclick="selectWelcomeTab('text')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Text</button>
-          <button id="welTab_faq" onclick="selectWelcomeTab('faq')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">FAQ</button>
-        </div>
-
-        <!-- Panel: Rubriker -->
-        <div id="welPanel_rubriker">
-          <div style="display:flex; flex-direction:column; gap:10px;">
-            <div class="admin-field">
-              <label class="admin-label" for="welcomeHotelNameInput">Rubrik</label>
-              <input id="welcomeHotelNameInput" class="input" placeholder="Spökhotellet Korpen" style="width:100%;">
-            </div>
-            <div class="admin-field">
-              <label class="admin-label" for="welcomeHeadlineInput">Underrubrik</label>
-              <input id="welcomeHeadlineInput" class="input" placeholder="En oförglömlig upplevelse väntar — välkommen!" style="width:100%;">
-            </div>
-            <div class="admin-field">
-              <label class="admin-label" for="welcomeTaglineInput">Undertext</label>
-              <input id="welcomeTaglineInput" class="input" placeholder="Kliv in i mörkret och upplev Korpens hemligheter." style="width:100%;">
-            </div>
-          </div>
-          <div class="row" style="justify-content:flex-end; margin-top:8px;">
-            <button id="saveWelcomeHeroBtn" class="btn btn-green">Spara rubriker</button>
-            <button id="resetWelcomeHeroBtn" class="btn btn-danger">Återställ standard</button>
-          </div>
-          <hr class="admin-divider">
-          <h4>Sociala medier</h4>
-          <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px;">
-            <label style="display:flex; align-items:center; gap:10px;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; color:rgba(232,224,208,0.45);"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
-              <input id="socialIgInput" class="input" placeholder="https://instagram.com/ert_konto" style="flex:1;">
-            </label>
-            <label style="display:flex; align-items:center; gap:10px;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0; color:rgba(232,224,208,0.45);"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-              <input id="socialFbInput" class="input" placeholder="https://facebook.com/er_sida" style="flex:1;">
-            </label>
-          </div>
-          <div class="row" style="justify-content:flex-end; margin-top:8px;">
-            <button id="saveSocialBtn" class="btn btn-green">Spara sociala länkar</button>
-          </div>
-        </div>
-
-        <!-- Panel: Text -->
-        <div id="welPanel_text" style="display:none;">
-          <textarea id="welcomeTextInput" class="admin-textarea" rows="8" placeholder="Skriv informationstexten…"></textarea>
-          <div class="row" style="justify-content:flex-end; margin-top:8px;">
-            <button id="saveWelcomeTextBtn" class="btn btn-green">Spara text</button>
-            <button id="clearWelcomeTextBtn" class="btn btn-danger">Ta bort text</button>
-          </div>
-        </div>
-
-        <!-- Panel: FAQ -->
-        <div id="welPanel_faq" style="display:none;">
-          <textarea id="welcomeFaqInput" class="admin-textarea" rows="12" placeholder="Skriv frågor och svar – separera varje par med en tom rad.&#10;&#10;Hur gammal måste man vara?&#10;Man måste vara minst 15 år.&#10;&#10;Kan man boka i förväg?&#10;Nej, vi tar bara drop-in."></textarea>
-          <div class="row" style="justify-content:flex-end; margin-top:8px;">
-            <button id="saveWelcomeFaqBtn" class="btn btn-green">Spara FAQ</button>
-            <button id="clearWelcomeFaqBtn" class="btn btn-danger">Ta bort FAQ</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('reviewsContent', this)">Visa Recensioner</button>
+    <div class="section adm-panel" data-panel="recensioner" hidden>
+      <h4 class="adm-panel-title">Recensioner</h4>
       <div id="reviewsContent" class="content"></div>
     </div>
 
-    <div class="section">
-      <button class="disclosure" type="button" onclick="adminAccordion('lonContent', this); initLonPanel()">Visa Löner</button>
+    <div class="section adm-panel" data-panel="loner" hidden>
+      <h4 class="adm-panel-title">Löner</h4>
       <div id="lonContent" class="content">
-        <div style="display:flex;gap:0;border-bottom:1px solid rgba(232,224,208,0.12);margin-bottom:16px;">
-          <button id="lonTab_idag" onclick="selectLonTab('idag')" style="background:none;border:none;border-bottom:2px solid #d4872a;color:#f0ebe2;font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Idag</button>
-          <button id="lonTab_historik" onclick="selectLonTab('historik')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Historik</button>
-          <button id="lonTab_berakna" onclick="selectLonTab('berakna')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Beräkna</button>
-          <button id="lonTab_installningar" onclick="selectLonTab('installningar')" style="background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);font-family:'IM Fell English SC',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;">Inställningar</button>
+        <div class="ui-tabs u-mb-16">
+          <button class="ui-tab is-active" id="lonTab_idag" onclick="selectLonTab('idag')">Idag</button>
+          <button class="ui-tab" id="lonTab_historik" onclick="selectLonTab('historik')">Historik</button>
+          <button class="ui-tab" id="lonTab_berakna" onclick="selectLonTab('berakna')">Beräkna</button>
+          <button class="ui-tab" id="lonTab_installningar" onclick="selectLonTab('installningar')">Inställningar</button>
         </div>
 
         <div id="lonPanel_idag">
@@ -498,13 +659,13 @@
         </div>
 
         <div id="lonPanel_berakna" style="display:none;">
-          <div class="row" style="gap:16px; flex-wrap:wrap; align-items:flex-end;">
+          <div class="row u-gap-16 u-wrap u-ai-end">
             <div>
-              <div style="font-size:11px; color:rgba(232,224,208,0.4); margin-bottom:3px;">Från</div>
+              <div class="ui-mini-label">Från</div>
               <input type="date" id="lonFromDate" class="input">
             </div>
             <div>
-              <div style="font-size:11px; color:rgba(232,224,208,0.4); margin-bottom:3px;">Till (valfritt)</div>
+              <div class="ui-mini-label">Till (valfritt)</div>
               <input type="date" id="lonToDate" class="input">
             </div>
             <button class="btn btn-green" onclick="renderLon()">Beräkna</button>
@@ -514,33 +675,37 @@
         </div>
 
         <div id="lonPanel_installningar" style="display:none;">
-          <div class="row" style="gap:16px; flex-wrap:wrap; margin-top:4px;">
-            <div style="flex:1; min-width:150px;">
+          <div class="row u-gap-16 u-wrap u-mt-4">
+            <div class="u-flex1" style="min-width:150px;">
               <label class="admin-label" for="lonBassumma">Bassumma per person (kr)</label>
-              <input id="lonBassumma" type="number" min="0" step="50" class="input" style="width:100%;" placeholder="200">
+              <input id="lonBassumma" type="number" min="0" step="50" class="input u-w100" placeholder="200">
             </div>
-            <div style="flex:1; min-width:150px;">
+            <div class="u-flex1" style="min-width:150px;">
               <label class="admin-label" for="lonVerksamhet">Verksamhetsandel (%)</label>
-              <input id="lonVerksamhet" type="number" min="0" max="100" step="1" class="input" style="width:100%;" placeholder="20">
+              <input id="lonVerksamhet" type="number" min="0" max="100" step="1" class="input u-w100" placeholder="20">
             </div>
-            <div style="flex:1; min-width:150px;">
+            <div class="u-flex1" style="min-width:150px;">
               <label class="admin-label" for="lonSkatteprocent">Skatteprocent (%)</label>
-              <input id="lonSkatteprocent" type="number" min="0" max="100" step="1" class="input" style="width:100%;" placeholder="50">
+              <input id="lonSkatteprocent" type="number" min="0" max="100" step="1" class="input u-w100" placeholder="50">
             </div>
           </div>
-          <div class="tiny muted" style="margin-top:6px;">Intäkt − utgifter − skatt = netto att fördela. Verksamhetsandelen tas av nettot, resten delas ut som lön.</div>
+          <div class="tiny muted u-mt-6">Intäkt − utgifter − skatt = netto att fördela. Verksamhetsandelen tas av nettot, resten delas ut som lön.</div>
 
-          <hr style="border:none;border-top:1px solid rgba(232,224,208,0.1);margin:14px 0;">
-          <div style="font-size:12px;color:rgba(232,224,208,0.7);margin-bottom:4px;font-family:'IM Fell English SC',serif;letter-spacing:0.5px;">Rollvikter</div>
-          <div class="tiny muted" style="margin-bottom:10px;">Vikt per uppgift. Tomt = 1.0.</div>
-          <div id="lonTaskVikterList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+          <hr style="border:none;border-top:1px solid rgba(221,227,220,0.1);margin:14px 0;">
+          <div class="u-fs-12 u-mb-4 u-f--label u-ls-0_5" style="color:var(--muted);">Rollvikter</div>
+          <div class="tiny muted u-mb-10">Vikt per uppgift. Tomt = 1.0.</div>
+          <div class="u-col u-gap-8 u-mb-10" id="lonTaskVikterList" style="display:flex;"></div>
 
-          <div class="row" style="justify-content:flex-end;">
+          <div class="row u-jc-end">
             <button class="btn btn-green" onclick="saveLonSettings()">Spara</button>
           </div>
-          <div id="lonSettingsConfirm" style="display:none; color:#6f6; font-style:italic; font-size:12px; margin-top:4px; font-family:'IM Fell English',serif;">Sparat!</div>
+          <div class="ui-hint-ok" id="lonSettingsConfirm" style="display:none;">Sparat!</div>
         </div>
       </div>
+    </div>
+    <section class="adm-panel" data-panel="sidan" id="admSidan" aria-label="Redigera sidan" hidden></section>
+    <section class="adm-panel" data-panel="checklistor" id="admChecklistor" aria-label="Checklistor" hidden></section>
+    <section class="adm-panel" data-panel="logg" id="admLogg" aria-label="Ändringslogg" hidden></section>
     </div>
   </div>
 
@@ -560,9 +725,9 @@
             <span class="profile-label">Uppgift</span>
             <span class="profile-value" id="myTask">–</span>
           </div>
-          <p id="myTaskDesc" style="display:none;" class="profile-task-desc"></p>
+          <p id="myTaskDesc" class="profile-task-desc" style="display:none;"></p>
         </div>
-        <p id="myLedigMsg" style="display:none;" class="profile-ledig">Ledig idag</p>
+        <p id="myLedigMsg" class="profile-ledig" style="display:none;">Ledig idag</p>
 
         <!-- Kommande pass — fylls av loadProfile -->
         <div id="upcomingShiftsSection"></div>
@@ -581,14 +746,7 @@
     <!-- Meddelandesektion — fylls av JS beroende på roll -->
     <div id="staffMsgSection"></div>
 
-    <div id="themePicker" class="profile-theme-row">
-      <span class="profile-label">Bakgrundsfärg</span>
-      <div class="theme-dots">
-        <button type="button" class="theme-dot" data-theme="default" title="Standard"></button>
-        <button type="button" class="theme-dot" data-theme="forest" title="Grön"></button>
-        <button type="button" class="theme-dot" data-theme="royal" title="Lila"></button>
-      </div>
-    </div>
+
   </div>
 
   <!-- ===== TANGENTBORDS-OVERLAY ===== -->
@@ -615,19 +773,25 @@
 
   <!-- ===== KASSA ===== -->
   <div id="kassaContainer">
-    <h1><button id="displayBtn" onclick="toggleDisplayBtn()" title="Koppla kundskärm" aria-label="Koppla kundskärm"><svg width="13" height="11" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="1" width="24" height="16" rx="2"/><path d="M9 21h8M13 17v4"/></svg></button>Spökhotellet Korpen<button id="kassaLockBtn" onclick="lockKassa()" title="Lås kassan" aria-label="Lås kassan"><svg width="11" height="13" viewBox="0 0 22 26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="16" height="13" rx="2"/><path d="M7 11V7a4 4 0 0 1 8 0v4"/></svg></button><button id="kbHelpBtn" onclick="toggleKbHelp()" title="Tangentbordsgenvägar" aria-label="Visa tangentbordsgenvägar">?</button></h1>
-    <div style="text-align:center;margin:-10px 0 12px;"><span id="kassaClock" style="font-family:monospace;font-size:13px;opacity:0.35;letter-spacing:0.5px;"></span></div>
+    <h1><button id="displayBtn" onclick="toggleDisplayBtn()" title="Koppla kundskärm" aria-label="Koppla kundskärm"><svg width="13" height="11" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="1" width="24" height="16" rx="2"/><path d="M9 21h8M13 17v4"/></svg></button><span class="kassa-title">Kassa</span><button id="kassaLockBtn" onclick="lockKassa()" title="Lås kassan" aria-label="Lås kassan"><svg width="11" height="13" viewBox="0 0 22 26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="16" height="13" rx="2"/><path d="M7 11V7a4 4 0 0 1 8 0v4"/></svg></button><button id="kassaSoundBtn" onclick="toggleKassaSound()" aria-pressed="true" title="Ljud vid köp: på" aria-label="Ljud vid köp"><svg width="13" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 7.5h3l4-3.5v12l-4-3.5H3z"/><path class="snd-wave" d="M13 7a4 4 0 0 1 0 6"/><path class="snd-x" d="M13.5 7.5l4 5M17.5 7.5l-4 5"/></svg></button><button id="kbHelpBtn" onclick="toggleKbHelp()" title="Tangentbordsgenvägar" aria-label="Visa tangentbordsgenvägar">?</button></h1>
+    <div class="u-text-center" style="margin:-10px 0 12px;"><span class="u-f-mono u-fs-13 u-ls-0_5" id="kassaClock" style="opacity:0.35;"></span></div>
     <div id="closedMessage">Kassan är stängd</div>
     <div id="deviceNotRegisteredMessage">Denna enhet är inte registrerad som kassaenhet</div>
+    <!-- Produkter och varukorg; på iPad i liggande läge två kolumner (app.css, KASSA PÅ IPAD) -->
+    <div class="kassa-body">
+    <div class="kassa-pick">
     <div class="products"></div>
     <button id="discountBtn" title="Använd 50% rabatt en gång på denna kund">50% rabatt (1 gång)</button>
+    </div>
     <div id="cartFooter">
       <table class="cart-table">
         <thead><tr><th>Produkt</th><th>Antal</th><th>Pris</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
+      <div id="cartSummary" class="cart-summary" aria-live="polite"></div>
       <div id="total">Totalt: 0 kr</div>
       <button id="checkout" disabled>Genomför köp</button>
+    </div>
     </div>
     <div id="logSummary"></div>
     <div id="logEntries"></div>
@@ -643,7 +807,7 @@
         <button class="kassa-lock-user-btn" id="kassaLockUserName" onclick="toggleLockUserSwitch()" title="Byt personal">Namn <svg width="10" height="7" viewBox="0 0 10 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg></button>
       </div>
       <div id="kassaLockSwitchList" class="kassa-lock-switch-list" style="display:none;"></div>
-      <input type="password" id="kassaLockPw" class="login-input" placeholder="• • • • • •" autocomplete="current-password" autocorrect="off" autocapitalize="none" spellcheck="false" style="margin-top:14px;">
+      <input type="password" id="kassaLockPw" class="login-input u-mt-14" placeholder="• • • • • •" autocomplete="current-password" autocorrect="off" autocapitalize="none" spellcheck="false">
       <div class="login-error" id="kassaLockError" role="alert"></div>
       <button class="login-submit" onclick="submitLockUnlock()">Lås upp</button>
     </div>
@@ -653,9 +817,9 @@
   <div id="payModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="payTitle">
     <div class="modal">
       <h3 id="payTitle">Välj betalningsmetod</h3>
-      <div id="paySum" class="tiny" style="margin-bottom:8px;"></div>
-      <input id="ticketLabelInput" class="input" placeholder="Biljettnamn" style="width:100%; margin:6px 0 10px;">
-      <div class="row" style="gap:12px; margin-bottom:8px;">
+      <div id="paySum" class="tiny u-mb-8"></div>
+      <p id="payTicketReminder" class="pay-ticket-reminder" style="display:none;">Efter betalningen: glöm inte att lämna ut biljetterna till gästen.</p>
+      <div class="row u-gap-12 u-mb-8">
         <label class="pill"><input type="radio" name="payModal" value="Swish" checked> Swish</label>
         <label class="pill"><input type="radio" name="payModal" value="Kort"> Kort</label>
         <label class="pill"><input type="radio" name="payModal" value="Kontant"> Kontant</label>
@@ -670,24 +834,24 @@
   <!-- ===== KONTANT-MODAL ===== -->
   <div id="kontantModal" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal" style="width:min(400px,96vw);">
-      <h3 style="margin:0 0 14px; font-family:'IM Fell English SC',serif;">Kontantbetalning</h3>
-      <div id="kontantItems" style="margin-bottom:10px; font-size:13px;"></div>
-      <div style="border-top:1px solid rgba(232,224,208,0.15); padding-top:10px; display:flex; flex-direction:column; gap:8px; font-family:'IM Fell English SC',serif;">
-        <div id="kontantDiscountRow" style="display:none; justify-content:space-between; color:rgba(150,255,150,0.85); font-size:13px;"><span>Rabatt (50%)</span><strong id="kontantDiscountAmt"></strong></div>
-        <div style="display:flex; justify-content:space-between; font-size:1.1rem;"><span>Att betala</span><strong id="kontantTotal">–</strong></div>
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <label style="white-space:nowrap; font-size:14px;">Mottaget (kr)</label>
-          <input id="kontantReceivedInput" class="input" type="number" min="0" step="1" placeholder="0" style="width:120px; text-align:right; font-size:1.1rem;" oninput="updateKontantChange()">
+      <h3 class="u-m-0-0-14 u-f--label">Kontantbetalning</h3>
+      <div class="u-mb-10 u-fs-13" id="kontantItems"></div>
+      <div class="u-col u-gap-8 u-f--label" style="border-top:1px solid rgba(221,227,220,0.15);padding-top:10px;display:flex;">
+        <div class="u-jc-between u-fs-13" id="kontantDiscountRow" style="display:none;color:rgba(150,255,150,0.85);"><span>Rabatt (50%)</span><strong id="kontantDiscountAmt"></strong></div>
+        <div class="u-jc-between u-fs-1_1r" style="display:flex;"><span>Att betala</span><strong id="kontantTotal">–</strong></div>
+        <div class="u-jc-between u-ai-center u-gap-8" style="display:flex;">
+          <label class="u-fs-14" style="white-space:nowrap;">Mottaget (kr)</label>
+          <input id="kontantReceivedInput" class="input u-text-right u-fs-1_1r" type="number" min="0" step="1" placeholder="0" oninput="updateKontantChange()" style="width:120px;">
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; font-size:1.3rem; border-top:1px solid rgba(232,224,208,0.15); padding-top:8px;">
-          <div style="display:flex; align-items:center; gap:8px;">
+        <div class="u-jc-between u-ai-center u-fs-1_3r" style="display:flex;border-top:1px solid rgba(221,227,220,0.15);padding-top:8px;">
+          <div class="u-ai-center u-gap-8" style="display:flex;">
             <span id="kontantChangeLabel">Växel</span>
-            <button id="dricksToggleBtn" onclick="toggleDricksMode()" style="display:none; font-size:11px; padding:2px 8px; background:rgba(255,200,80,0.12); border:1px solid rgba(255,200,80,0.35); color:rgba(255,200,80,0.85); border-radius:4px; cursor:pointer; font-family:inherit;">Gästen ger dricks</button>
+            <button class="u-fs-11 u-pointer" id="dricksToggleBtn" onclick="toggleDricksMode()" style="display:none;padding:2px 8px;background:rgba(255,200,80,0.12);border:1px solid rgba(255,200,80,0.35);color:rgba(255,200,80,0.85);border-radius:4px;font-family:inherit;">Gästen ger dricks</button>
           </div>
-          <strong id="kontantChange" style="min-width:80px; text-align:right;">–</strong>
+          <strong class="u-text-right" id="kontantChange" style="min-width:80px;">–</strong>
         </div>
       </div>
-      <div class="row" style="justify-content:flex-end; gap:10px; margin-top:16px;">
+      <div class="row u-jc-end u-gap-10 u-mt-16">
         <button class="btn btn-danger" onclick="handleKontantNo()">Avbryt</button>
         <button class="btn btn-green" onclick="handleKontantYes()">Genomfört</button>
       </div>
@@ -698,8 +862,8 @@
   <div id="approveModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="approveTitle">
     <div class="modal">
       <h3 id="approveTitle">Bekräftelse av godkänt köp</h3>
-      <div class="tiny" id="approveMeta" style="margin-bottom:14px;">–</div>
-      <div class="row" style="justify-content:flex-end; gap:10px;">
+      <div class="tiny u-mb-14" id="approveMeta">–</div>
+      <div class="row u-jc-end u-gap-10">
         <button id="approveNo" class="btn btn-danger" onclick="handleApproveNo()">Avböj</button>
         <button id="approveYes" class="btn btn-green" onclick="handleApproveYes()">Godkänt</button>
       </div>
@@ -709,17 +873,17 @@
   <!-- ===== VÄXEL-MODAL (Kontant) ===== -->
   <div id="vaxelModal" class="modal-overlay" role="dialog" aria-modal="true">
     <div class="modal" style="width:min(420px,96vw);">
-      <h3 style="margin:0 0 14px; font-family:'IM Fell English SC',serif;">Kontantbetalning</h3>
-      <div id="vaxelItems" style="font-size:13px; margin-bottom:10px;"></div>
-      <div style="border-top:1px solid rgba(232,224,208,0.15); padding-top:10px; display:flex; flex-direction:column; gap:6px; margin-bottom:16px;">
-        <div id="vaxelDiscountRow" style="display:none; justify-content:space-between; color:rgba(150,255,150,0.85); font-size:13px;"><span>Rabatt (50%)</span><strong id="vaxelDiscountAmt"></strong></div>
-        <div style="display:flex; justify-content:space-between; font-size:1.1rem;"><span>Att betala</span><strong id="vaxelTotal">–</strong></div>
-        <div style="display:flex; justify-content:space-between; font-size:1.1rem;"><span>Mottaget</span><strong id="vaxelMottaget">–</strong></div>
-        <div style="display:flex; justify-content:space-between; align-items:center; font-size:1.5rem; font-weight:bold; border-top:1px solid rgba(232,224,208,0.15); padding-top:8px;">
-          <span>Ge tillbaka</span><span id="vaxelBelopp" style="color:#6f6;">0 kr</span>
+      <h3 class="u-m-0-0-14 u-f--label">Kontantbetalning</h3>
+      <div class="u-fs-13 u-mb-10" id="vaxelItems"></div>
+      <div class="u-col u-gap-6 u-mb-16" style="border-top:1px solid rgba(221,227,220,0.15);padding-top:10px;display:flex;">
+        <div class="u-jc-between u-fs-13" id="vaxelDiscountRow" style="display:none;color:rgba(150,255,150,0.85);"><span>Rabatt (50%)</span><strong id="vaxelDiscountAmt"></strong></div>
+        <div class="u-jc-between u-fs-1_1r" style="display:flex;"><span>Att betala</span><strong id="vaxelTotal">–</strong></div>
+        <div class="u-jc-between u-fs-1_1r" style="display:flex;"><span>Mottaget</span><strong id="vaxelMottaget">–</strong></div>
+        <div class="u-jc-between u-ai-center u-fs-1_5r" style="display:flex;font-weight:bold;border-top:1px solid rgba(221,227,220,0.15);padding-top:8px;">
+          <span>Ge tillbaka</span><span id="vaxelBelopp" style="color:var(--ok);">0 kr</span>
         </div>
       </div>
-      <div class="row" style="justify-content:flex-end; gap:10px;">
+      <div class="row u-jc-end u-gap-10">
         <button id="vaxelNo" class="btn btn-danger" onclick="handleVaxelNo()">Avbryt</button>
         <button id="vaxelYes" class="btn btn-green" onclick="handleVaxelYes()">Genomfört</button>
       </div>
@@ -729,10 +893,10 @@
   <!-- ===== DAG-SAMMANFATTNING MODAL ===== -->
   <div id="daySummaryModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="daySummaryTitle" onclick="if(event.target===this)closeDaySummaryModal()">
     <div class="modal" style="width:min(620px,96vw);max-height:90vh;overflow-y:auto;padding:24px 22px 18px;">
-      <h3 id="daySummaryTitle" style="margin:0 0 4px;font-size:20px;letter-spacing:0.5px;text-align:center;"></h3>
-      <div id="daySummarySubtitle" style="text-align:center;font-family:'IM Fell English',serif;font-style:italic;font-size:13px;color:rgba(232,224,208,0.5);margin-bottom:18px;"></div>
+      <h3 class="u-m-0-0-4 u-fs-20 u-ls-0_5 u-text-center" id="daySummaryTitle"></h3>
+      <div class="u-text-center u-f--body u-italic u-fs-13 u-mb-18" id="daySummarySubtitle" style="color:var(--faint);"></div>
       <div id="daySummaryContent"></div>
-      <div class="actions" style="margin-top:18px;">
+      <div class="actions u-mt-18">
         <button class="btn" onclick="exportDay(window._daySummaryDate,'copy')">Kopiera som text</button>
         <button class="btn" onclick="closeDaySummaryModal()">Stäng</button>
       </div>
@@ -744,22 +908,22 @@
     <div class="modal" style="width:min(380px,96vw);">
       <!-- Steg 1: lösenord -->
       <div id="deleteDayStep1">
-        <h3 style="margin:0 0 6px;font-family:'IM Fell English SC',serif;">Radera dag</h3>
-        <p id="deleteDayLabel" class="tiny muted" style="margin:0 0 16px;"></p>
+        <h3 class="u-m-0-0-6 u-f--label">Radera dag</h3>
+        <p id="deleteDayLabel" class="tiny muted u-m-0-0-16"></p>
         <div class="login-field">
-          <label class="login-label" for="deleteDayPassInput">Adminlösenord</label>
-          <input type="password" id="deleteDayPassInput" class="input" placeholder="• • • • • •" autocomplete="current-password" autocorrect="off" autocapitalize="none" spellcheck="false" style="width:100%;" onkeydown="if(event.key==='Enter'){event.stopPropagation();confirmDeleteDay();}">
+          <label class="login-label" for="deleteDayPassInput">Ditt lösenord</label>
+          <input type="password" id="deleteDayPassInput" class="input u-w100" placeholder="• • • • • •" autocomplete="current-password" autocorrect="off" autocapitalize="none" spellcheck="false" onkeydown="if(event.key==='Enter'){event.stopPropagation();confirmDeleteDay();}">
         </div>
-        <div id="deleteDayError" style="color:#e05c5c;font-size:12px;min-height:18px;margin-top:4px;"></div>
-        <div class="actions" style="margin-top:14px;">
+        <div class="u-fs-12 u-mt-4" id="deleteDayError" style="color:#e05c5c;min-height:18px;"></div>
+        <div class="actions u-mt-14">
           <button class="btn" onclick="closeDeleteDayModal()">Avbryt</button>
           <button class="btn btn-danger" onclick="confirmDeleteDay()">Radera</button>
         </div>
       </div>
       <!-- Steg 2: bekräftelse -->
       <div id="deleteDayStep2" style="display:none;">
-        <h3 style="margin:0 0 10px;font-family:'IM Fell English SC',serif;">Är du säker?</h3>
-        <p id="deleteDayConfirmLabel" class="tiny muted" style="margin:0 0 20px;"></p>
+        <h3 class="u-m-0-0-10 u-f--label">Är du säker?</h3>
+        <p id="deleteDayConfirmLabel" class="tiny muted u-m-0-0-20"></p>
         <div class="actions">
           <button class="btn" onclick="closeDeleteDayModal()">Avbryt</button>
           <button class="btn btn-danger" onclick="executeDayDeletion()">Ja, radera</button>
@@ -771,8 +935,8 @@
   <!-- ===== TA BORT MEDARBETARE-MODAL ===== -->
   <div id="deleteUserModal" class="modal-overlay" role="dialog" aria-modal="true" onclick="if(event.target===this)closeDeleteUserModal()" onkeydown="if(event.key==='Escape')closeDeleteUserModal();else if(event.key==='Enter'){event.preventDefault();executeDeleteUser();}">
     <div class="modal" style="width:min(360px,96vw);">
-      <h3 style="margin:0 0 10px;font-family:'IM Fell English SC',serif;">Är du säker?</h3>
-      <p id="deleteUserModalMsg" class="tiny muted" style="margin:0 0 20px;"></p>
+      <h3 class="u-m-0-0-10 u-f--label">Är du säker?</h3>
+      <p id="deleteUserModalMsg" class="tiny muted u-m-0-0-20"></p>
       <div class="actions">
         <button class="btn" onclick="closeDeleteUserModal()">Avbryt</button>
         <button class="btn btn-danger" onclick="executeDeleteUser()">Ja, ta bort</button>
@@ -781,9 +945,9 @@
   </div>
 
   <!-- ===== STATISTIK ===== -->
-  <div id="statsContainer" style="display:none; max-width:820px; margin:40px auto;">
+  <div id="statsContainer" style="display:none;max-width:820px;margin:40px auto;">
     <div class="section">
-      <h3 style="margin:0 0 10px;font-family:'IM Fell English SC',serif;letter-spacing:0.4px;">Statistik</h3>
+      <header class="rx-head"><p class="rx-kicker">Receptionens räkenskaper</p><h3>Statistik</h3></header>
       <div id="statsContent">
         <div id="cockpitWrap"></div>
         <div id="statsList"></div>
@@ -791,58 +955,69 @@
     </div>
   </div>
 
+  <script src="sidtext.js"></script>
+  <script src="ui.js"></script>
   <script src="app.js"></script>
+  <script src="admin.js"></script>
+  <script src="guest.js"></script>
+  <!-- EXPERIMENT: three.js-scen i hero (ficklampa och damm). Stäng av med ?3d=av -->
+  <script src="korpen3d.js"></script>
 
   <!-- ===== KUNDSKÄRM (iPhone-display) ===== -->
-  <div id="customerDisplayView" style="display:none; position:fixed; inset:0; background:#1a0d0d; color:#f0ebe2; font-family:'IM Fell English SC',serif; z-index:9999; flex-direction:row; align-items:stretch; box-sizing:border-box;">
+  <div class="u-f--label u-ai-stretch" id="customerDisplayView" style="display:none;position:fixed;inset:0;background:var(--soot);color:var(--cream);z-index:9999;flex-direction:row;box-sizing:border-box;">
 
     <!-- Vänster: innehåll -->
-    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; padding:48px 40px;">
-      <div id="cdIdle" style="flex-direction:column;">
-        <div id="cdIdleHotelName" style="font-size:2rem; letter-spacing:2px; line-height:1.3;">Välkommen till Spökhotellet Korpen</div>
+    <div class="u-flex1 u-col u-jc-center" style="display:flex;padding:48px 40px;">
+      <div class="u-col" id="cdIdle">
+        <div class="u-fs-2r u-ls-2" id="cdIdleHotelName" style="line-height:1.3;">Välkommen till Spökhotellet Korpen</div>
       </div>
-      <div id="cdCart" style="display:none; flex-direction:column; width:100%;">
-        <div id="cdItems" style="width:100%;"></div>
-        <div style="border-top:1px solid rgba(232,224,208,0.2); margin-top:20px; padding-top:16px; display:flex; justify-content:flex-end;">
-          <div id="cdTotal" style="font-size:2.2rem; letter-spacing:1px;"></div>
+      <div class="u-col u-w100" id="cdCart" style="display:none;">
+        <div class="u-w100" id="cdItems"></div>
+        <div class="u-mt-20 u-jc-end" style="border-top:1px solid rgba(221,227,220,0.2);padding-top:16px;display:flex;">
+          <div class="u-fs-2_2r u-ls-1" id="cdTotal"></div>
         </div>
       </div>
-      <div id="cdTack" style="display:none; flex-direction:column;">
-        <div id="cdTackName" style="font-size:2.5rem; letter-spacing:1px;">Tack för besöket!</div>
-        <div style="font-size:1rem; color:rgba(232,224,208,0.4); margin-top:14px; letter-spacing:1px;">Ha en rysligt kul upplevelse</div>
+      <div class="u-col" id="cdTack" style="display:none;">
+        <div class="u-fs-2_5r u-ls-1" id="cdTackName">Tack för besöket!</div>
+        <div class="u-fs-1r u-mt-14 u-ls-1" style="color:rgba(221,227,220,0.4);">Ha en rysligt kul upplevelse</div>
       </div>
-      <div id="cdKontant" style="display:none; flex-direction:column; width:100%;">
-        <div id="cdKontantItems" style="margin-bottom:12px;"></div>
-        <div style="border-top:1px solid rgba(232,224,208,0.15); padding-top:10px; display:flex; flex-direction:column; gap:6px;">
-          <div style="display:flex;justify-content:space-between;font-size:1.1rem;"><span style="opacity:0.6;">Totalt</span><span id="cdKontantTotal"></span></div>
-          <div style="display:flex;justify-content:space-between;font-size:1.4rem;border-top:1px solid rgba(232,224,208,0.12);padding-top:8px;margin-top:4px;"><span style="opacity:0.5;">Växel tillbaka</span><span id="cdChange" style="color:#f0ebe2;opacity:0.85;"></span></div>
+      <div class="u-col u-w100" id="cdKontant" style="display:none;">
+        <div class="u-mb-12" id="cdKontantItems"></div>
+        <div class="u-col u-gap-6" style="border-top:1px solid rgba(221,227,220,0.15);padding-top:10px;display:flex;">
+          <div class="u-jc-between u-fs-1_1r" style="display:flex;"><span style="opacity:0.6;">Totalt</span><span id="cdKontantTotal"></span></div>
+          <div class="u-jc-between u-fs-1_4r u-mt-4" style="display:flex;border-top:1px solid rgba(221,227,220,0.12);padding-top:8px;"><span style="opacity:0.5;">Växel tillbaka</span><span id="cdChange" style="color:var(--cream);opacity:0.85;"></span></div>
         </div>
       </div>
-      <div id="cdSwish" style="display:none; flex-direction:column;">
-        <div style="font-size:1rem; color:rgba(232,224,208,0.5); letter-spacing:1px; margin-bottom:20px;">Betala med Swish</div>
-        <img id="cdSwishQr" src="" alt="Swish QR" style="width:320px; height:320px; border-radius:12px; display:block;">
-        <div id="cdSwishAmount" style="font-size:2.4rem; margin-top:20px; letter-spacing:1px;"></div>
-        <div style="margin-top:14px; font-size:0.85rem; color:rgba(232,224,208,0.4); letter-spacing:0.5px;">Öppna Swish-appen → scanna QR-koden</div>
+      <div class="u-col" id="cdSwish" style="display:none;">
+        <div class="u-fs-1r u-ls-1 u-mb-20" style="color:var(--faint);">Betala med Swish</div>
+        <img id="cdSwishQr" src="" alt="Swish QR" style="width:320px;height:320px;border-radius:12px;display:block;">
+        <div class="u-fs-2_4r u-mt-20 u-ls-1" id="cdSwishAmount"></div>
+        <div class="u-mt-14 u-fs-0_85r u-ls-0_5" style="color:rgba(221,227,220,0.4);">Öppna Swish-appen → scanna QR-koden</div>
       </div>
     </div>
 
     <!-- Höger: logga + klocka -->
-    <div style="width:280px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:56px; border-left:1px solid rgba(232,224,208,0.08); padding-left:32px; padding-right:32px; flex-shrink:0;">
-      <img id="cdLogo" src="" alt="" style="max-width:100%; max-height:200px; object-fit:contain; display:none; opacity:0.9;">
-      <div id="cdClock" style="margin-top:28px; font-size:1.8rem; letter-spacing:2px; opacity:0.55; font-family:'IM Fell English SC',serif;"></div>
+    <div class="u-col u-ai-center u-jc-start u-noshrink" style="width:280px;display:flex;padding-top:56px;border-left:1px solid rgba(221,227,220,0.08);padding-left:32px;padding-right:32px;">
+      <img id="cdLogo" src="" alt="" style="max-width:100%;max-height:200px;object-fit:contain;display:none;opacity:0.9;">
+      <div class="u-mt-28 u-fs-1_8r u-ls-2 u-f--label" id="cdClock" style="opacity:0.55;"></div>
     </div>
 
-    <div id="cdConnStatus" style="position:absolute; bottom:16px; right:20px; display:flex; align-items:center; gap:6px; opacity:0.25; transition:opacity .3s;">
-      <div id="cdConnDot" style="width:6px; height:6px; border-radius:50%; background:rgba(232,224,208,0.3); flex-shrink:0; transition:background .4s;"></div>
-      <span id="cdConnLabel" style="font-size:0.65rem; letter-spacing:0.5px; font-family:'IM Fell English',serif; font-style:italic; color:rgba(232,224,208,0.8);">ej kopplad</span>
+    <div class="u-ai-center u-gap-6" id="cdConnStatus" style="position:absolute;bottom:16px;right:20px;display:flex;opacity:0.25;transition:opacity .3s;">
+      <div class="u-noshrink" id="cdConnDot" style="width:6px;height:6px;border-radius:50%;background:rgba(221,227,220,0.3);transition:background .4s;"></div>
+      <span class="u-fs-0_65r u-ls-0_5 u-f--body u-italic" id="cdConnLabel" style="color:rgba(221,227,220,0.8);">ej kopplad</span>
     </div>
   </div>
 
   <!-- ===== CHECKOUT SUCCESS FLASH ===== -->
-  <div id="checkoutFlash" style="display:none; position:fixed; inset:0; z-index:99999; pointer-events:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.45);">
-    <div style="background:#0f1f0f; border:1px solid rgba(100,220,100,0.35); border-radius:20px; padding:40px 56px; text-align:center; font-family:'IM Fell English SC',serif; color:#8eda8e; box-shadow:0 12px 60px rgba(0,0,0,0.8); transform:scale(1);">
-      <div style="font-size:3.2rem; margin-bottom:14px; line-height:1;">✓</div>
-      <div style="font-size:1.6rem; letter-spacing:1.5px;">Köp genomfört</div>
+  <div id="checkoutFlash" class="checkout-flash" role="status" aria-live="assertive" style="display:none;">
+    <div class="checkout-flash-card">
+      <div class="checkout-flash-check" aria-hidden="true">✓</div>
+      <div class="checkout-flash-title">Köpet är genomfört</div>
+      <div class="checkout-flash-tickets" id="checkoutFlashTickets" style="display:none;">
+        <span class="checkout-flash-kicker">Lämna ut till gästen</span>
+        <span class="checkout-flash-count" id="checkoutFlashCount"></span>
+        <span class="checkout-flash-hint">Tryck för att stänga</span>
+      </div>
     </div>
   </div>
 

@@ -14,34 +14,45 @@
     const ni = document.getElementById('loginNameInput');
     if(ni) ni.value = '';
   }
+  // Namnen kö, biljett och pos startar en skärm i stället för att logga in en person. Lösenordet är då ens eget.
+  const SCREEN_LOGIN_NAMES=['kö','biljett','pos'];
+  function _loginErrorText(res){ if(res&&res.error==='locked') return 'För många försök. Vänta en kvart och försök igen.'; if(res&&res.error==='missing') return 'Fyll i både namn och lösenord.'; return 'Fel namn eller lösenord — försök igen'; }
+  let _loginBusy=false;
   function submitLogin(){
     const inp = document.getElementById('loginPasswordInput');
     const pw = (inp?.value || '').trim();
+    const typedName = (document.getElementById('loginNameInput')?.value || '').trim();
+    const errEl = document.getElementById('loginError');
+    const btn = document.querySelector('#loginModal .login-submit');
+    const fail = (msg)=>{ if(errEl) errEl.textContent = msg; if(inp){ inp.classList.add('shake'); inp.addEventListener('animationend', ()=> inp.classList.remove('shake'), {once:true}); inp.select(); } };
+    if(!typedName || !pw){ fail('Fyll i både namn och lösenord.'); return; }
+    if(_loginBusy) return;
+    _loginBusy = true; if(btn){ btn.disabled = true; btn.textContent = 'Kontrollerar…'; } if(errEl) errEl.textContent = '';
     (async () => {
-      if(!_db.loaded.has(USERS_KEY)) await loadUsersFromServer();
-      const u = users[pw];
-      const typedName = (document.getElementById('loginNameInput')?.value || '').trim().toLowerCase();
-      if(typedName === 'kö' && pw === '00'){ closeLoginModal(); localStorage.setItem('overlayModeV1','ko'); showDisplay(); return; }
-      if(typedName === 'biljett' && pw === '00'){ closeLoginModal(); openRecentTicketsFull(); return; }
-      if(typedName === 'pos' && pw === '00'){ closeLoginModal(); localStorage.setItem('overlayModeV1','pos'); startCustomerDisplayMode(); return; }
-      const displayName = (document.getElementById('loginNameInput')?.value || '').trim();
-      if(u){
-        enforceCoreUsers();
-        loggedInKey = pw;
-        loggedInUser = displayName || u.name;
-        isAdmin = (pw === 'spök123') ? true : !!u.admin;
-        currentHasAccess = !!u.hasAccess || u.name==='Adam' || u.name==='Casper';
-        currentHasInslepp = !!u.hasInslepp || u.name==='Casper';
-        updateTopbar();
+      let res = null;
+      try{ res = await apiAction('login', { name: typedName, pw }); }
+      catch(_e){ fail('Kunde inte nå servern. Kontrollera anslutningen.'); return; }
+      finally{ _loginBusy = false; if(btn){ btn.disabled = false; btn.textContent = 'Träd in'; } }
+      if(!res || !res.ok){ fail(_loginErrorText(res)); return; }
+      const screen = typedName.toLowerCase();
+      if(res.role !== 'staff'){
         closeLoginModal();
-        selectMenu(isAdmin ? 'admin' : 'profile');
-        localStorage.setItem(SESSION_KEY, JSON.stringify({ pw: loggedInKey }));
-      } else {
-        const errEl = document.getElementById('loginError');
-        const inp2 = document.getElementById('loginPasswordInput');
-        if(errEl) errEl.textContent = 'Fel lösenord — försök igen';
-        if(inp2){ inp2.classList.add('shake'); inp2.addEventListener('animationend', ()=> inp2.classList.remove('shake'), {once:true}); inp2.select(); }
+        _authToken = res.token; loggedInKey = ''; _saveSession({ role:res.role });
+        if(screen === 'kö'){ localStorage.setItem('overlayModeV1','ko'); showDisplay(); }
+        else if(screen === 'biljett'){ const need=new Set([OPEN_TICKETS_KEY,ADMIT_KEY,REENTRY_KEY,QUEUE_KEY,DAILY_KEY,SALESHISTORY_KEY]); await dbRefreshMany(_BOOT_KEYS.filter(k=>need.has(k.key))).catch(()=>{}); openRecentTicketsFull(); }
+        else if(screen === 'pos'){ localStorage.setItem('overlayModeV1','pos'); startCustomerDisplayMode(); }
+        return;
       }
+      _authToken = res.token; _authLostShown = false;
+      loggedInKey = res.id;
+      if(res.user) users[res.id] = res.user;
+      _applyMe(users[res.id] || { name: typedName });
+      _saveSession({ role:'staff', user: users[res.id] || { name: loggedInUser } });
+      closeLoginModal();
+      await _refreshAfterLogin();
+      updateTopbar();
+      selectMenu(isAdmin ? 'admin' : 'profile');
+      syncDisplayOwnership();
     })();
   }
   document.getElementById('loginModal')?.addEventListener('click', function(e){ if(e.target === this) closeLoginModal(); });
@@ -106,24 +117,29 @@
     if(err) err.textContent = '';
   }
 
-  function submitLockUnlock(){
-    const pw = (document.getElementById('kassaLockPw')?.value || '').trim();
-    const u = users[pw];
-    const errEl = document.getElementById('kassaLockError');
-    const inp = document.getElementById('kassaLockPw');
-    if(!u || u.name !== kassaLockTargetUser){
-      if(errEl) errEl.textContent = 'Fel lösenord — försök igen';
-      if(inp){ inp.classList.add('shake'); inp.addEventListener('animationend', () => inp.classList.remove('shake'), {once:true}); inp.select(); }
-      return;
-    }
-    // Log in as the unlocking user
-    loggedInKey = pw;
-    loggedInUser = u.name;
-    isAdmin = (pw === 'spök123') ? true : !!u.admin;
-    currentHasAccess = !!u.hasAccess || u.name === 'Adam' || u.name === 'Casper';
-    currentHasInslepp = !!u.hasInslepp || u.name === 'Casper';
+  // Upplåsning loggar in den valda personen på nytt, så att passerkortet byts om någon annan tar över kassan.
+  let _unlockBusy=false;
+  async function submitLockUnlock(){
+    const pw=(document.getElementById('kassaLockPw')?.value || '').trim();
+    const errEl=document.getElementById('kassaLockError');
+    const inp=document.getElementById('kassaLockPw');
+    const fail=(msg)=>{ if(errEl) errEl.textContent=msg; if(inp){ inp.classList.add('shake'); inp.addEventListener('animationend', () => inp.classList.remove('shake'), {once:true}); inp.select(); } };
+    if(!pw||!kassaLockTargetUser||_unlockBusy) return;
+    _unlockBusy=true; if(errEl) errEl.textContent='Kontrollerar…';
+    let res=null;
+    try{ res=await apiAction('login',{ name:kassaLockTargetUser, pw }); }
+    catch(_e){ fail('Kunde inte nå servern. Kontrollera anslutningen.'); return; }
+    finally{ _unlockBusy=false; }
+    if(!res||!res.ok||res.role!=='staff'){ fail(_loginErrorText(res)); return; }
+    const prevToken=_authToken, switched=res.id!==loggedInKey;
+    _authToken=res.token; _authLostShown=false;
+    if(prevToken&&prevToken!==res.token) apiAction('logout',{ t:prevToken }).catch(()=>{});
+    loggedInKey=res.id;
+    if(res.user) users[res.id]=res.user;
+    _applyMe(users[res.id]||{ name:kassaLockTargetUser });
+    _saveSession({ role:'staff', user:users[res.id]||{ name:loggedInUser } });
+    if(switched) _refreshAfterLogin();
     updateTopbar();
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ pw: loggedInKey }));
     if(_displayActive){ const _dispBtn=document.getElementById('displayBtn'); if(_dispBtn) _dispBtn.classList.add('loading'); apiSet(CUSTOMER_DISPLAY_OWNER_KEY, loggedInUser).then(()=>{ updateDisplayBtn(); }).catch(()=>{}).finally(()=>{ if(_dispBtn) _dispBtn.classList.remove('loading'); }); }
     localStorage.removeItem('kassaLockedV1');
     document.getElementById('kassaLockModal').classList.remove('active');
@@ -135,12 +151,26 @@
   document.getElementById('kassaLockPw')?.addEventListener('keydown', function(e){
     if(e.key === 'Enter'){ e.preventDefault(); submitLockUnlock(); }
   });
-  document.getElementById('kassaLockPw')?.addEventListener('input', function(){ const pw=(this.value||'').trim(); if(pw&&users[pw]?.name===kassaLockTargetUser) submitLockUnlock(); });
 
   /* ============================== API / DB ============================== */
   const API_URL = 'https://script.google.com/macros/s/AKfycbx54qTF1ymnSm8t_qmjiHh7f2smc_Dk6gCxZXF12eALYR-ly6GKdVQjNhkCKu3WOzLiIQ/exec';
-  async function apiGet(key){ const r = await fetch(`${API_URL}?key=${encodeURIComponent(key)}&_=${Date.now()}`, { cache: 'no-store' }); const j = await r.json(); return j.value; }
-  async function apiSet(key, value){ const body = new URLSearchParams({ key, value: String(value ?? '') }); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
+  // ?preview: gästsidan visas i Hanteras förhandsvisning. Den loggar inte in och skriver aldrig till servern.
+  // Övningsläge: kassa, kö och insläpp sparas bara i den här webbläsaren (practiceStoreV1). Allt annat läses från servern
+  // som vanligt men sparas inte. Läget gäller en enhet i taget och slås på eller av med en omladdning.
+  const PREVIEW=new URLSearchParams(location.search).has('preview');
+  const PRACTICE=!PREVIEW&&localStorage.getItem('practiceModeV1')==='1';
+  const PRACTICE_KEYS=new Set(['openTicketsV1','reEntryV1','admissionsTodayV1','queueTimeV1','dailyStats','salesHistoryV1','liveStampV1','dailyCostsV1','dailyForecastV1','openingHoursV1','reEntryCooldownV1']);
+  function _practiceStore(){ try{ return JSON.parse(localStorage.getItem('practiceStoreV1')||'{}')||{}; }catch(_e){ return {}; } }
+  let _practiceNoticeAt=0;
+  // Inloggningen: servern kontrollerar lösenordet och svarar med ett passerkort (token) som skickas med i varje anrop.
+  // Utan passerkort får man bara läsa det gästsidan visar. Lösenorden finns bara, förvrängda, på servern.
+  let _authToken='';
+  function _authError(){ const e=new Error('auth'); e.code='auth'; return e; }
+  let _authLostShown=false;
+  function _onAuthLost(){ if(!_authToken) return; _authToken=''; localStorage.removeItem(SESSION_KEY); if(_authLostShown) return; _authLostShown=true; if(loggedInUser){ logout(); notify('Du har loggats ut. Logga in igen.'); } }
+  async function apiAction(action, params){ const body=new URLSearchParams({ action, ...(params||{}) }); if(_authToken&&!body.has('t')) body.set('t',_authToken); const r=await fetch(API_URL,{ method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text=await r.text(); let j=null; try{ j=JSON.parse(text); }catch(_e){} if(!r.ok||!j) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); return j; }
+  async function apiGet(key){ if(PRACTICE&&PRACTICE_KEYS.has(key)){ const v=_practiceStore()[key]; return v===undefined?null:v; } const r = await fetch(`${API_URL}?key=${encodeURIComponent(key)}${_authToken?'&t='+_authToken:''}&_=${Date.now()}`, { cache: 'no-store' }); const j = await r.json(); if(j&&j.ok===false&&j.error==='auth'){ if(_authToken){ _onAuthLost(); throw _authError(); } return null; } if(j&&j.ok===false&&j.error==='forbidden') return null; return j.value; }
+  async function apiSet(key, value){ if(PREVIEW) return {ok:true}; if(PRACTICE){ if(PRACTICE_KEYS.has(key)){ const st=_practiceStore(); st[key]=String(value??''); try{ localStorage.setItem('practiceStoreV1',JSON.stringify(st)); }catch(_e){} } else if(loggedInUser&&!/^(seen_|webVisit|customerDisplay)/.test(key)&&Date.now()-_practiceNoticeAt>8000){ _practiceNoticeAt=Date.now(); notify('Övningsläge: ändringen sparades inte på servern.','info'); } return {ok:true}; } const body = new URLSearchParams({ key, value: String(value ?? '') }); if(_authToken) body.set('t',_authToken); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(j&&j.ok===false&&(j.error==='auth'||j.error==='forbidden')){ if(j.error==='auth'&&_authToken) _onAuthLost(); throw _authError(); } if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
   const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1'; const DISPLAY_TICKER_KEY='displayTickerTextV1'; const DISPLAY_IMAGES_KEY='displayImagesV1';
   const SHIFT_PLAN_KEY='shiftPlanV1'; const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1'; const WAGE_SETTINGS_KEY='wageSettingsV1'; const TASK_DESCRIPTIONS_KEY='taskDescriptionsV1'; const GUEST_HIDDEN_KEY='guestHiddenV1';
@@ -150,33 +180,41 @@
   function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests' || v === 'webb') ? v : 'guests'; }
   function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode); }
 
-  const SERVER_JSON_KEYS = new Set([STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY,TASK_DESCRIPTIONS_KEY,GUEST_HIDDEN_KEY,REGISTERED_DEVICES_KEY]);
+  const SERVER_JSON_KEYS = new Set(['staffBroadcastV1','adminLogV1','checklistsV1','availabilityV1','reviewSettingsV1','deviceDirV1',STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY,TASK_DESCRIPTIONS_KEY,GUEST_HIDDEN_KEY,REGISTERED_DEVICES_KEY]);
 
-  const _db = { cache: new Map(), loaded: new Set(), serverLoaded: new Set(), inflight: new Map(), pendingWrites: new Map() };
+  const _db = { cache: new Map(), loaded: new Set(), serverLoaded: new Set(), inflight: new Map(), pendingWrites: new Map(), writeSeq: new Map() };
+  // Räknas upp när en lokal skrivning börjar och när den blir klar. En hämtning som överlappar en skrivning kan bära serverns
+  // gamla värde och kastas därför, annars hoppar t.ex. kön och insläppsräknaren tillbaka en stund efter ett tryck.
+  function _bumpWriteSeq(key){ _db.writeSeq.set(key,(_db.writeSeq.get(key)||0)+1); }
+  // Ändringsstämpel: efter varje sparning av driftdata (biljetter, insläpp, kö, öppettider) skrivs en ny stämpel. Enheterna
+  // frågar bara efter stämpeln och hämtar driftdatan först när den ändrats, i stället för att hämta allt hela tiden.
+  const LIVE_STAMP_KEY='liveStampV1';
+  let _liveStampTimer=null, _liveSeen=null;
+  function _touchLiveStamp(){ _liveSeen=null; clearTimeout(_liveStampTimer); _liveStampTimer=setTimeout(()=>{ apiSet(LIVE_STAMP_KEY,Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8)).catch(()=>{}); },250); }
 
   let _saveErrorMutedUntil=0;
   function showSaveError(msg){ if(Date.now()<_saveErrorMutedUntil) return; const b=document.getElementById('saveErrorBanner'); const m=document.getElementById('saveErrorMsg'); if(m) m.textContent=msg||'Fel: data kunde inte sparas till servern.'; if(b) b.style.display='block'; }
   function hideSaveError(){ _saveErrorMutedUntil=Date.now()+30000; const b=document.getElementById('saveErrorBanner'); if(b) b.style.display='none'; }
-  const PERSIST_CACHE_PREFIX = 'dbcache_v1__';
-  const PROTECTED_SNAPSHOT_KEY = 'saleshistory_protected_v1';
+  const PERSIST_CACHE_PREFIX = PRACTICE ? 'practice_dbcache__' : 'dbcache_v1__';
+  const PROTECTED_SNAPSHOT_KEY = PRACTICE ? 'practice_protected' : 'saleshistory_protected_v1';
   function _cacheLSKey(key){ return PERSIST_CACHE_PREFIX + key; }
-  function persistCacheWrite(key, value){ try{ localStorage.setItem(_cacheLSKey(key), JSON.stringify({t:Date.now(),v:value})); }catch(_e){} }
+  function persistCacheWrite(key, value){ if(PREVIEW) return; try{ localStorage.setItem(_cacheLSKey(key), JSON.stringify({t:Date.now(),v:value})); }catch(_e){} }
   function persistCacheRead(key){ try{ const raw=localStorage.getItem(_cacheLSKey(key)); if(!raw) return null; const obj=JSON.parse(raw); if(!obj||!('v' in obj)) return null; return obj.v; }catch(_e){ return null; } }
   function _snapshotScore(v){ if(!v||typeof v!=='object') return {dates:0,entries:0}; const dates=Object.keys(v).length; const entries=Object.values(v).reduce((s,d)=>s+(Array.isArray(d?.entries)?d.entries.length:0),0); return {dates,entries}; }
   function _writeProtectedSnapshot(value){ try{ if(!value||typeof value!=='object') return; const exV=(_readProtectedSnapshot()?.v)||{}; const merged=Object.assign({},exV); Object.keys(value).forEach(d=>{ if(value[d]?._deleted) return; const nEnt=Array.isArray(value[d]?.entries)?value[d].entries.length:0; const eEnt=Array.isArray(exV[d]?.entries)?exV[d].entries.length:0; if(!exV[d]||!exV[d]._deleted&&nEnt>=eEnt||exV[d]._deleted) merged[d]=value[d]; }); localStorage.setItem(PROTECTED_SNAPSHOT_KEY,JSON.stringify({t:Date.now(),v:merged})); }catch(_e){} }
   function _readProtectedSnapshot(){ try{ const raw=localStorage.getItem(PROTECTED_SNAPSHOT_KEY); if(!raw) return null; return JSON.parse(raw); }catch(_e){ return null; } }
-  const DIRTY_KEYS_LS='dbdirty_v1';
+  const DIRTY_KEYS_LS=PRACTICE?'practice_dirty':'dbdirty_v1';
   function _dirtyAdd(key){ try{ const s=JSON.parse(localStorage.getItem(DIRTY_KEYS_LS)||'[]'); if(!s.includes(key)){ s.push(key); localStorage.setItem(DIRTY_KEYS_LS,JSON.stringify(s)); } }catch(_e){} }
   function _dirtyRemove(key){ try{ const s=JSON.parse(localStorage.getItem(DIRTY_KEYS_LS)||'[]'); localStorage.setItem(DIRTY_KEYS_LS,JSON.stringify(s.filter(k=>k!==key))); }catch(_e){} }
   function _dirtyHas(key){ try{ return JSON.parse(localStorage.getItem(DIRTY_KEYS_LS)||'[]').includes(key); }catch(_e){ return false; } }
-  async function _flushDirty(){ let dirty; try{ dirty=JSON.parse(localStorage.getItem(DIRTY_KEYS_LS)||'[]'); }catch(_e){ dirty=[]; } if(!dirty.length) return; await Promise.all(dirty.map(async key=>{ const localVal=persistCacheRead(key); if(localVal==null){ _dirtyRemove(key); return; } try{ if(SERVER_JSON_KEYS.has(key)) await apiSet(key,JSON.stringify(localVal)); else await apiSet(key,String(localVal??'')); _dirtyRemove(key); }catch(_e){} })); }
+  async function _flushDirty(){ let dirty; try{ dirty=JSON.parse(localStorage.getItem(DIRTY_KEYS_LS)||'[]'); }catch(_e){ dirty=[]; } if(!dirty.length) return; await Promise.all(dirty.map(async key=>{ const localVal=persistCacheRead(key); if(localVal==null){ _dirtyRemove(key); return; } try{ if(SERVER_JSON_KEYS.has(key)) await apiSet(key,JSON.stringify(localVal)); else await apiSet(key,String(localVal??'')); _dirtyRemove(key); }catch(_e){ if(_e&&_e.code==='auth') _dirtyRemove(key); } })); }
   function persistCacheHydrate(keysWithFallback){ keysWithFallback.forEach(({key,fallback})=>{ const v=persistCacheRead(key); if(v===null||typeof v==='undefined'){ _db.cache.set(key,_clone(fallback)); }else{ _db.cache.set(key,_clone(v)); } _db.loaded.add(key); }); }
   function _clone(v){ try { return JSON.parse(JSON.stringify(v)); } catch(_e){ return v; } }
 
-  async function dbFetch(key, fallback){ if(_db.inflight.has(key)) return _db.inflight.get(key); const p = (async ()=>{ try{ const raw = await apiGet(key); _db.serverLoaded.add(key); const hasPending=_db.pendingWrites.has(key)||_dirtyHas(key); if(raw == null || raw === ''){ if(!hasPending){ _db.cache.set(key, _clone(fallback)); _db.loaded.add(key); } return _clone(fallback); } if(SERVER_JSON_KEYS.has(key)){ try{ const parsed=JSON.parse(raw); if(!hasPending){ _db.cache.set(key,parsed); _db.loaded.add(key); persistCacheWrite(key,parsed); if(key===SALESHISTORY_KEY) _writeProtectedSnapshot(parsed); } return _clone(hasPending?(_db.cache.get(key)??fallback):parsed); } catch(e){ if(!hasPending){ _db.cache.set(key,_clone(fallback)); persistCacheWrite(key,_db.cache.get(key)); _db.loaded.add(key); } return _clone(fallback); } } const str=String(raw); if(!hasPending){ _db.cache.set(key,str); _db.loaded.add(key); persistCacheWrite(key,str); } return hasPending?(_db.cache.get(key)??fallback):str; }finally{ _db.inflight.delete(key); } })(); _db.inflight.set(key, p); return p; }
+  async function dbFetch(key, fallback){ if(_db.inflight.has(key)) return _db.inflight.get(key); const seq0=_db.writeSeq.get(key)||0; const p = (async ()=>{ try{ const raw = await apiGet(key); _db.serverLoaded.add(key); const hasPending=_db.pendingWrites.has(key)||_dirtyHas(key)||(_db.writeSeq.get(key)||0)!==seq0; if(raw == null || raw === ''){ if(!hasPending){ _db.cache.set(key, _clone(fallback)); _db.loaded.add(key); } return _clone(fallback); } if(SERVER_JSON_KEYS.has(key)){ try{ const parsed=JSON.parse(raw); if(!hasPending){ _db.cache.set(key,parsed); _db.loaded.add(key); persistCacheWrite(key,parsed); if(key===SALESHISTORY_KEY) _writeProtectedSnapshot(parsed); } return _clone(hasPending?(_db.cache.get(key)??fallback):parsed); } catch(e){ if(!hasPending){ _db.cache.set(key,_clone(fallback)); persistCacheWrite(key,_db.cache.get(key)); _db.loaded.add(key); } return _clone(fallback); } } const str=String(raw); if(!hasPending){ _db.cache.set(key,str); _db.loaded.add(key); persistCacheWrite(key,str); } return hasPending?(_db.cache.get(key)??fallback):str; }finally{ _db.inflight.delete(key); } })(); _db.inflight.set(key, p); return p; }
   function dbGet(key, fallback){ if(_db.cache.has(key)) return _clone(_db.cache.get(key)); return _clone(fallback); }
   async function dbEnsure(key, fallback){ if(_db.loaded.has(key)) return dbGet(key, fallback); return dbFetch(key, fallback); }
-  async function dbSet(key, value){ _db.cache.set(key,_clone(value)); _db.loaded.add(key); persistCacheWrite(key,_clone(value)); if(key===SALESHISTORY_KEY) _writeProtectedSnapshot(value); _db.pendingWrites.set(key,(_db.pendingWrites.get(key)||0)+1); _dirtyAdd(key); try{ let _res; if(SERVER_JSON_KEYS.has(key)) _res=await apiSet(key,JSON.stringify(value??null)); else _res=await apiSet(key,String(value??'')); _dirtyRemove(key); return _res; } finally { const n=(_db.pendingWrites.get(key)||1)-1; if(n<=0) _db.pendingWrites.delete(key); else _db.pendingWrites.set(key,n); } }
+  async function dbSet(key, value){ _db.cache.set(key,_clone(value)); _db.loaded.add(key); if(PREVIEW) return {ok:true}; persistCacheWrite(key,_clone(value)); if(key===SALESHISTORY_KEY) _writeProtectedSnapshot(value); _db.pendingWrites.set(key,(_db.pendingWrites.get(key)||0)+1); _bumpWriteSeq(key); _dirtyAdd(key); try{ let _res; if(SERVER_JSON_KEYS.has(key)) _res=await apiSet(key,JSON.stringify(value??null)); else _res=await apiSet(key,String(value??'')); _dirtyRemove(key); if(_LIVE_KEYS.includes(key)) _touchLiveStamp(); return _res; } catch(e){ if(e&&e.code==='auth') _dirtyRemove(key); throw e; } finally { _bumpWriteSeq(key); const n=(_db.pendingWrites.get(key)||1)-1; if(n<=0) _db.pendingWrites.delete(key); else _db.pendingWrites.set(key,n); } }
   async function dbRefreshMany(keysWithFallback){ await Promise.all(keysWithFallback.map(kf=>dbFetch(kf.key,kf.fallback))); }
 
   function defaultDailyStats(){ return {date:todayStr(),guestCount:0,totalIncome:0}; }
@@ -194,11 +232,22 @@
   let userData = {};
   try{ const raw=localStorage.getItem(STORAGE_KEY); userData=raw?JSON.parse(raw):{}; }catch(e){ userData={}; localStorage.removeItem(STORAGE_KEY); }
   let _statsDirty = true;
-  function defaultUsers(){ return {'spök123':{name:'Casper',admin:true,hasAccess:true,hasInslepp:true},'7997':{name:'Adam',admin:false,hasAccess:true,hasInslepp:false}}; }
-  function enforceCoreUsers(){ if(!users||typeof users!=='object') users={}; users['spök123']={name:'Casper',admin:true,hasAccess:true,hasInslepp:true}; const _a=users['7997']||{}; users['7997']={name:'Adam',admin:false,hasAccess:true,hasInslepp:!!_a.hasInslepp}; }
+  // Personallistan: nyckeln är ett id (t.ex. "u3f9a…"), inte lösenordet. Bara personal får läsa den och bara admin spara den.
+  function defaultUsers(){ return {}; }
   let users = defaultUsers();
-  function saveUsers(){ return dbSet(USERS_KEY, users||{}).catch(()=>{}); }
-  async function loadUsersFromServer(){ const u=await dbEnsure(USERS_KEY,defaultUsers()); const _before=JSON.stringify(users); users=(u&&typeof u==='object')?u:defaultUsers(); enforceCoreUsers(); if(JSON.stringify(users)!==_before) await saveUsers(); }
+  function _isStaffSession(){ return !!_authToken&&!!loggedInKey; }
+  function saveUsers(){ if(!isAdmin) return Promise.resolve(); return dbSet(USERS_KEY, users||{}).catch(()=>{ notify('Personallistan kunde inte sparas.'); }); }
+  async function loadUsersFromServer(){ if(!_isStaffSession()) return; const u=_db.serverLoaded.has(USERS_KEY)?dbGet(USERS_KEY,null):await dbFetch(USERS_KEY,null); if(u&&typeof u==='object'&&Object.keys(u).length) users=u; const me=users[loggedInKey]; if(me){ _applyMe(me); try{ const cur=JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); if(cur&&cur.t===_authToken) _saveSession({ role:'staff', user:me }); }catch(_e){} } }
+  function _newUserId(){ const a=new Uint8Array(8); crypto.getRandomValues(a); return 'u'+Array.from(a,b=>b.toString(36).padStart(2,'0')).join('').slice(0,12); }
+  // Behörigheten i gränssnittet. Servern kontrollerar själv vad som får sparas.
+  function _applyMe(u){ loggedInUser=u.name; isAdmin=!!u.admin; currentHasAccess=!!u.hasAccess||u.name==='Adam'||u.name==='Casper'; currentHasInslepp=!!u.hasInslepp||u.name==='Casper'; }
+  function _saveSession(extra){ localStorage.setItem(SESSION_KEY, JSON.stringify({ t:_authToken, id:loggedInKey, ...(extra||{}) })); }
+  // Nycklar som gäster får läsa. Resten rensas ur webbläsarens cache vid utloggning.
+  const PUBLIC_CACHE_KEYS=new Set([OPENING_KEY,QUEUE_KEY,GUEST_HIDDEN_KEY,OPEN_DATES_KEY,LIVE_STAMP_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,WELCOME_HOTEL_NAME_KEY,WELCOME_HEADLINE_KEY,WELCOME_TAGLINE_KEY,SOCIAL_IG_KEY,SOCIAL_FB_KEY,'siteContentV1',PRODUCTS_KEY,REVIEWS_KEY]);
+  function _forgetPrivateData(){ let dirty=[]; try{ dirty=JSON.parse(localStorage.getItem(DIRTY_KEYS_LS)||'[]'); }catch(_e){} Object.keys(localStorage).forEach(k=>{ if(!k.startsWith(PERSIST_CACHE_PREFIX)) return; const key=k.slice(PERSIST_CACHE_PREFIX.length); if(!PUBLIC_CACHE_KEYS.has(key)&&!dirty.includes(key)) localStorage.removeItem(k); }); [..._db.cache.keys()].forEach(key=>{ if(!PUBLIC_CACHE_KEYS.has(key)&&!_db.pendingWrites.has(key)){ _db.cache.delete(key); _db.loaded.delete(key); } }); users=defaultUsers(); userData={}; }
+  // Hämtar all data på nytt, t.ex. direkt efter inloggning (som gäst fick man bara det publika).
+  let _BOOT_KEYS=[];
+  async function _refreshAfterLogin(){ try{ await dbRefreshMany(_BOOT_KEYS); await loadUserDataFromServer(); await loadUsersFromServer(); }catch(e){ console.warn('Hämtningen efter inloggning misslyckades:',e); } }
 
   const THEME_CLASSES=['theme-default','theme-forest','theme-royal'];
 
@@ -239,6 +288,9 @@
   let _pendingKontantLabel = '';
   let _doRefresh = null;
 
+  // Köstatusen "Stängt för kvällen" sparas som förut (äldre enheter och test.html känner igen den), men visas som "Stängt för idag"
+  // eftersom Korpen också har dagsöppet.
+  function queueLabel(v){ return v==='Stängt för kvällen'?'Stängt för idag':v==='Tillfälligt Stängt'?'Tillfälligt stängt':v; }
   function todayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
   function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,(ch)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]); }
 
@@ -256,7 +308,7 @@
 
   function setWelcomeFAQText(raw){ const box=document.getElementById('welcomeFaqContent'); const panel=document.getElementById('welcomeInfoPanel'); if(!box) return; const txt=(raw||'').trim(); if(!txt){ box.innerHTML=''; if(panel) panel.style.display='none'; return; } if(panel) panel.style.display='block'; const blocks=txt.split(/\n{2,}/).map(b=>b.trim()).filter(Boolean); box.innerHTML=blocks.map(block=>{ const lines=block.split('\n'); const q=escapeHtml(lines[0].trim()); const a=lines.slice(1).join('\n').trim(); if(!a) return `<details class="faq-item"><summary class="faq-q">${q}</summary></details>`; return `<details class="faq-item"><summary class="faq-q">${q}</summary><div class="faq-a">${escapeHtml(a).replace(/\n/g,'<br>')}</div></details>`; }).join(''); }
 
-  function saveOpeningHours(v){ const hrs=String(v||'Stängt'); const r=dbSet(OPENING_KEY,hrs); const hist=loadSalesHistory();const day=ensureHistDay(hist,todayStr());if(hrs!=='Stängt') day.hours=hrs;else if(!day.hours||day.hours==='Stängt') day.hours=hrs;saveSalesHistory(hist); return r; }
+  function saveOpeningHours(v){ const hrs=String(v||'Stängt'); const r=dbSet(OPENING_KEY,hrs); mutateSalesHistory(hist=>{ const day=ensureHistDay(hist,todayStr());if(hrs!=='Stängt') day.hours=hrs;else if(!day.hours||day.hours==='Stängt') day.hours=hrs; }); return r; }
   function loadOpenDates(){ const v=dbGet(OPEN_DATES_KEY,[]); return Array.isArray(v)?v:[]; }
   function saveOpenDates(arr){ return dbSet(OPEN_DATES_KEY, arr); }
   function getNextOpenDate(){ const today=todayStr(); const dates=loadOpenDates().map(e=>typeof e==='string'?e:e.date).filter(d=>d>today).sort(); return dates[0]||null; }
@@ -267,9 +319,9 @@
   function loadRegisteredDevices(){ const v=dbGet(REGISTERED_DEVICES_KEY,{}); return (v&&typeof v==='object')?v:{}; }
   function saveRegisteredDevices(obj){ return dbSet(REGISTERED_DEVICES_KEY,obj||{}); }
   function isDeviceRegisteredAsKassa(){ return !!loadRegisteredDevices()[getDeviceId()]; }
-  async function registerThisDevice(){ const name=prompt('Namn på denna enhet (t.ex. "Kassan", "Backup"):',''); if(!name||!name.trim()) return; const id=getDeviceId(); const devices=loadRegisteredDevices(); devices[id]={name:name.trim(),registeredAt:new Date().toISOString().slice(0,16),registeredBy:loggedInUser}; await saveRegisteredDevices(devices); renderDevicesAdmin(); }
-  async function unregisterDevice(id){ if(!confirm('Ta bort enheten?')) return; const devices=loadRegisteredDevices(); delete devices[id]; await saveRegisteredDevices(devices); renderDevicesAdmin(); }
-  async function renderDevicesAdmin(){ const el=document.getElementById('devicesAdminList'); if(!el) return; await dbEnsure(REGISTERED_DEVICES_KEY,{}); const devices=loadRegisteredDevices(); const myId=getDeviceId(); const entries=Object.entries(devices); const isMe=id=>id===myId; if(!entries.length){ el.innerHTML='<div class="tiny muted" style="margin-bottom:12px;">Inga kassaenheter registrerade ännu.</div>'; }else{ el.innerHTML=entries.map(([id,dev])=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.04);border-radius:6px;gap:10px;margin-bottom:6px;"><div><div style="font-family:'IM Fell English SC',serif;font-size:13px;">${escapeHtml(dev.name)}${isMe(id)?' <span style="font-size:11px;color:rgba(232,224,208,0.4);">(denna enhet)</span>':''}</div><div style="font-size:11px;color:rgba(232,224,208,0.35);margin-top:2px;">Reg. ${escapeHtml(dev.registeredAt||'')} av ${escapeHtml(dev.registeredBy||'')}</div></div><button class="btn btn-danger" style="font-size:12px;padding:4px 10px;flex-shrink:0;" onclick="unregisterDevice('${escapeHtml(id)}')">Ta bort</button></div>`).join(''); } const myRegistered=!!devices[myId]; const regBtn=document.getElementById('registerThisDeviceBtn'); if(regBtn){ regBtn.style.display=myRegistered?'none':''; regBtn.textContent=myRegistered?'':'Registrera denna enhet som kassaenhet'; } const regNote=document.getElementById('deviceRegisteredNote'); if(regNote) regNote.style.display=myRegistered?'':'none'; }
+  async function registerThisDevice(){ const name=await uiPrompt('Namn på denna enhet (t.ex. "Kassan", "Backup"):',''); if(!name||!name.trim()) return; const id=getDeviceId(); const devices=loadRegisteredDevices(); devices[id]={name:name.trim(),registeredAt:new Date().toISOString().slice(0,16),registeredBy:loggedInUser}; await saveRegisteredDevices(devices); renderDevicesAdmin(); }
+  async function unregisterDevice(id){ if(!(await uiConfirm('Ta bort enheten?',{okLabel:'Ta bort',danger:true}))) return; const devices=loadRegisteredDevices(); delete devices[id]; await saveRegisteredDevices(devices); renderDevicesAdmin(); }
+  async function renderDevicesAdmin(){ const el=document.getElementById('devicesAdminList'); if(!el) return; await dbEnsure(REGISTERED_DEVICES_KEY,{}); const devices=loadRegisteredDevices(); const myId=getDeviceId(); const entries=Object.entries(devices); const isMe=id=>id===myId; if(!entries.length){ el.innerHTML='<div class="tiny muted" style="margin-bottom:12px;">Inga kassaenheter registrerade ännu.</div>'; }else{ el.innerHTML=entries.map(([id,dev])=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,0.04);border-radius:6px;gap:10px;margin-bottom:6px;"><div><div style="font-family:var(--f-label);font-size:13px;">${escapeHtml(dev.name)}${isMe(id)?' <span style="font-size:11px;color:rgba(221,227,220,0.4);">(denna enhet)</span>':''}</div><div style="font-size:11px;color:rgba(221,227,220,0.35);margin-top:2px;">Reg. ${escapeHtml(dev.registeredAt||'')} av ${escapeHtml(dev.registeredBy||'')}</div></div><button class="btn btn-danger" style="font-size:12px;padding:4px 10px;flex-shrink:0;" onclick="unregisterDevice('${escapeHtml(id)}')">Ta bort</button></div>`).join(''); } const myRegistered=!!devices[myId]; const regBtn=document.getElementById('registerThisDeviceBtn'); if(regBtn){ regBtn.style.display=myRegistered?'none':''; regBtn.textContent=myRegistered?'':'Registrera denna enhet som kassaenhet'; } const regNote=document.getElementById('deviceRegisteredNote'); if(regNote) regNote.style.display=myRegistered?'':'none'; }
 
   function loadQueueData(){ const r=dbGet(QUEUE_KEY,null); if(r&&typeof r==='object') return r; if(typeof r==='string'&&r) return {value:r,until:null}; return {value:null,until:null}; }
   function saveQueueData(obj){ return dbSet(QUEUE_KEY,obj); }
@@ -280,49 +332,46 @@
   function updateQueueStatusRow(){ const el=document.getElementById('queueStatusRow'); if(!el) return; const d=loadQueueData(); const now=Date.now(); const isAuto=d.value===null; const expired=!isAuto&&d.until!==null&&now>=d.until; const s='background:none;border:none;color:inherit;font:inherit;font-style:italic;cursor:pointer;padding:0;opacity:0.55;font-size:12px;text-decoration:underline;text-underline-offset:2px;'; if(isAuto||expired){el.innerHTML=`<button style="${s}" onclick="lockQueueManual()">↺ Auto</button>`;return;} if(d.until===null){el.innerHTML=`<button style="${s}" onclick="applyQueuePreset('__auto__')">Manuell</button>`;return;} const auto=computeAutoQueueTime(); const am=_queueMins(auto),mm=_queueMins(d.value); const rem=Math.max(1,Math.ceil((d.until-now)/60000)); const info=am!==null&&mm!==null&&am>mm?'kön längre, auto aktivt':`auto om ${rem} min`; el.innerHTML=`<button style="${s}" onclick="lockQueueManual()">Tillfälligt manuell — ${info}</button>`; }
   function saveGuestHidden(v){ return dbSet(GUEST_HIDDEN_KEY,!!v); }
   function loadGuestHidden(){ return !!dbGet(GUEST_HIDDEN_KEY,false); }
-  async function toggleGuestHidden(){
-    const btn=document.getElementById('guestHiddenToggle');
-    const bar=document.getElementById('guestHiddenBar');
-    if(btn) btn.style.pointerEvents='none';
-    const dur=1500;
-    if(bar){ bar.style.setProperty('--fill-dur',dur+'ms'); bar.classList.remove('filling'); void bar.offsetWidth; bar.classList.add('filling'); }
-    guestHidden=!guestHidden;
-    await Promise.all([saveGuestHidden(guestHidden), new Promise(r=>setTimeout(r,dur))]);
-    if(bar){ bar.classList.remove('filling'); bar.style.transform='scaleX(0)'; }
-    if(btn) btn.style.pointerEvents='';
-    updateTopbar();
-  }
+  async function toggleGuestHidden(){ guestHidden=!guestHidden; await saveGuestHidden(guestHidden); updateTopbar(); }
 
-  async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); setInterval(async()=>{ await dbFetch(OPENING_KEY,'Stängt'); await dbFetch(QUEUE_KEY,''); await dbFetch(OPEN_DATES_KEY,[]); checkScheduledOpen(); checkScheduledClose(); const oh=loadOpeningHours(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':getEffectiveQueueTime(); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } },3000); }
 
-  function maybeEditHours(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!isAdmin) return; const el=document.getElementById('hoursMenu'); if(el) el.style.display='block'; renderOpenDatesCalendar(); }
+  const STAFF_BROADCAST_KEY='staffBroadcastV1';
+  const _LIVE_KEYS=[OPENING_KEY,QUEUE_KEY,OPEN_DATES_KEY,OPEN_TICKETS_KEY,ADMIT_KEY,REENTRY_KEY,GUEST_HIDDEN_KEY,STAFF_BROADCAST_KEY];
+  let _liveBusy=false, _liveLastFull=0;
+  function _liveFetchList(){ const guest=!loggedInUser&&!document.querySelector('.field-view'); if(guest) return [{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:OPEN_DATES_KEY,fallback:[]},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:GUEST_HIDDEN_KEY,fallback:false}]; return [{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:OPEN_DATES_KEY,fallback:[]},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:GUEST_HIDDEN_KEY,fallback:false},{key:STAFF_BROADCAST_KEY,fallback:null}]; }
+  // Hämtar driftdatan om stämpeln ändrats (eller en gång i minuten som säkerhetsnät). Stämpeln räknas som sedd först när
+  // hämtningen inte krockat med en egen sparning, annars görs den om vid nästa varv.
+  async function _liveSync(force){ if(_liveBusy) return false; _liveBusy=true; try{ const stamp=String(await apiGet(LIVE_STAMP_KEY)??''); if(!force&&stamp===_liveSeen&&Date.now()-_liveLastFull<60000) return false; const list=_liveFetchList(); const before=list.map(kf=>_db.writeSeq.get(kf.key)||0); await Promise.all(list.map(kf=>dbFetch(kf.key,kf.fallback))); _liveLastFull=Date.now(); const clean=list.every((kf,i)=>(_db.writeSeq.get(kf.key)||0)===before[i]&&!_db.pendingWrites.has(kf.key)); if(clean) _liveSeen=stamp; return true; }catch(_e){ return false; }finally{ _liveBusy=false; } }
+  // Personal, insläpp och kötidsdisplayen kollar var 3:e sekund. Gästsidan var 15:e, och en dold flik var 60:e.
+  function _livePollDelay(){ if(document.hidden) return 60000; if(loggedInUser||document.querySelector('.field-view,.display-view')) return 3000; return 15000; }
+  async function setupLiveStatus(){ openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); if(openingHours==='Stängt') queueTime='Stängt'; updateTopbar(); let lastRun=0; const tick=async()=>{ if(Date.now()-lastRun<_livePollDelay()){ setTimeout(tick,1000); return; } lastRun=Date.now(); try{ await _liveSync(false); checkScheduledOpen(); checkScheduledClose(); const oh=loadOpeningHours(); const newOpening=oh||'Stängt'; const newQueue=(newOpening==='Stängt')?'Stängt':getEffectiveQueueTime(); if(newOpening!==openingHours||newQueue!==queueTime){ openingHours=newOpening; queueTime=newQueue; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } }catch(_e){} setTimeout(tick,1000); }; setTimeout(tick,3000); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) _liveSync(true); }); }
 
-  function renderOpenDatesCalendar(){ const cal=document.getElementById('openDatesCalendar'); if(!cal) return; const today=todayStr(); const all=loadOpenDates(); const pruned=all.filter(e=>(typeof e==='string'?e:e.date)>=today); if(pruned.length!==all.length) saveOpenDates(pruned).catch(()=>{}); const dates=pruned.slice().sort((a,b)=>(typeof a==='string'?a:a.date).localeCompare(typeof b==='string'?b:b.date)); cal.innerHTML=''; if(!dates.length){ cal.innerHTML='<span style="font-size:12px;color:rgba(232,224,208,0.3);font-style:italic;">Inga datum inlagda</span>'; return; } dates.forEach(e=>{ const d=typeof e==='string'?e:e.date; const tag=document.createElement('span'); tag.style.cssText='display:inline-flex;align-items:center;gap:5px;background:rgba(40,100,40,0.25);border:1px solid rgba(100,200,100,0.25);border-radius:3px;padding:3px 8px;font-size:13px;color:rgba(180,230,160,0.9);'; const full=d.slice(5).replace('-','/'); const timePart=e.hours?` <span style="opacity:0.6;font-size:11px;">${e.hours}</span>`:''; tag.innerHTML=`${full}${timePart}<button onclick="removeOpenDate('${d}')" style="background:none;border:none;color:rgba(255,100,100,0.5);cursor:pointer;padding:0 0 0 4px;font-size:14px;line-height:1;" title="Ta bort">×</button>`; cal.appendChild(tag); }); updateTopbar(); }
-  async function addOpenDate(){ const inp=document.getElementById('addOpenDateInput'); const hoursInp=document.getElementById('addOpenHoursInput'); const v=inp?.value; if(!v){alert('Välj ett datum');return;} if(v<todayStr()){alert('Datumet har redan passerat');return;} const hours=(hoursInp?.value||'').trim(); const entry=hours?{date:v,hours}:v; const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==v); dates.push(entry); dates.sort((a,b)=>(typeof a==='string'?a:a.date).localeCompare(typeof b==='string'?b:b.date)); await saveOpenDates(dates); if(inp) inp.value=''; if(hoursInp) hoursInp.value=''; const saved=document.getElementById('openDatesSaved'); if(saved){saved.style.display='block';setTimeout(()=>saved.style.display='none',1500);} renderOpenDatesCalendar(); }
-  async function removeOpenDate(d){ const dates=loadOpenDates().filter(e=>(typeof e==='string'?e:e.date)!==d); await saveOpenDates(dates); renderOpenDatesCalendar(); }
-  function checkScheduledOpen(){ if(openingHours!=='Stängt') return; const today=todayStr(); const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today); if(!entry||typeof entry==='string'||!entry.hours) return; const _r=getOpenHourRange(entry.hours); if(_r){ const _n=new Date(); if(_n.getHours()*60+_n.getMinutes()<_r.start*60) return; } openingHours=entry.hours; saveOpeningHours(entry.hours).catch(()=>{}); updateTopbar(); refreshCockpitIfOpen(); }
+
+  function checkScheduledOpen(){ if(openingHours!=='Stängt') return; const today=todayStr(); const entry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===today); if(!entry||typeof entry==='string'||!entry.hours) return; const _r=getOpenHourRange(entry.hours); if(_r){ const _n=new Date(); if(_n.getHours()*60+_n.getMinutes()<_r.start*60) return; } openingHours=entry.hours; saveOpeningHours(entry.hours).catch(()=>{}); resetQueueForHours(entry.hours).catch(()=>{}); updateTopbar(); refreshCockpitIfOpen(); }
   function checkScheduledClose(){ if(!openingHours||openingHours==='Stängt') return; const range=getOpenHourRange(openingHours); if(!range) return; const now=new Date(); const nowMins=now.getHours()*60+now.getMinutes(); const endMins=range.end*60; if(range.start<range.end&&nowMins<range.start*60) return; let diff=nowMins-endMins; while(diff<-720) diff+=1440; while(diff>720) diff-=1440; if(diff>=-1&&diff<60){ if(queueTime!=='Stängt för kvällen'&&queueTime!=='Stängt'){ saveQueueData({value:'Stängt för kvällen',until:null}).catch(()=>{}); queueTime='Stängt för kvällen'; updateTopbar(); refreshDisplayOverlay(); } return; } if(diff>=60){ openingHours='Stängt'; saveOpeningHours('Stängt').catch(()=>{}); saveQueueData({value:'Stängt',until:null}).catch(()=>{}); queueTime='Stängt'; updateTopbar(); refreshDisplayOverlay(); refreshCockpitIfOpen(); } }
 
-  async function presetSelected(v){ const inp=document.getElementById('customHours'); if(v==='custom'){if(inp){inp.style.display='inline-block';inp.focus();}return;} openingHours=v; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
-  async function applyCustomHours(){ const inp=document.getElementById('customHours'); const raw=(inp?inp.value.trim():'')||''; const norm=normalizeRangeStr(raw); if(!norm){alert('Skriv t.ex. 16-02 eller 10:00–18:00');return;} openingHours=norm; try{ await saveOpeningHours(openingHours); queueTime='Stängt'; await saveQueueData({value:'Stängt',until:null}); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ alert('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
+  // När dagen öppnar ska kötiden gå tillbaka till auto (styrd av biljetter och insläpp). Tidigare låstes den manuellt på "Stängt" tills någon tryckte Auto.
+  function resetQueueForHours(hours){ const closed=!hours||hours==='Stängt'; const p=saveQueueData({value:closed?'Stängt':null,until:null}); queueTime=closed?'Stängt':getEffectiveQueueTime(); return p; }
+  async function presetSelected(v){ const inp=document.getElementById('customHours'); if(v==='custom'){if(inp){inp.style.display='inline-block';inp.focus();}return;} openingHours=v; try{ await saveOpeningHours(openingHours); await resetQueueForHours(openingHours); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ notify('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
   function maybeEditQueueTime(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!loggedInUser) return; if(openingHours==='Stängt'&&!isAdmin) return; const el=document.getElementById('queueMenu'); if(el) el.style.display='block'; updateQueueStatusRow(); }
   function applyQueuePreset(v){ if(!v) return; if(v==='__auto__'){ saveQueueData({value:null,until:null}); }else{ const isStangt=v.toLowerCase().includes('stängt'); saveQueueData({value:v,until:isStangt?null:Date.now()+5*60*1000}); } queueTime=getEffectiveQueueTime(); updateTopbar(); updateQueueStatusRow(); const el=document.getElementById('queueMenu'); if(el) el.style.display='none'; }
   function refreshCockpitIfOpen(){ const sc=document.getElementById('statsContainer'); if(!sc) return; const isVisible=getComputedStyle(sc).display!=='none'; if(!isVisible) return; openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); loadDailyCosts(); loadDailyForecast(); renderCockpit(); if(_statsDirty){renderStats();_statsDirty=false;} }
 
-  function loadDailyStats(){ let ds=dbGet(DAILY_KEY,defaultDailyStats()); if(ds.date!==todayStr()) ds=defaultDailyStats(); guestCount=Number(ds.guestCount||0); totalIncome=Number(ds.totalIncome||0); dbSet(DAILY_KEY,{date:todayStr(),guestCount,totalIncome}).catch(()=>{}); }
-  function saveDailyStats(){ dbSet(DAILY_KEY,{date:todayStr(),guestCount,totalIncome}).catch(()=>{}); }
+  function loadDailyStats(){ let ds=dbGet(DAILY_KEY,defaultDailyStats()); if(ds.date!==todayStr()) ds=defaultDailyStats(); guestCount=Number(ds.guestCount||0); totalIncome=Number(ds.totalIncome||0); }
+  function saveDailyStats(){ dbSet(DAILY_KEY,{date:todayStr(),guestCount,totalIncome,_ids:[]}).catch(()=>{}); }
+  function bumpDailyStats(guests,income){ const bumpId=Date.now().toString(36)+Math.random().toString(36).slice(2,6); guestCount=Number(guestCount||0)+guests; totalIncome=Number(totalIncome||0)+income; const load=()=>{ const ds=dbGet(DAILY_KEY,defaultDailyStats()); return (ds&&ds.date===todayStr())?ds:defaultDailyStats(); }; _mutateShared(DAILY_KEY,{load,normalize:p=>(p&&typeof p==='object'&&p.date===todayStr())?p:defaultDailyStats(),save:o=>dbSet(DAILY_KEY,o).catch(()=>{})},o=>{ if(!Array.isArray(o._ids)) o._ids=[]; if(o._ids.includes(bumpId)) return; o._ids.push(bumpId); if(o._ids.length>300) o._ids=o._ids.slice(-300); o.guestCount=Number(o.guestCount||0)+guests; o.totalIncome=Number(o.totalIncome||0)+income; }).then(()=>{ loadDailyStats(); updateTopbar(); updateLogSummary(); }); }
   function guestBucketsByHourFromAdmissionsHistory(dateStr){ const out=Array.from({length:24},()=>0); const day=loadSalesHistory()[dateStr]||{}; const entries=Array.isArray(day.admissionsEntries)?day.admissionsEntries:[]; entries.forEach(e=>{ const h=new Date(e.ts).getHours(); out[h]+=Number(e.n||0); }); return out; }
-  function loadDailyCosts(){ let o=dbGet(DAILY_COSTS_KEY,defaultDailyCosts()); if(o.date!==todayStr()) o=defaultDailyCosts(); o.costs=Number(o.costs||0); dbSet(DAILY_COSTS_KEY,o).catch(()=>{}); return o; }
-  function saveDailyCosts(costs){ const n=Math.max(0,Number(costs||0)); dbSet(DAILY_COSTS_KEY,{date:todayStr(),costs:Math.round(n)}).catch(()=>{}); const hist=loadSalesHistory();const day=ensureHistDay(hist,todayStr());day.costs=Math.round(n);saveSalesHistory(hist); }
+  function loadDailyCosts(){ let o=dbGet(DAILY_COSTS_KEY,defaultDailyCosts()); if(o.date!==todayStr()) o=defaultDailyCosts(); o.costs=Number(o.costs||0); return o; }
+  function saveDailyCosts(costs){ const n=Math.max(0,Number(costs||0)); dbSet(DAILY_COSTS_KEY,{date:todayStr(),costs:Math.round(n)}).catch(()=>{}); mutateSalesHistory(hist=>{ ensureHistDay(hist,todayStr()).costs=Math.round(n); }); }
   function getCostsForDate(dateStr){ if(dateStr===todayStr()) return getDailyCosts(); const hist=loadSalesHistory(); return Number(hist[dateStr]?.costs||0); }
   function getDailyCosts(){ return Number(loadDailyCosts().costs||0); }
-  function setDailyCostsViaPrompt(){ if(!isAdmin) return; const current=getDailyCosts(); const raw=prompt('Dagens utgifter (kr)',String(current)); if(raw===null) return; const n=Number(String(raw).replace(',','.').trim()); if(!Number.isFinite(n)||n<0){alert('Skriv en giltig siffra.');return;} saveDailyCosts(Math.round(n)); const fc=computeForecastForToday(cockpitTotals(todayStr()).intake,admittedToday()); if(n>0&&fc.avgUsed>0){const be=Math.ceil(n/fc.avgUsed);const o=loadDailyForecast();o.target=be;saveDailyForecast(o);} refreshCockpitIfOpen(); }
-  function loadDailyForecast(){ let o=dbGet(DAILY_FORECAST_KEY,defaultDailyForecast()); if(o.date!==todayStr()) o=defaultDailyForecast(); o.target=Math.max(0,Number(o.target||0)); o.fallbackAvg=Math.max(0,Number(o.fallbackAvg||0)); dbSet(DAILY_FORECAST_KEY,o).catch(()=>{}); return o; }
+  async function setDailyCostsViaPrompt(){ if(!isAdmin) return; const current=getDailyCosts(); const raw=await uiPrompt('Dagens utgifter (kr)',String(current),{inputMode:'numeric'}); if(raw===null) return; const n=Number(String(raw).replace(',','.').trim()); if(!Number.isFinite(n)||n<0){notify('Skriv en giltig siffra.');return;} saveDailyCosts(Math.round(n)); const fc=computeForecastForToday(cockpitTotals(todayStr()).intake,admittedToday()); if(n>0&&fc.avgUsed>0){const be=Math.ceil(n/fc.avgUsed);const o=loadDailyForecast();o.target=be;saveDailyForecast(o);} refreshCockpitIfOpen(); }
+  function loadDailyForecast(){ let o=dbGet(DAILY_FORECAST_KEY,defaultDailyForecast()); if(o.date!==todayStr()) o=defaultDailyForecast(); o.target=Math.max(0,Number(o.target||0)); o.fallbackAvg=Math.max(0,Number(o.fallbackAvg||0)); return o; }
   function saveDailyForecast(next){ const safe=next&&typeof next==='object'?next:{}; const o={date:todayStr(),target:Math.max(0,Number(safe.target||0)),fallbackAvg:Math.max(0,Number(safe.fallbackAvg||0))}; dbSet(DAILY_FORECAST_KEY,o).catch(()=>{}); }
   function getForecastTarget(){ return loadDailyForecast().target; }
   function getForecastFallbackAvg(){ return loadDailyForecast().fallbackAvg; }
-  function setForecastTargetViaPrompt(){ if(!isAdmin) return; const cur=getForecastTarget(); const costs=getDailyCosts(); const fc=computeForecastForToday(cockpitTotals(todayStr()).intake,admittedToday()); const be=(costs>0&&fc.avgUsed>0)?Math.ceil(costs/fc.avgUsed):null; const def=be??cur; const raw=prompt('Prognos: antal insläppta idag',String(def)); if(raw===null) return; const n=Number(String(raw).replace(',','.').trim()); if(!Number.isFinite(n)||n<0){alert('Skriv en giltig siffra.');return;} const o=loadDailyForecast(); o.target=Math.round(n); saveDailyForecast(o); refreshCockpitIfOpen(); }
-  function setForecastFallbackAvgViaPrompt(){ if(!isAdmin) return; const cur=getForecastFallbackAvg(); const raw=prompt('Fallback-snitt (kr per insläppt)',String(cur)); if(raw===null) return; const n=Number(String(raw).replace(',','.').trim()); if(!Number.isFinite(n)||n<0){alert('Skriv en giltig siffra.');return;} const o=loadDailyForecast(); o.fallbackAvg=Math.round(n); saveDailyForecast(o); refreshCockpitIfOpen(); }
+  async function setForecastTargetViaPrompt(){ if(!isAdmin) return; const cur=getForecastTarget(); const costs=getDailyCosts(); const fc=computeForecastForToday(cockpitTotals(todayStr()).intake,admittedToday()); const be=(costs>0&&fc.avgUsed>0)?Math.ceil(costs/fc.avgUsed):null; const def=be??cur; const raw=await uiPrompt('Prognos: antal insläppta idag',String(def),{inputMode:'numeric'}); if(raw===null) return; const n=Number(String(raw).replace(',','.').trim()); if(!Number.isFinite(n)||n<0){notify('Skriv en giltig siffra.');return;} const o=loadDailyForecast(); o.target=Math.round(n); saveDailyForecast(o); refreshCockpitIfOpen(); }
+  async function setForecastFallbackAvgViaPrompt(){ if(!isAdmin) return; const cur=getForecastFallbackAvg(); const raw=await uiPrompt('Fallback-snitt (kr per insläppt)',String(cur),{inputMode:'numeric'}); if(raw===null) return; const n=Number(String(raw).replace(',','.').trim()); if(!Number.isFinite(n)||n<0){notify('Skriv en giltig siffra.');return;} const o=loadDailyForecast(); o.fallbackAvg=Math.round(n); saveDailyForecast(o); refreshCockpitIfOpen(); }
   function computeForecastForToday(totalsIntake,admitted){ const target=getForecastTarget(); const fallbackAvg=getForecastFallbackAvg(); const liveAvg=(Number(admitted||0)>0)?(Number(totalsIntake||0)/Number(admitted||0)):0; let avgUsed=fallbackAvg,label='Fallback (tidigt på dagen)'; if(admitted>=10&&liveAvg>0){avgUsed=liveAvg;label='Live-snitt (dagens data)';}else if(admitted>=5){const a=fallbackAvg;const b=(liveAvg>0?liveAvg:fallbackAvg);avgUsed=(a+b)/2;label='Blandad (fallback + live)';} const predicted=Math.round(Number(target||0)*Number(avgUsed||0)); return {target,fallbackAvg,liveAvg,avgUsed,predicted,label}; }
 
   function loadSalesHistory(){ return dbGet(SALESHISTORY_KEY,defaultSalesHistory()); }
@@ -332,12 +381,14 @@
   function toggleSimilarDays(){ _showSimilarDays=!_showSimilarDays; refreshCockpitIfOpen(); }
   function useSimilarDaysAvg(avg){ if(!isAdmin) return; const o=loadDailyForecast(); o.target=Number(avg); saveDailyForecast(o); refreshCockpitIfOpen(); }
   function ensureHistDay(hist,date){ if(!hist[date]||hist[date]._deleted) hist[date]={adult:0,child:0,income:0,count:0,entries:[],hours:loadOpeningHours(),_clientTs:Date.now()}; if(!hist[date].hours) hist[date].hours=loadOpeningHours(); if(!Array.isArray(hist[date].entries)) hist[date].entries=[]; if(!Array.isArray(hist[date].reEntryPasses)) hist[date].reEntryPasses=[]; if(!Array.isArray(hist[date].admissionsEntries)) hist[date].admissionsEntries=[]; return hist[date]; }
-  function recordAdmission(n,isoTs,staffer){ const date=todayStr(); const hist=loadSalesHistory(); const day=ensureHistDay(hist,date); day.admissionsEntries.push({ts:isoTs||new Date().toISOString(),n:Number(n||0),staffer:staffer||'—'}); saveSalesHistory(hist); }
-  function histUpsertReEntryPass({id,label,createdAt}){ const date=todayStr(); const hist=loadSalesHistory(); const day=ensureHistDay(hist,date); const exists=day.reEntryPasses.find(p=>p.id===id); if(!exists){day.reEntryPasses.push({id,label:label||'Re-entry',createdAt:createdAt||new Date().toISOString(),count:0,uses:[]});saveSalesHistory(hist);} }
-  function histIncReEntryUse(id,isoTs){ const date=todayStr(); const hist=loadSalesHistory(); const day=ensureHistDay(hist,date); const p=day.reEntryPasses.find(x=>x.id===id); if(!p) return; p.count=Number(p.count||0)+1; if(!Array.isArray(p.uses)) p.uses=[]; p.uses.push(isoTs||new Date().toISOString()); saveSalesHistory(hist); }
-  function recordSale({time,items,sum,adult,child,seller,payType,ticketUid,ticketLabel,used,breakdown,reEntryCreated,reEntryIds}){ const date=todayStr(); const hist=loadSalesHistory(); if(!hist[date]||hist[date]._deleted) hist[date]={adult:0,child:0,income:0,count:0,entries:[],_clientTs:Date.now()}; hist[date].adult+=Number(adult||0); hist[date].child+=Number(child||0); hist[date].income+=Number(sum||0); hist[date].count+=1; hist[date].entries.unshift({time:time||new Date().toLocaleTimeString(),items:Array.isArray(items)?items:[],sum:Number(sum||0),adult:Number(adult||0),child:Number(child||0),seller:seller||'—',payType:payType||'—',ticketUid:ticketUid||null,ticketLabel:ticketLabel||null,used:!!used,breakdown:breakdown||null,reEntryCreated:Number(reEntryCreated||0),reEntryIds:Array.isArray(reEntryIds)?reEntryIds:[]}); saveSalesHistory(hist); _statsDirty=true; }
-  function markSaleTicketUsed(ticketUid){ if(!ticketUid) return; const hist=loadSalesHistory(); for(const date of Object.keys(hist)){ const day=hist[date]; if(!Array.isArray(day?.entries)) continue; const e=day.entries.find(x=>x.ticketUid===ticketUid); if(e&&!e.used){e.used=true;saveSalesHistory(hist);_statsDirty=true;return;} } }
-  function reactivateTicketFromHistory(key){ if(!isAdmin){alert('Endast admin kan återaktivera biljetter.');return;} const data=(window._reactivateTickets||{})[key]; if(!data){alert('Kunde inte hitta biljettdata.');return;} const o=loadOpenTickets(); if((o.items||[]).some(x=>x.createdAt===data.ticketUid&&!x.used)){alert('Biljetten finns redan i aktiva biljetter (ej använd).');return;} const staleIdx=(o.items||[]).findIndex(x=>x.createdAt===data.ticketUid); if(staleIdx>-1) o.items.splice(staleIdx,1); o.items.unshift({id:null,label:data.label||null,time:new Date().toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'}),createdAt:data.ticketUid||new Date().toISOString(),adult:Number(data.adult||0),child:Number(data.child||0),sum:Number(data.sum||0)}); saveOpenTickets(o); alert('Biljetten är nu återlagd i aktiva biljetter.'); }
+  function recordAdmission(n,isoTs,staffer){ const date=todayStr(); const entry={ts:isoTs||new Date().toISOString(),n:Number(n||0),staffer:staffer||'—'}; mutateSalesHistory(hist=>{ const day=ensureHistDay(hist,date); if(!day.admissionsEntries.some(e=>e.ts===entry.ts&&e.staffer===entry.staffer)) day.admissionsEntries.push({...entry}); }); }
+  function histUpsertReEntryPass({id,label,createdAt}){ const date=todayStr(); const pass={id,label:label||'Re-entry',createdAt:createdAt||new Date().toISOString(),count:0,uses:[]}; mutateSalesHistory(hist=>{ const day=ensureHistDay(hist,date); if(!day.reEntryPasses.find(p=>p.id===id)) day.reEntryPasses.push(_clone(pass)); }); }
+  function histIncReEntryUse(id,isoTs){ const date=todayStr(); const ts=isoTs||new Date().toISOString(); mutateSalesHistory(hist=>{ const day=ensureHistDay(hist,date); const p=day.reEntryPasses.find(x=>x.id===id); if(!p) return; if(!Array.isArray(p.uses)) p.uses=[]; if(p.uses.includes(ts)) return; p.count=Number(p.count||0)+1; p.uses.push(ts); }); }
+  function recordSale({time,items,sum,adult,child,seller,payType,ticketUid,ticketLabel,used,breakdown,reEntryCreated,reEntryIds}){ const date=todayStr(); const saleId=Date.now().toString(36)+Math.random().toString(36).slice(2,7); const entry={saleId,time:time||new Date().toLocaleTimeString(),items:Array.isArray(items)?items:[],sum:Number(sum||0),adult:Number(adult||0),child:Number(child||0),seller:seller||'—',payType:payType||'—',ticketUid:ticketUid||null,ticketLabel:ticketLabel||null,used:!!used,breakdown:breakdown||null,reEntryCreated:Number(reEntryCreated||0),reEntryIds:Array.isArray(reEntryIds)?reEntryIds:[]}; mutateSalesHistory(hist=>{ if(!hist[date]||hist[date]._deleted) hist[date]={adult:0,child:0,income:0,count:0,entries:[],_clientTs:Date.now()}; if(!Array.isArray(hist[date].entries)) hist[date].entries=[]; if(hist[date].entries.some(e=>e.saleId===saleId)) return; hist[date].adult=Number(hist[date].adult||0)+Number(adult||0); hist[date].child=Number(hist[date].child||0)+Number(child||0); hist[date].income=Number(hist[date].income||0)+Number(sum||0); hist[date].count=Number(hist[date].count||0)+1; hist[date].entries.unshift(_clone(entry)); }); _statsDirty=true; }
+  function markSaleTicketUsed(ticketUid,fled){ if(!ticketUid) return; fled=Number(fled||0); mutateSalesHistory(hist=>{ for(const date of Object.keys(hist)){ const day=hist[date]; if(!Array.isArray(day?.entries)) continue; const e=day.entries.find(x=>x.ticketUid===ticketUid); if(e){ e.used=true; if(fled) e.fled=fled; return; } } }); _statsDirty=true; }
+  // Biljetter som tömts i insläppet men ännu inte är markerade i historiken (t.ex. om köpet inte hunnit fram) markeras i efterhand.
+  function syncUsedTicketsToHistory(){ if(_db.pendingWrites.has(SALESHISTORY_KEY)) return; const usedItems=loadOpenTickets().items.filter(x=>x.used&&!(x.usedAt&&Date.now()-x.usedAt<12000)); const used=new Set(usedItems.map(x=>x.createdAt)); if(!used.size) return; const fledBy=Object.fromEntries(usedItems.map(x=>[x.createdAt,Number(x.fled||0)])); const today=todayStr(); const day=loadSalesHistory()[today]; const miss=(day?.entries||[]).filter(e=>e.ticketUid&&used.has(e.ticketUid)&&!e.used).map(e=>e.ticketUid); if(!miss.length) return; mutateSalesHistory(h=>{ (h[today]?.entries||[]).forEach(e=>{ if(miss.includes(e.ticketUid)){ e.used=true; if(fledBy[e.ticketUid]) e.fled=fledBy[e.ticketUid]; } }); }); }
+  function reactivateTicketFromHistory(key){ if(!isAdmin){notify('Endast admin kan återaktivera biljetter.');return;} const data=(window._reactivateTickets||{})[key]; if(!data){notify('Kunde inte hitta biljettdata.');return;} const o=loadOpenTickets(); if((o.items||[]).some(x=>x.createdAt===data.ticketUid&&!x.used)){notify('Biljetten finns redan i aktiva biljetter (ej använd).');return;} const item={id:null,label:data.label||null,time:new Date().toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'}),createdAt:data.ticketUid||new Date().toISOString(),adult:Number(data.adult||0),child:Number(data.child||0),sum:Number(data.sum||0)}; mutateOpenTickets(t=>{ const i=t.items.findIndex(x=>x.createdAt===item.createdAt); if(i>-1) t.items[i]={...item}; else t.items.unshift({...item}); }); notify('Biljetten är nu återlagd i aktiva biljetter.'); }
 
   // ===== LÖNER =====
   function defaultWageSettings(){ return {bassumma:200,verksamhetsandel:20,skatteprocent:50,task_vikter:{},task_kassaboost:{}}; }
@@ -352,26 +403,22 @@
   function getLonTotalIncomeForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); total+=Number((hist[ds]||{}).income||0); d.setDate(d.getDate()+1); } return total; }
   function getLonOpeningHrsForPeriod(fromDate,toDate){ const hist=loadSalesHistory(); const today=todayStr(); let total=0; const d=new Date(fromDate+'T12:00:00'); const end=new Date(toDate+'T12:00:00'); while(d<=end){ const ds=d.toISOString().slice(0,10); let hoursStr; if(ds===today){ const live=loadOpeningHours()||''; hoursStr=(live&&live!=='Stängt')?live:((hist[ds]||{}).hours||''); } else { hoursStr=(hist[ds]||{}).hours||''; } total+=parseWorkHoursStr(hoursStr); d.setDate(d.getDate()+1); } return total; }
 
-  function snapshotStaffHoursToday(){ const hist=loadSalesHistory(); const day=ensureHistDay(hist,todayStr()); if(!day.staffHours) day.staffHours={}; Object.keys(userData).forEach(name=>{ if(userData[name]&&typeof userData[name].hours==='string') day.staffHours[name]={hours:userData[name].hours||'',task:userData[name].task||''}; }); if(openingHours&&openingHours!=='Stängt') day.openingHrs=parseWorkHoursStr(openingHours); saveSalesHistory(hist); }
+  function snapshotStaffHoursToday(){ const snap={}; Object.keys(userData).forEach(name=>{ if(userData[name]&&typeof userData[name].hours==='string') snap[name]={hours:userData[name].hours||'',task:userData[name].task||''}; }); const oh=(openingHours&&openingHours!=='Stängt')?parseWorkHoursStr(openingHours):null; mutateSalesHistory(hist=>{ const day=ensureHistDay(hist,todayStr()); if(!day.staffHours) day.staffHours={}; Object.assign(day.staffHours,_clone(snap)); if(oh) day.openingHrs=oh; }); }
 
   function toggleUpcomingShifts(){ const list=document.getElementById('upcomingShiftsList'); const chevron=document.getElementById('upcomingChevron'); if(!list) return; const open=list.style.display!=='none'; list.style.display=open?'none':''; if(chevron) chevron.style.transform=open?'rotate(180deg)':'rotate(0deg)'; localStorage.setItem('upcomingShiftsOpen',String(!open)); }
+  // Ett pass som admin lägger in, eller vars tid ändras, måste bekräftas av personen på Min sida (confirmed:false).
+  // Pass utan fältet räknas som bekräftade, så att äldre pass inte behöver bekräftas i efterhand.
+  function shiftAfterAdminEdit(prev,hours,task){ const same=prev&&(prev.hours||'')===(hours||''); const next={hours,task}; if(same&&prev.confirmed!==false) return next; if(same&&prev.confirmed===false) return {...next,confirmed:false}; return hours||task?{...next,confirmed:false}:next; }
+  function shiftNeedsConfirm(s){ return !!(s&&(s.hours||s.task)&&s.confirmed===false); }
   function loadShiftPlan(){ const v=dbGet(SHIFT_PLAN_KEY,null); return (v&&typeof v==='object')?v:{}; }
   function saveShiftPlan(p){ dbSet(SHIFT_PLAN_KEY,p||{}).catch(()=>{}); }
 
-  function selectWelcomeTab(tab){
-    ['rubriker','text','faq'].forEach(t=>{
-      document.getElementById('welPanel_'+t).style.display=tab===t?'':'none';
-      const base='background:none;border:none;font-family:\'IM Fell English SC\',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;';
-      document.getElementById('welTab_'+t).style.cssText=base+(tab===t?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);');
-    });
-  }
 
   function selectPersonalTab(tab){
     document.getElementById('persPanel_idag').style.display=tab==='idag'?'':'none';
     document.getElementById('persPanel_schema').style.display=tab==='schema'?'':'none';
-    const base='background:none;border:none;font-family:\'IM Fell English SC\',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;';
-    document.getElementById('persTab_idag').style.cssText=base+(tab==='idag'?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);');
-    document.getElementById('persTab_schema').style.cssText=base+(tab==='schema'?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);');
+    document.getElementById('persTab_idag').classList.toggle('is-active',tab==='idag');
+    document.getElementById('persTab_schema').classList.toggle('is-active',tab==='schema');
     if(tab==='schema') renderSchemaForEmployee();
   }
 
@@ -379,20 +426,21 @@
     const sel=document.getElementById('userSelect'); if(!sel) return;
     if(sel.value==='__alla__'){ renderSchemaAll(); return; }
     const saveRow=document.querySelector('#persPanel_schema .row');if(saveRow) saveRow.style.display='';
-    const pw=sel.value; const u=users[pw]; if(!u) return;
+    const id=sel.value; const u=users[id]; if(!u) return;
     const name=u.name;
     const today=todayStr();
     const allOpenDates=loadOpenDates().map(e=>typeof e==='string'?{date:e,hours:''}:e);
     const future=allOpenDates.filter(e=>e.date>today).sort((a,b)=>a.date.localeCompare(b.date));
     const plan=loadShiftPlan(); const tasks=loadTaskCatalog();
     const el=document.getElementById('schemaEmployeeRows'); if(!el) return;
-    const taskOpts=(current)=>tasks.map(t=>`<option value="${escapeHtml(t)}"${current===t?' selected':''}>${escapeHtml(t)}</option>`).join('');
+    // En uppgift som inte längre finns i listan visas ändå, så att den inte töms när schemat sparas
+    const taskOpts=(current)=>(current&&!tasks.includes(current)?[current,...tasks]:tasks).map(t=>`<option value="${escapeHtml(t)}"${current===t?' selected':''}>${escapeHtml(t)}</option>`).join('');
     function dayRow(date,openHrs,hours,task,isToday){
-      const label=isToday?`Idag <span style="color:rgba(232,224,208,0.4);font-size:11px;">${escapeHtml(date)}</span>`:`${escapeHtml(date)}`;
-      const openLabel=openHrs?`<span style="color:rgba(232,224,208,0.4);font-size:11px;margin-left:6px;">${escapeHtml(openHrs)}</span>`:'';
+      const label=isToday?`Idag <span style="color:rgba(221,227,220,0.4);font-size:11px;">${escapeHtml(date)}</span>`:`${escapeHtml(date)}`;
+      const openLabel=openHrs?`<span style="color:rgba(221,227,220,0.4);font-size:11px;margin-left:6px;">${escapeHtml(openHrs)}</span>`:'';
       const todayAttr=isToday?' data-is-today="true"':'';
-      return `<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(232,224,208,0.07);">
-        <div style="font-family:'IM Fell English SC',serif;font-size:13px;margin-bottom:6px;">${label}${openLabel}</div>
+      return `<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(221,227,220,0.07);">
+        <div style="font-family:var(--f-label);font-size:13px;margin-bottom:6px;">${label}${openLabel}</div>
         <div class="row" style="gap:10px;flex-wrap:wrap;">
           <input class="input schema-hours" data-date="${escapeHtml(date)}"${todayAttr} value="${escapeHtml(hours)}" placeholder="t.ex. 14:00–22:00" style="width:140px;">
           <select class="input schema-task" data-date="${escapeHtml(date)}"${todayAttr} style="flex:1;min-width:120px;"><option value="">— Ingen uppgift —</option>${taskOpts(task)}</select>
@@ -406,7 +454,7 @@
     const todayHtml=dayRow(today,todayOpenHrs,todayPlanned.hours,todayPlanned.task,true);
     const past=Object.keys(plan).filter(d=>d<today&&(plan[d][name]?.hours||plan[d][name]?.task)).sort((a,b)=>b.localeCompare(a));
     const pastHist=loadSalesHistory();
-    const pastHtml=past.length?`<div style="margin-top:16px;margin-bottom:8px;font-family:'IM Fell English SC',serif;font-size:11px;color:rgba(232,224,208,0.3);letter-spacing:1px;">TIDIGARE</div>`+past.map(d=>{const p=plan[d][name];const openHrs=pastHist[d]?.hours||'';return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(232,224,208,0.05);opacity:0.5;"><div><div style="font-family:'IM Fell English SC',serif;font-size:13px;">${escapeHtml(d)}${openHrs?` <span style="color:rgba(232,224,208,0.4);font-size:11px;">${escapeHtml(openHrs)}</span>`:''}</div></div><div style="font-size:13px;">${escapeHtml(p.hours||'—')}${p.task?` <span style="opacity:0.6;font-size:11px;">· ${escapeHtml(p.task)}</span>`:''}</div></div>`;}).join(''):'';
+    const pastHtml=past.length?`<div style="margin-top:16px;margin-bottom:8px;font-family:var(--f-label);font-size:11px;color:rgba(221,227,220,0.3);letter-spacing:1px;">TIDIGARE</div>`+past.map(d=>{const p=plan[d][name];const openHrs=pastHist[d]?.hours||'';return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(221,227,220,0.05);opacity:0.5;"><div><div style="font-family:var(--f-label);font-size:13px;">${escapeHtml(d)}${openHrs?` <span style="color:rgba(221,227,220,0.4);font-size:11px;">${escapeHtml(openHrs)}</span>`:''}</div></div><div style="font-size:13px;">${escapeHtml(p.hours||'—')}${p.task?` <span style="opacity:0.6;font-size:11px;">· ${escapeHtml(p.task)}</span>`:''}</div></div>`;}).join(''):'';
     if(!future.length){ el.innerHTML=todayHtml+'<div class="muted" style="margin-top:8px;">Inga kommande öppna dagar inlagda under Öppettider.</div>'+pastHtml; return; }
     el.innerHTML=todayHtml+future.map(e=>{
       const dayPlan=plan[e.date]||{}; const planned=dayPlan[name]||{hours:'',task:''};
@@ -416,14 +464,16 @@
 
   function saveSchemaForEmployee(){
     const sel=document.getElementById('userSelect'); if(!sel) return;
-    const pw=sel.value; const u=users[pw]; if(!u) return;
+    const id=sel.value; const u=users[id]; if(!u) return;
     const name=u.name;
     const plan=loadShiftPlan();
     document.querySelectorAll('.schema-hours[data-date]').forEach(inp=>{
       const date=inp.dataset.date; if(!plan[date]) plan[date]={};
       const taskEl=document.querySelector(`.schema-task[data-date="${CSS.escape(date)}"]`);
       const hours=inp.value.trim(); const task=taskEl?.value||'';
-      plan[date][name]={hours,task};
+      const prev=plan[date][name];
+      if(prev&&(prev.hours||'')===hours&&(prev.task||'')===task){ /* oförändrat: behåll bekräftelsen */ }
+      else plan[date][name]=shiftAfterAdminEdit(prev,hours,task);
       if(inp.dataset.isToday){
         ensureProfileDefaults(name);
         userData[name].hours=hours; userData[name].task=task; userData[name].hoursDate=todayStr();
@@ -432,7 +482,7 @@
       }
     });
     saveShiftPlan(plan);
-    const c=document.getElementById('schemaSavedConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);}
+    const c=document.getElementById('schemaSavedConfirm'); if(c){notify('Sparat.');}
     refreshLonIfOpen();
   }
 
@@ -462,19 +512,17 @@
 
   function getLonDaysBetween(fromDate,toDate){ const d1=new Date(fromDate+'T12:00:00'); const d2=new Date(toDate+'T12:00:00'); return Math.max(1,Math.round((d2-d1)/86400000)+1); }
 
-  function saveLonSettings(){ const bassumma=Number(String(document.getElementById('lonBassumma')?.value||'0').replace(',','.')); const verk=Number(String(document.getElementById('lonVerksamhet')?.value||'0').replace(',','.')); const skatteprocent=Number(String(document.getElementById('lonSkatteprocent')?.value||'50').replace(',','.')); if(!Number.isFinite(bassumma)||bassumma<0||!Number.isFinite(verk)||verk<0||verk>100||!Number.isFinite(skatteprocent)||skatteprocent<0||skatteprocent>100){alert('Kontrollera värdena.');return;} const task_vikter={}; document.querySelectorAll('#lonTaskVikterList .lon-task-vikt').forEach(inp=>{ const task=inp.dataset.task; const val=Number(String(inp.value||'').replace(',','.')); if(task&&val>0) task_vikter[task]=val; }); const task_kassaboost={}; document.querySelectorAll('#lonTaskVikterList .lon-task-boost').forEach(chk=>{ if(chk.dataset.task&&chk.checked) task_kassaboost[chk.dataset.task]=true; }); saveWageSettings({bassumma:Math.round(bassumma),verksamhetsandel:Math.round(verk),skatteprocent:Math.round(skatteprocent),task_vikter,task_kassaboost}); const c=document.getElementById('lonSettingsConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} renderLon(); renderLonIdag(); }
+  function saveLonSettings(){ const bassumma=Number(String(document.getElementById('lonBassumma')?.value||'0').replace(',','.')); const verk=Number(String(document.getElementById('lonVerksamhet')?.value||'0').replace(',','.')); const skatteprocent=Number(String(document.getElementById('lonSkatteprocent')?.value||'50').replace(',','.')); if(!Number.isFinite(bassumma)||bassumma<0||!Number.isFinite(verk)||verk<0||verk>100||!Number.isFinite(skatteprocent)||skatteprocent<0||skatteprocent>100){notify('Kontrollera värdena.');return;} const task_vikter={}; document.querySelectorAll('#lonTaskVikterList .lon-task-vikt').forEach(inp=>{ const task=inp.dataset.task; const val=Number(String(inp.value||'').replace(',','.')); if(task&&val>0) task_vikter[task]=val; }); const task_kassaboost={}; document.querySelectorAll('#lonTaskVikterList .lon-task-boost').forEach(chk=>{ if(chk.dataset.task&&chk.checked) task_kassaboost[chk.dataset.task]=true; }); saveWageSettings({bassumma:Math.round(bassumma),verksamhetsandel:Math.round(verk),skatteprocent:Math.round(skatteprocent),task_vikter,task_kassaboost}); const c=document.getElementById('lonSettingsConfirm'); if(c){notify('Sparat.');} renderLon(); renderLonIdag(); }
 
   function selectDisplayTab(tab){
     ['enheter','kundskarm'].forEach(t=>{ const p=document.getElementById('displayPanel_'+t); if(p) p.style.display=tab===t?'':'none'; });
-    const base='background:none;border:none;font-family:\'IM Fell English SC\',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;';
-    ['enheter','kundskarm'].forEach(t=>{ const b=document.getElementById('displayTab_'+t); if(b) b.style.cssText=base+(tab===t?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);'); });
+    ['enheter','kundskarm'].forEach(t=>{ const b=document.getElementById('displayTab_'+t); if(b) b.classList.toggle('is-active',tab===t); });
     if(tab==='enheter') renderDevicesAdmin();
     if(tab==='kundskarm') loadDisplayAdminStatus();
   }
   function selectLonTab(tab){
     ['idag','historik','berakna','installningar'].forEach(t=>{ const p=document.getElementById('lonPanel_'+t); if(p) p.style.display=tab===t?'':'none'; });
-    const base='background:none;border:none;font-family:\'IM Fell English SC\',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;';
-    ['idag','historik','berakna','installningar'].forEach(t=>{ const b=document.getElementById('lonTab_'+t); if(b) b.style.cssText=base+(tab===t?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);'); });
+    ['idag','historik','berakna','installningar'].forEach(t=>{ const b=document.getElementById('lonTab_'+t); if(b) b.classList.toggle('is-active',tab===t); });
     if(tab==='historik') renderLonHistorik();
     if(tab==='idag') renderLonIdag();
   }
@@ -513,18 +561,18 @@
         const voluntarPayH=voluntarKassaH.map(s=>{ const andel=dayTotalIntakt>0?s.personIntakt/dayTotalIntakt:0; const totalt=Math.round(andel*deln); return {...s,andel,totalt}; });
         const totalVoluntarH=voluntarPayH.reduce((a,s)=>a+s.totalt,0);
         const normalDelnH=Math.max(0,deln-totalVoluntarH);
-        staffHtml=[...normalStaffH.map(s=>{ const andel=totalPoang>0?s.poang/totalPoang:0; const totalt=bassumma+Math.round(andel*normalDelnH); return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(232,224,208,0.06);font-size:12px;"><span>${escapeHtml(s.name)} <span style="color:rgba(232,224,208,0.4);">${escapeHtml(s.task)}</span></span><span style="font-family:'IM Fell English SC',serif;">${totalt} kr</span></div>`; }),...voluntarPayH.map(s=>{ return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(232,224,208,0.06);font-size:12px;"><span>${escapeHtml(s.name)} <span style="color:rgba(232,224,208,0.3);font-size:10px;">volontär</span> <span style="color:rgba(232,224,208,0.4);">${escapeHtml(s.task)}</span></span><span style="font-family:'IM Fell English SC',serif;">${s.totalt} kr</span></div>`; })].join('');
+        staffHtml=[...normalStaffH.map(s=>{ const andel=totalPoang>0?s.poang/totalPoang:0; const totalt=bassumma+Math.round(andel*normalDelnH); return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(221,227,220,0.06);font-size:12px;"><span>${escapeHtml(s.name)} <span style="color:rgba(221,227,220,0.4);">${escapeHtml(s.task)}</span></span><span style="font-family:var(--f-label);">${totalt} kr</span></div>`; }),...voluntarPayH.map(s=>{ return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(221,227,220,0.06);font-size:12px;"><span>${escapeHtml(s.name)} <span style="color:rgba(221,227,220,0.3);font-size:10px;">volontär</span> <span style="color:rgba(221,227,220,0.4);">${escapeHtml(s.task)}</span></span><span style="font-family:var(--f-label);">${s.totalt} kr</span></div>`; })].join('');
       } else {
         staffHtml=`<div class="tiny muted">Inga sparade arbetstider för detta datum.</div>`;
       }
       const shortDate=date.slice(5).replace('-','/');
-      return `<div style="margin-bottom:8px;border:1px solid rgba(232,224,208,0.08);border-radius:6px;overflow:hidden;">
-        <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none';this.querySelector('.lon-chevron').textContent=this.nextElementSibling.style.display===''?'▴':'▾';" style="width:100%;background:rgba(255,255,255,0.03);border:none;padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-family:'IM Fell English SC',serif;font-size:13px;color:rgba(232,224,208,0.85);text-align:left;">
+      return `<div style="margin-bottom:8px;border:1px solid rgba(221,227,220,0.08);border-radius:6px;overflow:hidden;">
+        <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none';this.querySelector('.lon-chevron').textContent=this.nextElementSibling.style.display===''?'▴':'▾';" style="width:100%;background:rgba(255,255,255,0.03);border:none;padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-family:var(--f-label);font-size:13px;color:rgba(221,227,220,0.85);text-align:left;">
           <span>${shortDate}${hasSnap?'':' <span style="color:rgba(220,180,80,0.5);font-size:11px;">saknar arbetstider</span>'}</span>
-          <span style="display:flex;gap:16px;align-items:center;"><span style="font-size:12px;color:rgba(232,224,208,0.5);">${income} kr</span><span class="lon-chevron" style="font-size:10px;">▾</span></span>
+          <span style="display:flex;gap:16px;align-items:center;"><span style="font-size:12px;color:rgba(221,227,220,0.5);">${income} kr</span><span class="lon-chevron" style="font-size:10px;">▾</span></span>
         </button>
-        <div style="display:none;padding:10px 14px;font-family:'IM Fell English',serif;">
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(232,224,208,0.5);margin-bottom:6px;"><span>Lönepott (efter ${Math.round(verkAndel*100)}% verksamhet)</span><span>${lonPott} kr</span></div>
+        <div style="display:none;padding:10px 14px;font-family:var(--f-body);">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(221,227,220,0.5);margin-bottom:6px;"><span>Lönepott (efter ${Math.round(verkAndel*100)}% verksamhet)</span><span>${lonPott} kr</span></div>
           ${staffHtml}
           <div style="margin-top:8px;text-align:right;"><button class="btn" style="font-size:11px;padding:4px 10px;" onclick="document.getElementById('lonFromDate').value='${date}';document.getElementById('lonToDate').value='${date}';selectLonTab('berakna');renderLon();">Öppna i Beräkna →</button></div>
         </div>
@@ -532,7 +580,7 @@
     }).join('');
   }
 
-  function initLonPanel(){ const s=loadWageSettings(); const b=document.getElementById('lonBassumma'); const v=document.getElementById('lonVerksamhet'); const sk=document.getElementById('lonSkatteprocent'); if(b) b.value=s.bassumma; if(v) v.value=s.verksamhetsandel; if(sk) sk.value=s.skatteprocent??50; const list=document.getElementById('lonTaskVikterList'); if(list){ const tasks=loadTaskCatalog(); list.innerHTML=tasks.length?tasks.map(t=>{ const savedV=(s.task_vikter||{})[t]; const savedB=!!((s.task_kassaboost||{})[t]); return `<div style="display:flex;align-items:center;gap:10px;"><span style="flex:1;font-size:13px;">${escapeHtml(t)}</span><input type="number" class="input lon-task-vikt" data-task="${escapeHtml(t)}" min="0.1" max="10" step="0.1" style="width:70px;" placeholder="1.0"${savedV?` value="${savedV}"`:''}><label style="display:flex;align-items:center;gap:4px;font-size:12px;color:rgba(232,224,208,0.6);white-space:nowrap;cursor:pointer;"><input type="checkbox" class="lon-task-boost" data-task="${escapeHtml(t)}"${savedB?' checked':''}> kassaboost</label></div>`; }).join(''):'<div class="tiny muted">Inga uppgifter i katalogen ännu.</div>'; } const today=todayStr(); const fd=document.getElementById('lonFromDate'); const td=document.getElementById('lonToDate'); if(fd&&!fd.value) fd.value=today; if(td&&!td.value) td.value=today; selectLonTab('idag'); }
+  function initLonPanel(){ const s=loadWageSettings(); const b=document.getElementById('lonBassumma'); const v=document.getElementById('lonVerksamhet'); const sk=document.getElementById('lonSkatteprocent'); if(b) b.value=s.bassumma; if(v) v.value=s.verksamhetsandel; if(sk) sk.value=s.skatteprocent??50; const list=document.getElementById('lonTaskVikterList'); if(list){ const tasks=loadTaskCatalog(); list.innerHTML=tasks.length?tasks.map(t=>{ const savedV=(s.task_vikter||{})[t]; const savedB=!!((s.task_kassaboost||{})[t]); return `<div style="display:flex;align-items:center;gap:10px;"><span style="flex:1;font-size:13px;">${escapeHtml(t)}</span><input type="number" class="input lon-task-vikt" data-task="${escapeHtml(t)}" min="0.1" max="10" step="0.1" style="width:70px;" placeholder="1.0"${savedV?` value="${savedV}"`:''}><label style="display:flex;align-items:center;gap:4px;font-size:12px;color:rgba(221,227,220,0.6);white-space:nowrap;cursor:pointer;"><input type="checkbox" class="lon-task-boost" data-task="${escapeHtml(t)}"${savedB?' checked':''}> kassaboost</label></div>`; }).join(''):'<div class="tiny muted">Inga uppgifter i katalogen ännu.</div>'; } const today=todayStr(); const fd=document.getElementById('lonFromDate'); const td=document.getElementById('lonToDate'); if(fd&&!fd.value) fd.value=today; if(td&&!td.value) td.value=today; selectLonTab('idag'); }
   function refreshLonIfOpen(){ const el=document.getElementById('lonContent'); if(!el||el.style.display!=='block') return; if(document.getElementById('lonPanel_idag')?.style.display!=='none') renderLonIdag(); else renderLon(); }
 
   function renderLon(opts){
@@ -586,19 +634,19 @@
     const totalLon=rows.reduce((s,r)=>s+r.totalt,0);
     const kvar=verkDel+(lonPott-totalLon);
     const periodLabel=fromVal===toVal?fromVal:`${fromVal} – ${toVal}`;
-    let html=`<div style="margin-top:16px;padding:14px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(232,224,208,0.1);font-family:'IM Fell English',serif;font-size:13px;">`;
-    html+=`<div style="font-size:11px;color:rgba(232,224,208,0.4);margin-bottom:10px;letter-spacing:0.5px;">${escapeHtml(periodLabel)}</div>`;
+    let html=`<div style="margin-top:16px;padding:14px;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid rgba(221,227,220,0.1);font-family:var(--f-body);font-size:13px;">`;
+    html+=`<div style="font-size:11px;color:rgba(221,227,220,0.4);margin-bottom:10px;letter-spacing:0.5px;">${escapeHtml(periodLabel)}</div>`;
     html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span>Intäkter perioden</span><span>${totalIncome} kr</span></div>`;
-    if(totalUgifter>0) html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Utgifter perioden</span><span>−${totalUgifter} kr</span></div>`;
-    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Skatt (${Math.round(skatteProcent*100)}%)</span><span>−${skatt} kr</span></div>`;
-    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;border-top:1px solid rgba(232,224,208,0.12);padding-top:6px;"><span>Netto att fördela</span><strong>${nettoAttFordela} kr</strong></div>`;
-    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Verksamhetsandel (${Math.round(verkAndel*100)}%)</span><span>−${verkDel} kr</span></div>`;
-    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;border-top:1px solid rgba(232,224,208,0.12);padding-top:6px;"><span>Lönepott</span><strong>${lonPott} kr</strong></div>`;
-    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(232,224,208,0.5);"><span>Total lönekostnad</span><span>−${totalLon} kr</span></div>`;
-    html+=`<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(232,224,208,0.15);padding-top:6px;margin-top:4px;"><span>Kvar till verksamheten</span><strong style="color:#d4872a;">${kvar} kr</strong></div>`;
+    if(totalUgifter>0) html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(221,227,220,0.5);"><span>Utgifter perioden</span><span>−${totalUgifter} kr</span></div>`;
+    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(221,227,220,0.5);"><span>Skatt (${Math.round(skatteProcent*100)}%)</span><span>−${skatt} kr</span></div>`;
+    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;border-top:1px solid rgba(221,227,220,0.12);padding-top:6px;"><span>Netto att fördela</span><strong>${nettoAttFordela} kr</strong></div>`;
+    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(221,227,220,0.5);"><span>Verksamhetsandel (${Math.round(verkAndel*100)}%)</span><span>−${verkDel} kr</span></div>`;
+    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;border-top:1px solid rgba(221,227,220,0.12);padding-top:6px;"><span>Lönepott</span><strong>${lonPott} kr</strong></div>`;
+    html+=`<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:rgba(221,227,220,0.5);"><span>Total lönekostnad</span><span>−${totalLon} kr</span></div>`;
+    html+=`<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(221,227,220,0.15);padding-top:6px;margin-top:4px;"><span>Kvar till verksamheten</span><strong style="color:#d6cfbd;">${kvar} kr</strong></div>`;
     html+=`</div>`;
-    html+=`<div style="margin-top:14px;overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:'IM Fell English',serif;font-size:13px;">`;
-    html+=`<thead><tr style="border-bottom:1px solid rgba(232,224,208,0.2);color:rgba(232,224,208,0.5);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">`;
+    html+=`<div style="margin-top:14px;overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:var(--f-body);font-size:13px;">`;
+    html+=`<thead><tr style="border-bottom:1px solid rgba(221,227,220,0.2);color:rgba(221,227,220,0.5);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">`;
     html+=`<th style="text-align:left;padding:6px 8px;font-weight:normal;">Namn</th>`;
     html+=`<th style="text-align:left;padding:6px 8px;font-weight:normal;">Uppgift</th>`;
     html+=`<th style="text-align:center;padding:6px 8px;font-weight:normal;">Timmar</th>`;
@@ -606,16 +654,16 @@
     html+=`<th style="text-align:right;padding:6px 8px;font-weight:normal;">Lön</th>`;
     html+=`</tr></thead><tbody>`;
     rows.forEach(r=>{
-      html+=`<tr style="border-bottom:1px solid rgba(232,224,208,0.07);">`;
-      const volLabel=r.isVoluntar?` <span style="color:rgba(232,224,208,0.3);font-size:10px;">volontär</span>`:'';
+      html+=`<tr style="border-bottom:1px solid rgba(221,227,220,0.07);">`;
+      const volLabel=r.isVoluntar?` <span style="color:rgba(221,227,220,0.3);font-size:10px;">volontär</span>`:'';
       html+=`<td style="padding:8px;">${escapeHtml(r.name)}${volLabel}</td>`;
-      const viktLabel=r.vikt!==1.0?` <span style="color:#d4872a;font-size:11px;">×${r.vikt.toFixed(1)}</span>`:'';
-      const transLabel=r.kassaBoost&&r.personTrans>0?` <span style="color:rgba(232,224,208,0.35);font-size:10px;">${r.personTrans} trans.</span>`:'';
+      const viktLabel=r.vikt!==1.0?` <span style="color:#d6cfbd;font-size:11px;">×${r.vikt.toFixed(1)}</span>`:'';
+      const transLabel=r.kassaBoost&&r.personTrans>0?` <span style="color:rgba(221,227,220,0.35);font-size:10px;">${r.personTrans} trans.</span>`:'';
       html+=`<td style="padding:8px;">${escapeHtml(r.task)}${viktLabel}${transLabel}</td>`;
       const hrsLabel=totalOpeningHrs>0?`${r.totalHrs}h / ${totalOpeningHrs}h`:`${r.totalHrs}h`;
       html+=`<td style="text-align:center;padding:8px;">${hrsLabel}</td>`;
-      html+=`<td style="text-align:center;padding:8px;color:rgba(232,224,208,0.6);">${(r.andel*100).toFixed(0)}%</td>`;
-      html+=`<td style="text-align:right;padding:8px;font-family:'IM Fell English SC',serif;letter-spacing:0.5px;">${r.totalt} kr</td>`;
+      html+=`<td style="text-align:center;padding:8px;color:rgba(221,227,220,0.6);">${(r.andel*100).toFixed(0)}%</td>`;
+      html+=`<td style="text-align:right;padding:8px;font-family:var(--f-label);letter-spacing:0.5px;">${r.totalt} kr</td>`;
       html+=`</tr>`;
     });
     html+=`</tbody></table></div>`;
@@ -629,21 +677,76 @@
 
   function deleteStatsDay(date){ if(!isAdmin||!date) return; window._deletingDate=date; const lbl=document.getElementById('deleteDayLabel'); if(lbl) lbl.textContent=`All statistik för ${date} kommer att tas bort.`; const err=document.getElementById('deleteDayError'); if(err) err.textContent=''; const inp=document.getElementById('deleteDayPassInput'); if(inp) inp.value=''; const m=document.getElementById('deleteDayModal'); if(m) m.style.display='flex'; setTimeout(()=>inp?.focus(),80); }
   function closeDeleteDayModal(){ const m=document.getElementById('deleteDayModal'); if(m) m.style.display='none'; window._deletingDate=null; document.getElementById('deleteDayStep1').style.display=''; document.getElementById('deleteDayStep2').style.display='none'; }
-  function confirmDeleteDay(){ const date=window._deletingDate; if(!date) return; const pw=(document.getElementById('deleteDayPassInput')?.value||'').trim(); const u=users[pw]; if(!u||!u.admin){ const err=document.getElementById('deleteDayError'); if(err) err.textContent='Fel lösenord.'; document.getElementById('deleteDayPassInput')?.select(); return; } document.getElementById('deleteDayStep1').style.display='none'; const s2=document.getElementById('deleteDayStep2'); s2.style.display=''; const lbl=document.getElementById('deleteDayConfirmLabel'); if(lbl) lbl.textContent=`All statistik för ${date} tas bort permanent.`; setTimeout(()=>s2.querySelector('button.btn-danger')?.focus(),50); }
+  // Kontrollerar den inloggades eget lösenord på servern. Personen måste vara admin.
+  async function _verifyMyAdminPassword(pw){ if(!pw) return 'Fel lösenord.'; try{ const r=await apiAction('verify',{ name:_myCanonName(), pw }); if(r&&r.ok&&r.admin) return ''; if(r&&r.ok) return 'Bara admin kan göra det här.'; if(r&&r.error==='locked') return 'För många försök. Vänta en kvart.'; return 'Fel lösenord.'; }catch(_e){ return 'Kunde inte nå servern.'; } }
+  async function confirmDeleteDay(){ const date=window._deletingDate; if(!date) return; const pw=(document.getElementById('deleteDayPassInput')?.value||'').trim(); const err=document.getElementById('deleteDayError'); if(err) err.textContent='Kontrollerar…'; const bad=await _verifyMyAdminPassword(pw); if(window._deletingDate!==date) return; if(bad){ if(err) err.textContent=bad; document.getElementById('deleteDayPassInput')?.select(); return; } if(err) err.textContent=''; document.getElementById('deleteDayStep1').style.display='none'; const s2=document.getElementById('deleteDayStep2'); s2.style.display=''; const lbl=document.getElementById('deleteDayConfirmLabel'); if(lbl) lbl.textContent=`All statistik för ${date} tas bort permanent.`; setTimeout(()=>s2.querySelector('button.btn-danger')?.focus(),50); }
   function executeDayDeletion(){ const date=window._deletingDate; if(!date) return; closeDeleteDayModal(); const hist=loadSalesHistory(); const savedDayHist=hist[date]?JSON.parse(JSON.stringify(hist[date])):null; hist[date]={_deleted:true,_clientTs:Date.now()}; saveSalesHistory(hist); _statsDirty=true; let savedDaily=null,savedTickets=null,savedAdmissions=null,savedReEntry=null; if(date===todayStr()){savedDaily={guestCount,totalIncome};savedTickets=JSON.parse(JSON.stringify(loadOpenTickets()));savedAdmissions=JSON.parse(JSON.stringify(loadAdmissions()));savedReEntry=JSON.parse(JSON.stringify(loadReEntry()));guestCount=0;totalIncome=0;saveDailyStats();updateLogSummary();saveOpenTickets({date:todayStr(),seq:0,items:[]});saveAdmissions({date:todayStr(),count:0,entries:[]});saveReEntry({date:todayStr(),passes:[]});cart={};discountApplied=false;renderCart();} renderCockpit();renderStats(); showUndoToast(`Statistik för ${date} raderad`, ()=>{ const h=loadSalesHistory(); if(savedDayHist) h[date]={...savedDayHist,_clientTs:Date.now()}; saveSalesHistory(h); _statsDirty=true; if(date===todayStr()&&savedDaily){guestCount=savedDaily.guestCount;totalIncome=savedDaily.totalIncome;saveDailyStats();updateLogSummary();if(savedTickets) saveOpenTickets(savedTickets);if(savedAdmissions) saveAdmissions(savedAdmissions);if(savedReEntry) saveReEntry(savedReEntry);renderCart();} renderCockpit();renderStats(); }); }
 
   function loadOpenTickets(){ let o=dbGet(OPEN_TICKETS_KEY,defaultOpenTickets()); if(!o||o.date!==todayStr()) o=defaultOpenTickets(); o.seq=Number(o.seq||0); o.items=Array.isArray(o.items)?o.items:[]; return o; }
-  function saveOpenTickets(o){ const safe=o&&typeof o==='object'?o:defaultOpenTickets(); if(safe.date!==todayStr()) safe.date=todayStr(); if(!Array.isArray(safe.items)) safe.items=[]; if(typeof safe.seq!=='number') safe.seq=0; const _attempt=(n)=>dbSet(OPEN_TICKETS_KEY,safe).catch(e=>{ if(n>0) return new Promise(r=>setTimeout(r,1500)).then(()=>_attempt(n-1)); showSaveError('⚠ Biljettlistan sparades inte på servern — risk för dubbelinsläpp. Kontrollera uppkopplingen!'); }); _attempt(2); }
-  function nextTicketId(){ const o=loadOpenTickets(); o.seq=(o.seq||0)+1; saveOpenTickets(o); const d=todayStr().replaceAll('-',''); return `${d}-${String(o.seq).padStart(3,'0')}`; }
-  function addOpenTicket({label,adult,child,sum}){ const o=loadOpenTickets(); const id=label&&label.trim()?null:nextTicketId(); const item={id:id||null,label:(label||'').trim()||null,time:new Date().toLocaleTimeString(),createdAt:new Date().toISOString(),adult:Number(adult||0),child:Number(child||0),sum:Number(sum||0)}; o.items.unshift(item); saveOpenTickets(o); return item; }
+  function saveOpenTickets(o){ const safe=o&&typeof o==='object'?o:defaultOpenTickets(); if(safe.date!==todayStr()) safe.date=todayStr(); if(!Array.isArray(safe.items)) safe.items=[]; if(typeof safe.seq!=='number') safe.seq=0; const _attempt=(n)=>dbSet(OPEN_TICKETS_KEY,safe).catch(e=>{ if(n>0) return new Promise(r=>setTimeout(r,1500)).then(()=>_attempt(n-1)); showSaveError('⚠ Biljettlistan sparades inte på servern — risk för dubbelinsläpp. Kontrollera uppkopplingen!'); }); return _attempt(2); }
+  // Biljettlistan, insläppen och försäljningshistoriken är delade poster som flera enheter skriver till. En ändring görs
+  // direkt lokalt. Sedan hämtas serverns aktuella version precis före sparningen, och ändringen görs om på den, så att en
+  // enhet med gammal cache inte skriver över det en annan enhet nyss sparat. Ändringar som väntar på samma nyckel slås
+  // ihop till en hämtning och en sparning. Går hämtningen inte att göra sparas den lokala versionen, som tidigare.
+  // Servern kan inte låsa posten, så en annan enhet kan spara precis mellan vår hämtning och sparning. Därför läses posten
+  // tillbaka efter 2,5 och 8 sekunder. Saknas ändringen görs den om. apply() måste därför gå att köra flera gånger utan
+  // att ge annat resultat (kontrollera om ändringen redan finns).
+  const _mutState=new Map();
+  function _mutateShared(key,{load,normalize,save},apply){
+    const local=load(); apply(local); _db.cache.set(key,_clone(local)); _db.loaded.add(key); persistCacheWrite(key,_clone(local));
+    _db.pendingWrites.set(key,(_db.pendingWrites.get(key)||0)+1); _bumpWriteSeq(key);
+    let st=_mutState.get(key); if(!st){ st={queue:[],running:false}; _mutState.set(key,st); }
+    return new Promise(res=>{ st.queue.push({apply,res}); if(!st.running){ st.running=true; _drainMutations(key,{load,normalize,save},st); } });
+  }
+  async function _drainMutations(key,{load,normalize,save},st){
+    while(st.queue.length){
+      const batch=st.queue.splice(0);
+      try{
+        let o=null;
+        if(!_dirtyHas(key)){ try{ const raw=await apiGet(key); o=normalize(raw?JSON.parse(raw):null); if(o) _db.serverLoaded.add(key); }catch(_e){ o=null; } }
+        if(o) batch.forEach(b=>{ try{ b.apply(o); }catch(_e){} }); else o=load();
+        await save(o);
+        _verifyMutations(key,{load,normalize,save},batch.map(b=>b.apply),0);
+      }catch(_e){}
+      finally{ _bumpWriteSeq(key); const n=(_db.pendingWrites.get(key)||batch.length)-batch.length; if(n<=0) _db.pendingWrites.delete(key); else _db.pendingWrites.set(key,n); batch.forEach(b=>b.res()); }
+    }
+    st.running=false;
+  }
+  function _verifyMutations(key,opts,applies,round){
+    if(round>3) return;
+    setTimeout(async()=>{
+      let o=null; try{ const raw=await apiGet(key); o=opts.normalize(raw?JSON.parse(raw):null); }catch(_e){ o=null; }
+      if(!o){ _verifyMutations(key,opts,applies,round+1); return; }
+      const before=JSON.stringify(o); applies.forEach(a=>{ try{ a(o); }catch(_e){} });
+      if(JSON.stringify(o)!==before){ console.warn('Ändring saknades på servern, sparar igen:',key); _mutateShared(key,opts,x=>applies.forEach(a=>a(x))); }
+      else if(round===0) _verifyMutations(key,opts,applies,1);
+    }, round===0?2500:5500);
+  }
+  const _todayObj=(dflt,arrKey)=>p=>{ if(!p||typeof p!=='object'||p.date!==todayStr()) p=dflt(); if(!Array.isArray(p[arrKey])) p[arrKey]=[]; return p; };
+  function mutateOpenTickets(apply){ return _mutateShared(OPEN_TICKETS_KEY,{load:loadOpenTickets,normalize:p=>{ const o=_todayObj(defaultOpenTickets,'items')(p); o.seq=Number(o.seq||0); return o; },save:saveOpenTickets},apply); }
+  function mutateAdmissions(apply){ return _mutateShared(ADMIT_KEY,{load:loadAdmissions,normalize:p=>{ const o=_todayObj(defaultAdmissions,'entries')(p); o.count=Number(o.count||0); return o; },save:saveAdmissions},apply); }
+  // Historiken rymmer alla dagar. Ett tomt eller trasigt svar från servern används aldrig som grund, då sparas den lokala kopian.
+  function mutateSalesHistory(apply){ return _mutateShared(SALESHISTORY_KEY,{load:loadSalesHistory,normalize:p=>(p&&typeof p==='object'&&!Array.isArray(p)&&Object.keys(p).length)?p:null,save:_saveSalesHistoryNow},apply).then(()=>{ _statsDirty=true; }); }
+  function _saveSalesHistoryNow(h){ const _attempt=(n)=>dbSet(SALESHISTORY_KEY,h||{}).catch(e=>{ if(n>0) return new Promise(r=>setTimeout(r,1500)).then(()=>_attempt(n-1)); showSaveError('⚠ Köpet sparades INTE på servern — notera det manuellt och försök igen!'); }); return _attempt(2); }
+  function addOpenTicket({label,adult,child,sum}){ const lbl=(label||'').trim()||null; const seq=lbl?null:Number(loadOpenTickets().seq||0)+1; const id=seq?`${todayStr().replaceAll('-','')}-${String(seq).padStart(3,'0')}`:null; const item={id,label:lbl,time:new Date().toLocaleTimeString(),createdAt:new Date().toISOString(),adult:Number(adult||0),child:Number(child||0),sum:Number(sum||0)}; mutateOpenTickets(o=>{ if(seq) o.seq=Math.max(Number(o.seq||0),seq); if(!o.items.some(x=>x.createdAt===item.createdAt)) o.items.unshift({...item}); }); return item; }
   function isJustCreated(iso,seconds=8){ const t=Date.parse(iso||''); if(!t) return false; return (Date.now()-t)<seconds*1000; }
   function loadAdmissions(){ let o=dbGet(ADMIT_KEY,defaultAdmissions()); if(!o||o.date!==todayStr()) o=defaultAdmissions(); o.entries=Array.isArray(o.entries)?o.entries:[]; o.count=Number(o.count||0); return o; }
-  function saveAdmissions(o){ const safe=o&&typeof o==='object'?o:defaultAdmissions(); if(safe.date!==todayStr()) safe.date=todayStr(); if(!Array.isArray(safe.entries)) safe.entries=[]; safe.count=Number(safe.count||0); const _attempt=(n)=>dbSet(ADMIT_KEY,safe).catch(e=>{ if(n>0) return new Promise(r=>setTimeout(r,1500)).then(()=>_attempt(n-1)); showSaveError('⚠ Insläpp sparades inte på servern — räknarens siffra kan vara fel. Kontrollera uppkopplingen!'); }); _attempt(2); }
-  function bumpAdmissions(n){ n=Math.max(0,Number(n||0)); if(!n) return; const o=loadAdmissions(); o.count=Math.max(0,Number(o.count||0)+n); o.entries=Array.isArray(o.entries)?o.entries:[]; o.entries.push({ts:new Date().toISOString(),n}); saveAdmissions(o); try{recordAdmission(n,o.entries[o.entries.length-1]?.ts,loggedInUser||'—');}catch(_e){} queueTime=getEffectiveQueueTime(); updateTopbar(); refreshCockpitIfOpen(); }
+  function saveAdmissions(o){ const safe=o&&typeof o==='object'?o:defaultAdmissions(); if(safe.date!==todayStr()) safe.date=todayStr(); if(!Array.isArray(safe.entries)) safe.entries=[]; safe.count=Number(safe.count||0); const _attempt=(n)=>dbSet(ADMIT_KEY,safe).catch(e=>{ if(n>0) return new Promise(r=>setTimeout(r,1500)).then(()=>_attempt(n-1)); showSaveError('⚠ Insläpp sparades inte på servern — räknarens siffra kan vara fel. Kontrollera uppkopplingen!'); }); return _attempt(2); }
+  function bumpAdmissions(n,isoTs){ n=Math.max(0,Number(n||0)); if(!n) return null; const ts=isoTs||new Date().toISOString(); mutateAdmissions(o=>{ if(o.entries.some(e=>e.ts===ts)) return; o.count=Math.max(0,Number(o.count||0)+n); o.entries.push({ts,n}); }); try{recordAdmission(n,ts,loggedInUser||'—');}catch(_e){} queueTime=getEffectiveQueueTime(); updateTopbar(); refreshCockpitIfOpen(); return ts; }
+  // Ångrar ett insläpp. Posten ligger kvar med n=0, så att en efterkontroll av det ursprungliga trycket inte lägger till den igen.
+  function unbumpAdmission(ts){ if(!ts) return; mutateAdmissions(o=>{ const e=o.entries.find(x=>x.ts===ts); if(!e||!Number(e.n)) return; o.count=Math.max(0,Number(o.count||0)-Number(e.n)); e.n=0; }); mutateSalesHistory(h=>{ const e=(h[todayStr()]?.admissionsEntries||[]).find(x=>x.ts===ts); if(e) e.n=0; }); queueTime=getEffectiveQueueTime(); updateTopbar(); refreshCockpitIfOpen(); }
+  // Gäster som fegade ur: de lämnar kön utan att räknas som insläppta, men syns i statistiken
+  function fledToday(){ const a=loadAdmissions(); return (Array.isArray(a.fled)?a.fled:[]).reduce((s,e)=>s+Number(e.n||0),0); }
+  function fledForDate(date){ if(date===todayStr()) return fledToday(); const d=loadSalesHistory()[date]; return (Array.isArray(d?.fledEntries)?d.fledEntries:[]).reduce((s,e)=>s+Number(e.n||0),0); }
+  function registerFled(id,ts){ const staffer=loggedInUser||'—', date=todayStr();
+    mutateAdmissions(o=>{ if(!Array.isArray(o.fled)) o.fled=[]; if(o.fled.some(e=>e.id===id)) return; o.fled.push({id,ts,n:1}); });
+    mutateSalesHistory(h=>{ const d=ensureHistDay(h,date); if(!Array.isArray(d.fledEntries)) d.fledEntries=[]; if(d.fledEntries.some(e=>e.id===id)) return; d.fledEntries.push({id,ts,n:1,staffer}); });
+    queueTime=getEffectiveQueueTime(); updateTopbar(); refreshCockpitIfOpen(); }
+  function unregisterFled(id){ mutateAdmissions(o=>{ const e=(o.fled||[]).find(x=>x.id===id); if(e) e.n=0; }); mutateSalesHistory(h=>{ const e=(h[todayStr()]?.fledEntries||[]).find(x=>x.id===id); if(e) e.n=0; }); queueTime=getEffectiveQueueTime(); updateTopbar(); refreshCockpitIfOpen(); }
   function admittedToday(){ const a=loadAdmissions(); return Number(a.count||0); }
   let _reconcileClickAway=null;
   function _closeReconcilePanel(){ const p=document.getElementById('admitReconcilePanel'); if(p) p.innerHTML=''; if(_reconcileClickAway){document.removeEventListener('click',_reconcileClickAway);_reconcileClickAway=null;} }
-  function reconcileAdmissionsForDate(dateStr){ const hist=loadSalesHistory(); const day=hist[dateStr]||{}; const entries=Array.isArray(day.entries)?day.entries:[]; const fromTickets=entries.filter(e=>e.used).reduce((s,e)=>s+Number(e.adult||0)+Number(e.child||0),0); const fromReEntry=reEntryUsesForDate(dateStr); const fromHistory=fromTickets+fromReEntry; const current=dateStr===todayStr()?admittedToday():0; return {fromHistory,fromTickets,fromReEntry,current,diff:fromHistory-current}; }
+  function reconcileAdmissionsForDate(dateStr){ const hist=loadSalesHistory(); const day=hist[dateStr]||{}; const entries=Array.isArray(day.entries)?day.entries:[]; const fromTickets=entries.filter(e=>e.used).reduce((s,e)=>s+Math.max(0,Number(e.adult||0)+Number(e.child||0)-Number(e.fled||0)),0); const fromReEntry=reEntryUsesForDate(dateStr); const fromHistory=fromTickets+fromReEntry; const current=dateStr===todayStr()?admittedToday():0; return {fromHistory,fromTickets,fromReEntry,current,diff:fromHistory-current}; }
   function showAdmissionReconcile(){ if(!isAdmin) return; const panel=document.getElementById('admitReconcilePanel'); if(!panel) return; if(panel.innerHTML){_closeReconcilePanel();return;} const r=reconcileAdmissionsForDate(todayStr()); const row=(label,val)=>`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13px;"><span style="opacity:0.7;">${label}</span><strong>${val}</strong></div>`; let action=''; if(r.diff===0){action=`<div style="margin-top:8px;font-size:12px;color:rgba(60,180,100,0.9);">✓ Allt stämmer</div>`;}else if(r.diff>0){action=`<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;"><span style="font-size:12px;color:rgba(255,160,60,0.9);">${r.diff} saknas i räknaren</span><button class="btn btn-green" type="button" onclick="correctAdmissionCount(${r.fromHistory})">Korrigera till ${r.fromHistory}</button></div>`;}else{action=`<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;"><span style="font-size:12px;color:rgba(255,160,60,0.9);">${-r.diff} för många i räknaren</span><button class="btn" type="button" onclick="correctAdmissionCount(${r.fromHistory})">Korrigera till ${r.fromHistory}</button></div>`;} panel.innerHTML=`<div style="margin-top:8px;background:rgba(0,0,0,.3);border-radius:8px;padding:10px 14px;">${row('Räknaren',r.current)}${row('Biljetter (använda)',r.fromTickets)}${row('Re-entry',r.fromReEntry)}${row('Historiken totalt',r.fromHistory)}${action}</div>`; setTimeout(()=>{ _reconcileClickAway=(e)=>{ const p=document.getElementById('admitReconcilePanel'); if(!p||!p.innerHTML){_closeReconcilePanel();return;} if(!p.contains(e.target)&&!e.target.closest('button[onclick*="showAdmissionReconcile"]')){_closeReconcilePanel();} }; document.addEventListener('click',_reconcileClickAway); },0); }
   function buildReentryByHour(dateStr){ const day=loadSalesHistory()[dateStr]||{}; const passes=Array.isArray(day.reEntryPasses)?day.reEntryPasses:[]; const out=Array(24).fill(0); passes.forEach(p=>(Array.isArray(p.uses)?p.uses:[]).forEach(ts=>{out[new Date(ts).getHours()]++;})); return out; }
   function correctAdmissionCount(n){ if(!isAdmin) return; const today=todayStr(); const hist=loadSalesHistory(); const o=loadAdmissions(); const totalToAdd=n-o.count; if(totalToAdd===0){refreshCockpitIfOpen();return;} if(totalToAdd>0){ const day=hist[today]||{}; const entries=Array.isArray(day.entries)?day.entries:[]; const expH=Array(24).fill(0); entries.filter(e=>e.used&&e.ticketUid).forEach(e=>{expH[new Date(e.ticketUid).getHours()]+=Number(e.adult||0)+Number(e.child||0);}); const actH=guestBucketsByHour(); const reH=buildReentryByHour(today); const hintH=Array(24).fill(0); for(let h=0;h<24;h++){const d=expH[h]-Math.max(0,actH[h]-reH[h]);if(d>0)hintH[h]=d;} ensureHistDay(hist,today); let rem=totalToAdd; for(let h=0;h<24&&rem>0;h++){if(hintH[h]>0){const chunk=Math.min(rem,hintH[h]);const ts=new Date(today+'T'+String(h).padStart(2,'0')+':30:00').toISOString();o.entries.push({ts,n:chunk});hist[today].admissionsEntries.push({ts,n:chunk,staffer:loggedInUser||'—'});rem-=chunk;}} if(rem>0){const ts=new Date().toISOString();o.entries.push({ts,n:rem});hist[today].admissionsEntries.push({ts,n:rem,staffer:loggedInUser||'—'});} }else{ let excess=-totalToAdd; const arr=o.entries; while(excess>0&&arr.length>0){const last=arr[arr.length-1];if(Number(last.n||0)<=excess){excess-=Number(last.n||0);arr.pop();}else{last.n=Number(last.n)-excess;excess=0;}} ensureHistDay(hist,today); const adm=hist[today].admissionsEntries; let hExcess=-totalToAdd; while(hExcess>0&&adm.length>0){const last=adm[adm.length-1];if(Number(last.n||0)<=hExcess){hExcess-=Number(last.n||0);adm.pop();}else{last.n=Number(last.n)-hExcess;hExcess=0;}} } o.count=n; saveAdmissions(o); saveSalesHistory(hist); _closeReconcilePanel(); refreshCockpitIfOpen(); }
@@ -662,25 +765,49 @@
     const ctrlsHtml=loggedInUser
       ?`<div class="fv-user-menu"><button class="fv-menu-btn" id="fvMenuBtn"><span class="msg-badge-dot" id="fvMsgBadge" style="display:none;position:absolute;top:5px;right:5px;margin:0;"></span><div class="fv-menu-btn-name">${escapeHtml(loggedInUser)}</div><div class="fv-menu-btn-label">Meny</div></button><div class="fv-menu-dropdown" id="fvMenuDropdown"><a href="#" id="fvNavKassa">Kassa</a><a href="#" id="fvNavProfile" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">Min sida<span class="msg-badge-dot" id="fvNavProfileBadge" style="display:none;position:static;margin:0;"></span></a><a href="#" id="fvNavStats">Statistik</a>${isAdmin?'<a href="#" id="fvNavAdmin">Hantera</a>':''}<a href="#" id="fvNavLogout">Logga ut</a></div></div>`
       :`<button class="btn" id="fvClose">Stäng</button>`;
-    root.innerHTML=`<div class="field-header"><div class="field-title">Aktiva biljetter</div><div id="fvClock" class="fv-clock"></div><div class="field-ctrls">${ctrlsHtml}</div></div><div class="field-content"><div id="fvList" class="ticket-list"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #333;"><div style="max-width:820px;margin:0 auto;"><div class="field-title" style="font-size:22px;margin:0;color:#ddd;text-shadow:none;">Re-entry-pass</div></div><div id="reList"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #999;"><div style="max-width:820px;margin:0 auto;padding:12px 14px;border:1px solid #333;border-radius:12px;background:#131313;display:flex;justify-content:space-between;gap:10px;"><div style="font-weight:700;">Insläppta idag</div><div id="fieldSummary" style="font-size:14px;color:#ccc;">0</div></div></div>`;
+    root.innerHTML=`<div class="field-header"><div class="field-title">Insläpp</div><div id="fvClock" class="fv-clock"></div><div class="field-ctrls">${ctrlsHtml}</div></div><div class="field-content"><div class="fv-queue"><div class="fv-queue-info"><div class="fv-queue-label">I kön</div><div class="fv-queue-count"><span id="fvQueueCount">0</span> <span class="fv-queue-unit">personer</span></div><div class="fv-queue-time">Kötid: <span id="fvQueueTime">–</span></div></div><div class="fv-queue-actions"><button class="btn btn-green fv-queue-btn" id="fvQueueBtn" type="button">Släpp in 1</button><button class="btn fv-fled-btn" id="fvFledBtn" type="button">Fegade ur</button></div></div><div class="fv-undo" id="fvUndo" hidden><span id="fvUndoText"></span><button class="btn" id="fvUndoBtn" type="button">Ångra</button></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #333;"><div style="max-width:820px;margin:0 auto;"><div class="field-title" style="font-size:22px;margin:0;color:#ddd;text-shadow:none;">Re-entry-pass</div></div><div id="reList"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #999;"><div class="fv-today"><div><span>Insläppta idag</span><strong id="fieldSummary">0</strong></div><div><span>Fegade ur idag</span><strong id="fieldFled">0</strong></div></div></div>`;
     document.body.appendChild(root);
-    const list=root.querySelector('#fvList'); const reList=root.querySelector('#reList'); const summaryEl=root.querySelector('#fieldSummary');
-    function parseQueueMinutes(q){ if(!q) return null; const nums=String(q).match(/\d+/g); if(!nums||!nums.length) return null; return Math.max(...nums.map(Number)); }
-    function fmtElapsed(ms){ const s=Math.floor(ms/1000); if(s<60) return `${s}s`; const m=Math.floor(s/60); const rs=s%60; return `${m}:${String(rs).padStart(2,'0')}`; }
-    function updateTimersAndWarn(){ const threshold=parseQueueMinutes(queueTime); root.querySelectorAll('.fv-timer[data-created]').forEach(el=>{ const ms=Date.now()-Date.parse(el.dataset.created); if(isNaN(ms)||ms<0) return; el.textContent=fmtElapsed(ms); const over=threshold!=null&&ms>threshold*60*1000; el.classList.toggle('fv-timer-over',over); }); }
-    function renderTickets(){ const db=loadOpenTickets(); const items=(db.items||[]).filter(it=>(Number(it.adult||0)+Number(it.child||0))>0); const unused=items.filter(it=>!it.used); const oldestFirst=unused.slice().reverse(); const TICKET_LIMIT=3; const visible=oldestFirst.slice(0,TICKET_LIMIT); list.innerHTML=''; if(!visible.length){list.innerHTML='<div class="muted">Inga biljetter just nu.</div>';updateTimersAndWarn();return;} visible.forEach((it,idx)=>{ const row=document.createElement('div'); row.className='ticket-row'; const nameOrId=(it.label&&it.label.trim())?it.label.trim():(it.id?`#${it.id}`:'(utan id)'); const a=Number(it.adult||0),c=Number(it.child||0),oa=Number(it.originalAdult||0),oc=Number(it.originalChild||0); if(oa>0||oc>0) row.style.borderLeft='3px solid rgba(255,185,50,0.75)'; row.innerHTML=`<div style="min-width:0;"><div class="meta">${it.time||''} <span class="fv-timer" data-created="${escapeHtml(it.createdAt||'')}"></span></div><div class="who">${escapeHtml(nameOrId)}</div><div class="nums">${a>0?`<span class="pill"><strong style="font-size:22px;line-height:1;">${a}</strong> Vuxen${oa>a?`<span style="font-size:12px;opacity:0.55;margin-left:3px;">av ${oa}</span>`:''}</span>`:''} ${c>0?`<span class="pill"><strong style="font-size:22px;line-height:1;">${c}</strong> Barn${oc>c?`<span style="font-size:12px;opacity:0.55;margin-left:3px;">av ${oc}</span>`:''}</span>`:''} ${Number(it.sum||0)?`<span class="tiny" style="opacity:.7;">• ${it.sum} kr</span>`:''}</div></div><div class="actions">${(a+c)>3?`<button class="btn split-btn" style="font-size:13px;">Dela upp</button>`:`<button class="btn btn-green use-btn">Markera som använd</button>`}</div>`; if(idx===visible.length-1&&isJustCreated(it.createdAt,8)){row.classList.add('flash-green');setTimeout(()=>row.classList.remove('flash-green'),8000);} row.querySelector('.use-btn')?.addEventListener('click',(ev)=>{ ev.currentTarget.disabled=true; const _db2=loadOpenTickets(); const _pos=((_db2.items)||[]).findIndex(x=>x.createdAt===it.createdAt); if(_pos>-1){_db2.items[_pos].used=true;saveOpenTickets(_db2);} try{markSaleTicketUsed(it.createdAt);}catch(_e){} bumpAdmissions((a||0)+(c||0)); renderSummary(); row.classList.add('slide-out'); setTimeout(()=>{ renderTickets(); renderSummary(); },320); }); row.querySelector('.split-btn')?.addEventListener('click',()=>{ const MAX_BATCH=3; const PREFERRED_BATCH=2; const fullTotal=a+c; const batchSize=Math.min(PREFERRED_BATCH,Math.ceil(fullTotal/2)); let sa=Math.min(a,Math.round(batchSize*a/fullTotal)),sc=Math.min(c,batchSize-sa); if(sa+sc<batchSize) sa=Math.min(a,batchSize-sc); const suggTotal=sa+sc; const suggParts=[]; if(sa>0) suggParts.push(`${sa} vuxen${sa>1?'a':''}`); if(sc>0) suggParts.push(`${sc} barn`); const suggText=`Förslag: ${suggParts.join(' + ')} (${suggTotal} av ${fullTotal})`; function updateSplitUI(){ const tot=sa+sc; const ab=row.querySelector('.admit-partial-btn'); if(ab) ab.textContent=`Släpp in ${tot} nu`; const ac=row.querySelector('.sp-a-count'); if(ac) ac.textContent=sa; const cc=row.querySelector('.sp-c-count'); if(cc) cc.textContent=sc; } row.innerHTML=`<div style="min-width:0;flex:1;"><div class="who">${escapeHtml(nameOrId)}</div><div style="font-size:12px;opacity:0.5;margin-top:4px;">${suggText}</div>${a>0?`<div style="display:flex;align-items:center;gap:8px;margin-top:10px;"><span style="min-width:60px;font-size:13px;color:rgba(232,224,208,0.6);">Vuxna:</span><button class="qty-btn sp-minus-a">−</button><span class="sp-a-count" style="min-width:24px;text-align:center;font-weight:700;">${sa}</span><button class="qty-btn sp-plus-a">+</button><span style="font-size:12px;opacity:0.5;">av ${a}</span></div>`:``}${c>0?`<div style="display:flex;align-items:center;gap:8px;margin-top:8px;"><span style="min-width:60px;font-size:13px;color:rgba(232,224,208,0.6);">Barn:</span><button class="qty-btn sp-minus-c">−</button><span class="sp-c-count" style="min-width:24px;text-align:center;font-weight:700;">${sc}</span><button class="qty-btn sp-plus-c">+</button><span style="font-size:12px;opacity:0.5;">av ${c}</span></div>`:``}</div><div class="actions" style="flex-direction:column;align-items:flex-end;"><button class="btn btn-green admit-partial-btn">Släpp in ${sa+sc} nu</button><button class="btn cancel-split-btn" style="margin-top:6px;opacity:0.7;">Avbryt</button></div>`; row.querySelector('.sp-minus-a')?.addEventListener('click',()=>{if(sa>0){sa--;updateSplitUI();}}); row.querySelector('.sp-plus-a')?.addEventListener('click',()=>{if(sa<a){sa++;updateSplitUI();}}); row.querySelector('.sp-minus-c')?.addEventListener('click',()=>{if(sc>0){sc--;updateSplitUI();}}); row.querySelector('.sp-plus-c')?.addEventListener('click',()=>{if(sc<c){sc++;updateSplitUI();}}); row.querySelector('.admit-partial-btn')?.addEventListener('click',(ev)=>{ ev.currentTarget.disabled=true; const tot=sa+sc; if(!tot) return; const db2=loadOpenTickets(); const pos2=(db2.items||[]).findIndex(x=>x.createdAt===it.createdAt); const curA=pos2>-1?Number(db2.items[pos2].adult||0):a; const curC=pos2>-1?Number(db2.items[pos2].child||0):c; const saFinal=Math.min(sa,curA),scFinal=Math.min(sc,curC); const totFinal=saFinal+scFinal; if(!totFinal){renderTickets();renderSummary();return;} bumpAdmissions(totFinal); const remA=Math.max(0,curA-saFinal),remC=Math.max(0,curC-scFinal); if(pos2>-1){ if(remA+remC<=0){ try{markSaleTicketUsed(it.createdAt);}catch(_e){} db2.items[pos2].used=true; }else{ if(!db2.items[pos2].originalAdult&&remA<a) db2.items[pos2].originalAdult=a; if(!db2.items[pos2].originalChild&&remC<c) db2.items[pos2].originalChild=c; db2.items[pos2].adult=remA; db2.items[pos2].child=remC; } saveOpenTickets(db2); } renderTickets(); renderSummary(); }); row.querySelector('.cancel-split-btn')?.addEventListener('click',()=>{renderTickets();}); }); list.appendChild(row); }); if(unused.length>TICKET_LIMIT){const badge=document.createElement('div');badge.className='fv-more-badge';badge.textContent=`+${unused.length-TICKET_LIMIT} till`;list.appendChild(badge);} updateTimersAndWarn(); }
+    const reList=root.querySelector('#reList'); const summaryEl=root.querySelector('#fieldSummary');
     function rePassExpired(p){ const range=getOpenHourRange(); if(!range) return false; const now=new Date(); const nowMins=now.getHours()*60+now.getMinutes(); return nowMins>range.end*60; }
     function renderReEntry(){ const db=loadReEntry(); const passes=db.passes||[]; reList.innerHTML=''; if(!passes.length){reList.innerHTML='<div class="muted" style="max-width:820px;margin:8px auto;">Inga re-entry-pass ännu.</div>';return;} passes.forEach(p=>{ const row=document.createElement('div'); row.className='reentry-row'; const created=Date.parse(p.createdAt||''); const createdStr=created?new Date(created).toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'}):''; const expired=rePassExpired(p); const ageBadge=expired?`<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:rgba(180,80,0,0.3);border:1px solid rgba(220,120,0,0.4);color:rgba(255,160,60,0.9);margin-left:6px;">Utgånget</span>`:''; row.innerHTML=`<div style="min-width:0;"><div class="label" style="${expired?'opacity:0.5;':''}">${escapeHtml(p.label||'Pass')}${ageBadge}</div><div class="count">Insläppt ${Number(p.count||0)} gånger${createdStr?` · Skapad ${createdStr}`:''}</div></div><div class="actions"><button class="btn ${expired?'':'btn-green'} re-btn" ${expired?'disabled title="Passet har gått ut"':''}>Släpp in</button></div>`; const btn=row.querySelector('.re-btn'); if(!expired) btn?.addEventListener('click',()=>{ if(!canClickRe(p.id)){btn.disabled=true;setTimeout(()=>btn.disabled=false,REENTRY_COOLDOWN_MS);return;} btn.disabled=true; incReEntry(p.id); renderReEntry(); renderSummary(); setTimeout(()=>btn.disabled=false,REENTRY_COOLDOWN_MS); }); reList.appendChild(row); }); }
-    function renderSummary(){ const a=loadAdmissions(); summaryEl.textContent=String(Number(a.count||0)); }
-    renderTickets(); renderReEntry(); renderSummary();
-    const tick=setInterval(()=>{if(!list.querySelector('.admit-partial-btn')&&!list.querySelector('.slide-out')){renderTickets();}renderReEntry();renderSummary();},4000);
+    const fledEl=root.querySelector('#fieldFled');
+    function renderSummary(){ const a=loadAdmissions(); summaryEl.textContent=String(Number(a.count||0)); if(fledEl) fledEl.textContent=String(fledToday()); renderQueue(); }
+    // Kön räknas i personer, oavsett vuxen eller barn. Knappen släpper in en person i taget från den äldsta biljetten,
+    // så att biljettlistan, statistiken och den automatiska kötiden hålls i takt med vad som faktiskt händer vid dörren.
+    const queueCountEl=root.querySelector('#fvQueueCount'); const queueTimeEl=root.querySelector('#fvQueueTime'); const queueBtn=root.querySelector('#fvQueueBtn');
+    function queuedTickets(){ return (loadOpenTickets().items||[]).filter(it=>!it.used&&(Number(it.adult||0)+Number(it.child||0))>0); }
+    function renderQueue(){ const n=queuedTickets().reduce((s,it)=>s+Number(it.adult||0)+Number(it.child||0),0); queueCountEl.textContent=String(n); queueCountEl.nextElementSibling.textContent=n===1?'person':'personer'; queueTimeEl.textContent=queueLabel(getEffectiveQueueTime()); if(!queueBtn.dataset.busy){ queueBtn.disabled=n===0; fledBtn.disabled=n===0; } }
+    // Ett tryck = "ta en person ur kön", märkt med ett eget id. Ändringen görs på serverns aktuella lista (äldsta biljetten
+    // där), och id:t gör att den aldrig räknas två gånger när den görs om efter en krock med kassan.
+    // Samma tryck används för "Fegade ur": personen tas ur kön men räknas inte som insläppt. took[id] minns om det var
+    // en vuxen eller ett barn, så att ett ångrat tryck lägger tillbaka rätt person.
+    const fledBtn=root.querySelector('#fvFledBtn'); const undoEl=root.querySelector('#fvUndo'); const undoText=root.querySelector('#fvUndoText');
+    let lastAct=null, undoTimer=null;
+    function takeOneFromQueue(kind){ if(!queuedTickets().length) return; [queueBtn,fledBtn].forEach(b=>{ b.dataset.busy='1'; b.disabled=true; }); setTimeout(()=>{ [queueBtn,fledBtn].forEach(b=>delete b.dataset.busy); renderQueue(); },600);
+      const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6); const ts=new Date().toISOString(); let emptied=null;
+      mutateOpenTickets(o=>{ if(o.items.some(x=>(Array.isArray(x.admitIds)&&x.admitIds.includes(id))||(Array.isArray(x.fleeIds)&&x.fleeIds.includes(id)))) return; emptied=null; const q=o.items.filter(x=>!x.used&&(Number(x.adult||0)+Number(x.child||0))>0); const x=q[q.length-1]; if(!x) return; const a=Number(x.adult||0),c=Number(x.child||0); let took; if(a>0){ if(!x.originalAdult) x.originalAdult=a; x.adult=a-1; took='adult'; }else{ if(!x.originalChild) x.originalChild=c; x.child=c-1; took='child'; }
+        const listKey=kind==='fled'?'fleeIds':'admitIds'; if(!Array.isArray(x[listKey])) x[listKey]=[]; x[listKey].push(id); if(!x.took||typeof x.took!=='object') x.took={}; x.took[id]=took; if(kind==='fled') x.fled=Number(x.fled||0)+1;
+        if(Number(x.adult)+Number(x.child)<=0){ x.used=true; x.usedAt=Date.now(); emptied=x.createdAt; } })
+      .then(()=>{ if(emptied){ const uid=emptied; setTimeout(()=>{ const t=loadOpenTickets().items.find(y=>y.createdAt===uid); if(t&&t.used){ try{markSaleTicketUsed(uid,Number(t.fled||0));}catch(_e){} } },11000); } renderQueue(); });
+      if(kind==='fled') registerFled(id,ts); else bumpAdmissions(1,ts);
+      lastAct={kind,id,ts}; showUndo(kind==='fled'?'1 fegade ur':'1 insläppt'); renderSummary(); }
+    function showUndo(text){ clearTimeout(undoTimer); undoText.textContent=text; undoEl.hidden=false; undoTimer=setTimeout(()=>{ undoEl.hidden=true; lastAct=null; },10000); }
+    function undoLast(){ const a=lastAct; if(!a) return; lastAct=null; clearTimeout(undoTimer); undoEl.hidden=true;
+      mutateOpenTickets(o=>{ const x=o.items.find(y=>(Array.isArray(y.admitIds)&&y.admitIds.includes(a.id))||(Array.isArray(y.fleeIds)&&y.fleeIds.includes(a.id))); if(!x) return; if(!Array.isArray(x.undoneIds)) x.undoneIds=[]; if(x.undoneIds.includes(a.id)) return; x.undoneIds.push(a.id); const k=(x.took&&x.took[a.id])||'adult'; x[k]=Number(x[k]||0)+1; if(a.kind==='fled') x.fled=Math.max(0,Number(x.fled||0)-1); x.used=false; delete x.usedAt; }).then(renderQueue);
+      if(a.kind==='fled') unregisterFled(a.id); else unbumpAdmission(a.ts);
+      renderSummary(); notify(a.kind==='fled'?'Ångrat: personen står i kön igen.':'Ångrat: personen står i kön igen.','ok'); }
+    queueBtn.addEventListener('click',()=>takeOneFromQueue('in'));
+    fledBtn.addEventListener('click',()=>takeOneFromQueue('fled'));
+    root.querySelector('#fvUndoBtn').addEventListener('click',undoLast);
+    renderReEntry(); renderSummary(); _liveSync(true).then(()=>{ renderReEntry(); renderSummary(); });
+    const tick=setInterval(()=>{renderReEntry();renderSummary();syncUsedTicketsToHistory();},4000);
     const clockEl=root.querySelector('#fvClock');
     function updateFvClock(){ if(clockEl) clockEl.textContent=new Date().toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
     updateFvClock(); const clockTick=setInterval(updateFvClock,1000);
-    const timerTick=setInterval(updateTimersAndWarn,1000);
-    const onStorage=(e)=>{ if(!e) return; if([OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY].includes(e.key)){if(!list.querySelector('.admit-partial-btn')&&!list.querySelector('.slide-out')){renderTickets();}renderReEntry();renderSummary();} };
+    const onStorage=(e)=>{ if(!e) return; if([OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY].includes(e.key)){renderReEntry();renderSummary();} };
     window.addEventListener('storage',onStorage);
-    const close=()=>{ clearInterval(tick); clearInterval(clockTick); clearInterval(timerTick); window.removeEventListener('storage',onStorage); window.removeEventListener('keydown',onKey); document.removeEventListener('click',fvClickAway); root.remove(); };
+    const close=()=>{ clearInterval(tick); clearInterval(clockTick); window.removeEventListener('storage',onStorage); window.removeEventListener('keydown',onKey); document.removeEventListener('click',fvClickAway); root.remove(); };
+    root._close=close;
     root.querySelector('#fvClose')?.addEventListener('click',close);
     // Mini-meny: dropdown toggle
     root.querySelector('#fvMenuBtn')?.addEventListener('click',(e)=>{ e.stopPropagation(); document.getElementById('fvMenuDropdown')?.classList.toggle('open'); });
@@ -699,9 +826,9 @@
 
   function loadProducts(){ const arr=dbGet(PRODUCTS_KEY,null); if(Array.isArray(arr)&&arr.length) return arr; const seed=defaultProducts(); dbSet(PRODUCTS_KEY,seed).catch(()=>{}); return seed; }
   function saveProducts(arr){ dbSet(PRODUCTS_KEY,Array.isArray(arr)?arr:[]).catch(()=>{}); }
-  function renderProductButtons(){ const wrap=document.querySelector('.products'); if(!wrap) return; wrap.innerHTML=''; loadProducts().forEach(p=>{ const btn=document.createElement('button'); btn.textContent=Number(p.price)===0?`${p.name} – gratis`:`${p.name} – ${p.price} kr`; const n=p.name.toLowerCase(); if(n.includes('vuxen')) btn.classList.add('btn-adult'); else if(n.includes('barn')) btn.classList.add('btn-child'); else if(n.includes('re')) btn.classList.add('btn-reentry'); else btn.classList.add('btn-other'); if(Number(p.price)===0) btn.classList.add('btn-free'); btn.addEventListener('click',()=>addItem(p.name,p.price)); wrap.appendChild(btn); }); const kbRows=document.getElementById('kbProductRows'); if(kbRows) kbRows.innerHTML=loadProducts().slice(0,9).map((p,i)=>`<div class="kb-row"><kbd>${i+1}</kbd><span>${escapeHtml(p.name)}</span></div>`).join(''); }
-  function renderProductsManager(){ const root=document.getElementById('productsList'); if(!root) return; const prods=loadProducts(); root.innerHTML=prods.map(p=>`<div style="margin:6px 0;"><div class="row" style="justify-content:space-between;gap:8px;"><div class="row" style="flex:1;flex-wrap:wrap;gap:6px;"><input class="input" style="min-width:180px;" id="pname-${p.id}" value="${escapeHtml(p.name)}"><input class="input" type="number" id="pprice-${p.id}" min="0" step="1" value="${p.price}" style="width:80px;"></div><div class="row" style="gap:6px;"><label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;cursor:pointer;"><input type="checkbox" id="pinternal-${p.id}"${p.internal?' checked':''}> Intern</label><button class="btn" onclick="saveProduct(${p.id})">Spara</button><button class="btn btn-danger" onclick="deleteProduct(${p.id})">Ta bort</button></div></div></div>`).join(''); const addBtn=document.getElementById('pAddBtn'); if(addBtn&&!addBtn._bound){addBtn.addEventListener('click',()=>{ const nameEl=document.getElementById('pNewName'); const priceEl=document.getElementById('pNewPrice'); const name=(nameEl?.value||'').trim(); const price=parseInt(priceEl?.value||'0',10); if(!name||isNaN(price)||price<0){alert('Fyll i giltigt namn och pris.');return;} const list=loadProducts(); const id=list.reduce((m,x)=>Math.max(m,x.id||0),0)+1; const internalEl=document.getElementById('pNewInternal'); list.push({id,name,price,internal:!!(internalEl?.checked)}); saveProducts(list); nameEl.value=''; priceEl.value=''; if(internalEl) internalEl.checked=false; renderProductsManager(); renderProductButtons(); renderWelcomePrices(); });addBtn._bound=true;} }
-  function saveProduct(id){ const prods=loadProducts(); const i=prods.findIndex(p=>p.id===id); if(i===-1) return; const name=(document.getElementById('pname-'+id)?.value||'').trim(); const price=parseInt(document.getElementById('pprice-'+id)?.value||'0',10); if(!name||isNaN(price)||price<0){alert('Ogiltigt namn eller pris.');return;} prods[i].name=name; prods[i].price=price; prods[i].internal=!!(document.getElementById('pinternal-'+id)?.checked); saveProducts(prods); renderProductsManager(); renderProductButtons(); renderWelcomePrices(); }
+  function renderProductButtons(){ const wrap=document.querySelector('.products'); if(!wrap) return; wrap.innerHTML=''; loadProducts().forEach(p=>{ const btn=document.createElement('button'); btn.type='button'; btn.innerHTML=`<span class="p-name">${escapeHtml(p.name)}</span><span class="p-price">${Number(p.price)===0?'gratis':`${p.price} kr`}</span>`; const n=p.name.toLowerCase(); if(n.includes('vuxen')) btn.classList.add('btn-adult'); else if(n.includes('barn')) btn.classList.add('btn-child'); else if(n.includes('re')) btn.classList.add('btn-reentry'); else btn.classList.add('btn-other'); if(Number(p.price)===0) btn.classList.add('btn-free'); btn.dataset.product=p.name; btn.addEventListener('click',()=>addItem(p.name,p.price)); wrap.appendChild(btn); }); updateProductBadges(); const kbRows=document.getElementById('kbProductRows'); if(kbRows) kbRows.innerHTML=loadProducts().slice(0,9).map((p,i)=>`<div class="kb-row"><kbd>${i+1}</kbd><span>${escapeHtml(p.name)}</span></div>`).join(''); }
+  function renderProductsManager(){ const root=document.getElementById('productsList'); if(!root) return; const prods=loadProducts(); root.innerHTML=prods.map(p=>`<div style="margin:6px 0;"><div class="row" style="justify-content:space-between;gap:8px;"><div class="row" style="flex:1;flex-wrap:wrap;gap:6px;"><input class="input" style="min-width:180px;" id="pname-${p.id}" value="${escapeHtml(p.name)}"><input class="input" type="number" id="pprice-${p.id}" min="0" step="1" value="${p.price}" style="width:80px;"></div><div class="row" style="gap:6px;"><label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;cursor:pointer;"><input type="checkbox" id="pinternal-${p.id}"${p.internal?' checked':''}> Intern</label><button class="btn" onclick="saveProduct(${p.id})">Spara</button><button class="btn btn-danger" onclick="deleteProduct(${p.id})">Ta bort</button></div></div></div>`).join(''); const addBtn=document.getElementById('pAddBtn'); if(addBtn&&!addBtn._bound){addBtn.addEventListener('click',()=>{ const nameEl=document.getElementById('pNewName'); const priceEl=document.getElementById('pNewPrice'); const name=(nameEl?.value||'').trim(); const price=parseInt(priceEl?.value||'0',10); if(!name||isNaN(price)||price<0){notify('Fyll i giltigt namn och pris.');return;} const list=loadProducts(); const id=list.reduce((m,x)=>Math.max(m,x.id||0),0)+1; const internalEl=document.getElementById('pNewInternal'); list.push({id,name,price,internal:!!(internalEl?.checked)}); saveProducts(list); nameEl.value=''; priceEl.value=''; if(internalEl) internalEl.checked=false; renderProductsManager(); renderProductButtons(); renderWelcomePrices(); });addBtn._bound=true;} }
+  function saveProduct(id){ const prods=loadProducts(); const i=prods.findIndex(p=>p.id===id); if(i===-1) return; const name=(document.getElementById('pname-'+id)?.value||'').trim(); const price=parseInt(document.getElementById('pprice-'+id)?.value||'0',10); if(!name||isNaN(price)||price<0){notify('Ogiltigt namn eller pris.');return;} prods[i].name=name; prods[i].price=price; prods[i].internal=!!(document.getElementById('pinternal-'+id)?.checked); saveProducts(prods); renderProductsManager(); renderProductButtons(); renderWelcomePrices(); }
   function deleteProduct(id){ const removed=loadProducts().find(p=>p.id===id); if(!removed) return; saveProducts(loadProducts().filter(p=>p.id!==id)); renderProductsManager(); renderProductButtons(); showUndoToast(`"${removed.name}" borttagen`, ()=>{ const cur=loadProducts(); cur.push(removed); saveProducts(cur); renderProductsManager(); renderProductButtons(); }); }
 
   try{ loadWelcomeFAQ(); }catch(_e){}
@@ -746,14 +873,30 @@
     tbody.innerHTML='';
     Object.entries(cart).forEach(([n,i])=>{
       const tr=document.createElement('tr');
-      tr.innerHTML=`<td>${escapeHtml(n)}</td><td><div style="display:flex;align-items:center;gap:6px;"><button class="qty-btn" onclick="decItem('${n.replace(/'/g,"\\'")}')">−</button><strong>${i.qty}</strong><button class="qty-btn" onclick="incItem('${n.replace(/'/g,"\\'")}')">+</button></div></td><td>${i.qty*i.price} kr</td><td><button class="remove-btn" onclick="removeItem('${n.replace(/'/g,"\\'")}')">Ta bort</button></td>`;
+      const q=n.replace(/'/g,"\\'"), h=escapeHtml(n);
+      tr.innerHTML=`<td class="c-name">${h}</td><td class="c-qty"><div class="qty-ctrl"><button type="button" class="qty-btn" aria-label="En ${h} mindre" onclick="decItem('${q}')">−</button><strong>${i.qty}</strong><button type="button" class="qty-btn" aria-label="En ${h} till" onclick="incItem('${q}')">+</button></div></td><td class="c-price">${i.qty*i.price} kr</td><td class="c-del"><button type="button" class="remove-btn" aria-label="Ta bort alla ${h}" onclick="removeItem('${q}')">Ta bort</button></td>`;
       tbody.appendChild(tr);
     });
     const raw=cartSumRaw(); const sum=discountApplied?Math.round(raw/2):raw;
     const t=document.getElementById('total'); if(t) t.textContent=`Totalt: ${sum} kr${discountApplied?' (50% rabatt)':''}`;
     const chk=document.getElementById('checkout'); if(chk) chk.disabled=(Object.keys(cart).length===0);
+    updateProductBadges();
     pushDisplayCart();
   }
+
+  // Antal per biljettyp syns direkt på knapparna och som en rad ovanför totalen
+  function updateProductBadges(){
+    document.querySelectorAll('.products button[data-product]').forEach(b=>{ const q=cart[b.dataset.product]?.qty||0; b.dataset.qty=q?String(q):''; b.classList.toggle('has-qty',q>0); });
+    const el=document.getElementById('cartSummary'); if(!el) return;
+    const entries=Object.entries(cart); if(!entries.length){ el.textContent=''; return; }
+    const guests=entries.reduce((s,[n,i])=>/vuxen|barn/i.test(n)?s+i.qty:s,0);
+    el.textContent=entries.map(([n,i])=>`${i.qty} × ${n}`).join(' · ')+(guests?` — ${guests} gäst${guests===1?'':'er'}`:'');
+  }
+
+  // Ljud och vibration när ett köp gått igenom; kan stängas av per enhet med högtalarknappen
+  function kassaSoundOn(){ return localStorage.getItem('kassaSoundV1')!=='off'; }
+  function toggleKassaSound(){ const on=!kassaSoundOn(); localStorage.setItem('kassaSoundV1',on?'on':'off'); syncKassaSoundBtn(); if(on) KorpenSound.chime(); }
+  function syncKassaSoundBtn(){ const b=document.getElementById('kassaSoundBtn'); if(!b) return; const on=kassaSoundOn(); b.classList.toggle('is-off',!on); b.setAttribute('aria-pressed',String(on)); b.title=on?'Ljud vid köp: på':'Ljud vid köp: av'; }
 
 
   function openKontantModal(){
@@ -762,7 +905,7 @@
     // Varor
     const itemsEl=document.getElementById('kontantItems');
     if(itemsEl) itemsEl.innerHTML=Object.entries(cart).map(([name,i])=>
-      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(232,224,208,0.08);font-size:13px;">
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(221,227,220,0.08);font-size:13px;">
         <span>${escapeHtml(name)} <span style="opacity:0.5;">x${i.qty}</span></span><span>${i.qty*i.price} kr</span>
       </div>`).join('');
     // Rabatt
@@ -825,14 +968,14 @@
     apiSet(CUSTOMER_DISPLAY_CART_KEY, JSON.stringify({state:'kontant',change,items,total,discount:discountApplied,ts:Date.now()})).catch(()=>{});
   }
 
-  (function bindDiscount(){ const b=document.getElementById('discountBtn'); if(!b||b._bound) return; b.addEventListener('click',()=>{ const hasItems=Object.keys(cart).length>0; if(!hasItems){ if(discountApplied){discountApplied=false;b.classList.remove('applied');b.textContent='50% rabatt (1 gång)';renderCart();}else{alert('Lägg något i kassan först.');} return; } discountApplied=!discountApplied; b.classList.toggle('applied',discountApplied); b.textContent=discountApplied?'50% rabatt aktiv — klicka för att ta bort':'50% rabatt (1 gång)'; renderCart(); }); b._bound=true; })();
+  (function bindDiscount(){ const b=document.getElementById('discountBtn'); if(!b||b._bound) return; b.addEventListener('click',()=>{ const hasItems=Object.keys(cart).length>0; if(!hasItems){ if(discountApplied){discountApplied=false;b.classList.remove('applied');b.textContent='50% rabatt (1 gång)';renderCart();}else{notify('Lägg något i kassan först.');} return; } discountApplied=!discountApplied; b.classList.toggle('applied',discountApplied); b.textContent=discountApplied?'50% rabatt aktiv — klicka för att ta bort':'50% rabatt (1 gång)'; renderCart(); }); b._bound=true; })();
 
   function cartFinalSum(){ const raw=cartSumRaw(); return discountApplied?Math.round(raw/2):raw; }
   function openPayModal(){
     if(!Object.keys(cart).length) return;
     document.getElementById('paySum').textContent=`Summa: ${cartFinalSum()} kr${discountApplied?' (50% rabatt)':''}`;
     const needsLabel=Object.keys(cart).some(n=>{ const l=n.toLowerCase(); return /biljett|entr/.test(l)||l.includes('vuxen')||l.includes('barn')||/(re[-\s]?entry|återinträde|rep\b)/i.test(n); });
-    const li=document.getElementById('ticketLabelInput'); if(li){ li.style.display=needsLabel?'':'none'; if(!needsLabel) li.value=''; }
+    const rem=document.getElementById('payTicketReminder'); if(rem) rem.style.display=needsLabel?'':'none';
     document.getElementById('payModal').style.display='flex';
   }
   function closePayModal(){
@@ -915,7 +1058,7 @@
     // Varor
     const itemsEl=document.getElementById('vaxelItems');
     if(itemsEl) itemsEl.innerHTML=Object.entries(cart).map(([name,i])=>
-      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(232,224,208,0.08);">
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(221,227,220,0.08);">
         <span>${escapeHtml(name)} <span style="opacity:0.5;">x${i.qty}</span></span><span>${i.qty*i.price} kr</span>
       </div>`).join('');
     // Rabatt
@@ -930,7 +1073,7 @@
     const belopp=document.getElementById('vaxelBelopp');
     if(totEl) totEl.textContent=`${total} kr`;
     if(motEl) motEl.textContent=`${received} kr`;
-    if(belopp){ belopp.textContent=`${change} kr`; belopp.style.color=change>0?'#6f6':'#f0ebe2'; }
+    if(belopp){ belopp.textContent=`${change} kr`; belopp.style.color=change>0?'#6f6':'#dde3dc'; }
     if(el) el.style.display='flex';
     setTimeout(()=>{ document.getElementById('vaxelYes')?.focus(); }, 60);
   }
@@ -957,8 +1100,8 @@
     let diff=finalSum-(breakdown.adult+breakdown.child+breakdown.reEntry+breakdown.other); if(diff!==0) breakdown.other+=diff;
     if(tips>0){ lines.push(`Dricks x 1 = ${tips} kr`); breakdown.other+=tips; }
     const totalWithTips=finalSum+tips;
-    guestCount=Number(guestCount||0)+guests; totalIncome=Number(totalIncome||0)+totalWithTips;
-    updateTopbar(); updateLogSummary(); saveDailyStats();
+    bumpDailyStats(guests,totalWithTips);
+    updateTopbar(); updateLogSummary();
     let newOpenTicket=null;
     try{
       const label=(document.getElementById('ticketLabelInput')?.value||'').trim();
@@ -982,20 +1125,34 @@
     renderCart();
     _suppressDisplayPush=false;
     if(_displayActive){ try{ apiSet(CUSTOMER_DISPLAY_CART_KEY, JSON.stringify({items:[],discount:false,total:0,ts:Date.now(),state:'tack',guestName:_tackGuestName})).catch(()=>{}); }catch(_e){} }
-    showCheckoutFlash();
+    showCheckoutFlash({adult,child,reEntry:reEntryCount});
     const sc=document.getElementById('statsContainer'); if(sc&&sc.style.display==='block'){renderCockpit();renderStats();} refreshLonIfOpen();
   }
 
-  function showCheckoutFlash(){
+  // Bekräftelse efter köp – påminner om att lämna ut biljetter när köpet innehåller entré
+  function showCheckoutFlash({adult=0,child=0,reEntry=0}={}){
     const el=document.getElementById('checkoutFlash');
     if(!el) return;
+    if(kassaSoundOn()){ try{ KorpenSound.chime(); }catch(_e){} }
+    uiVibrate(40);
+    const parts=[];
+    if(adult>0) parts.push(`${adult} vuxen`);
+    if(child>0) parts.push(`${child} barn`);
+    if(reEntry>0) parts.push(`${reEntry} Re-Entry-armband`);
+    const hasTickets=parts.length>0;
+    const box=document.getElementById('checkoutFlashTickets'); if(box) box.style.display=hasTickets?'':'none';
+    const cnt=document.getElementById('checkoutFlashCount'); if(cnt) cnt.textContent=parts.join(' · ');
+    el.classList.toggle('has-tickets',hasTickets);
+    const hide=()=>{
+      clearTimeout(el._t); el.onclick=null;
+      el.style.transition='opacity 0.4s'; el.style.opacity='0';
+      setTimeout(()=>{ el.style.display='none'; }, 400);
+    };
     el.style.opacity='0'; el.style.transition='opacity 0.25s'; el.style.display='flex';
     requestAnimationFrame(()=>requestAnimationFrame(()=>{ el.style.opacity='1'; }));
     clearTimeout(el._t);
-    el._t=setTimeout(()=>{
-      el.style.transition='opacity 0.5s'; el.style.opacity='0';
-      setTimeout(()=>{ el.style.display='none'; }, 500);
-    }, 1800);
+    el.onclick=hasTickets?hide:null;
+    el._t=setTimeout(hide, hasTickets?5000:1800);
   }
 
   function guestsByHourFromSales(dateStr){ const out=Array.from({length:24},()=>0); const day=loadSalesHistory()[dateStr]||{}; const entries=Array.isArray(day.entries)?day.entries:[]; entries.forEach(e=>{const h=parseHourFromTimeStr(e.time);const g=Number(e.adult||0)+Number(e.child||0);out[h]+=g;}); return out; }
@@ -1006,7 +1163,7 @@
   function reEntryAdmittedForDate(dateStr){ if(dateStr===todayStr()) return reEntryAdmittedToday(); return reEntryUsesForDate(dateStr); }
 
   function buildDayExportText(dateStr){ const s=summaryForDate(dateStr); let guestsPerHour=(dateStr===todayStr())?guestBucketsByHour():guestBucketsByHourFromAdmissionsHistory(dateStr); const hasAnyAdmission=guestsPerHour.some(v=>Number(v||0)>0); if(!hasAnyAdmission) guestsPerHour=guestsByHourFromSales(dateStr); const intakePerHour=intakeBucketsByHour(dateStr); const lines=[]; lines.push(`Spökhotellet Korpen`);lines.push(`${dateStr}`);lines.push(``);lines.push(`Gäster: ${s.totalInslapp}`);lines.push(`|| ${s.adult} Vuxna || ${s.child} Barn || ${s.reEntryInslapp} Re-entry ||`);lines.push(``);lines.push(`Köp: ${s.buys}`);lines.push(`Re-entry köp: ${s.reEntryBuys}`);lines.push(`Intäkt vuxna: ${s.intakeAdult} kr`);lines.push(`Intäkt barn: ${s.intakeChild} kr`);lines.push(`Intäkt re-entry: ${s.intakeReEntry} kr`);lines.push(`Intäkt övrigt: ${s.intakeOther} kr`);lines.push(`INTÄKT TOTAL: ${s.intakeTotal} kr`); const costsForDay=getCostsForDate(dateStr); const netForDay=Number(s.intakeTotal||0)-Number(costsForDay||0); lines.push(`Utgifter: ${costsForDay} kr`);lines.push(`Resultat: ${netForDay} kr`);lines.push(``);lines.push(`Gäster/timme (från insläpp${hasAnyAdmission?'':',fallback köp'})`);lines.push(formatBarsLineTrimZeros(guestsPerHour,''));lines.push(``);lines.push(`Intäkt/timme`);lines.push(formatBarsLineTrimZeros(intakePerHour,' kr')); return lines.join('\n'); }
-  async function copyTextToClipboard(text){ try{await navigator.clipboard.writeText(text);alert('Export kopierad till urklipp!');return true;}catch(e){window.prompt('Kopiera exporttexten (Ctrl+C):',text);return false;} }
+  async function copyTextToClipboard(text){ try{await navigator.clipboard.writeText(text);notify('Export kopierad till urklipp!');return true;}catch(e){uiCopyDialog('Kopiera exporttexten (Ctrl+C):',text);return false;} }
   function downloadTextFile(filename,text){ const blob=new Blob([text],{type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},0); }
   function exportDay(dateStr,mode='copy'){ const txt=buildDayExportText(dateStr); if(mode==='download') downloadTextFile(`korpen-${dateStr}.txt`,txt); else copyTextToClipboard(txt); }
 
@@ -1050,7 +1207,7 @@
     if(payMethods.length){ html+=`<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Betalningsmetoder</div><div class="day-summary-pills">${payMethods.map(m=>pill(m,payTots[m]+' kr')).join('')}</div></div>`; }
     html += `<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Ekonomi</div><div class="day-summary-pills">${pill('Utgifter',sv.costs+' kr')}${pill('Resultat',net+' kr',net>=0?'positive':'negative')}</div></div>`;
     html += `<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Gäster per timme (insläpp${!hasAnyAdmission?' — inga data':''})</div><div class="day-summary-chart-wrap">${hasAnyAdmission?svgBars24(guestsPerHour,maxG,70,{id:'dsMGChart',unit:'gäster',startHour:hourOffset}):'<div class="muted" style="font-style:italic;padding:8px 0;">Inga insläppsdata för dagen.</div>'}</div>${hasAnyAdmission?'<div id="dsMGChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div>':''}</div>`;
-    if(isAdmin){ html+=`<div class="day-summary-section" style="margin-top:14px;"><div class="day-summary-section-title">Intäkt per timme</div><div class="day-summary-chart-wrap" style="color:rgba(40,167,69,0.75);">${svgBars24(intakePerHour,maxI,70,{id:'dsMIChart',unit:'kr',startHour:hourOffset})}</div><div id="dsMIChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div></div>`; }
+    if(isAdmin){ html+=`<div class="day-summary-section" style="margin-top:14px;"><div class="day-summary-section-title">Intäkt per timme</div><div class="day-summary-chart-wrap" style="color:rgba(96,140,84,0.75);">${svgBars24(intakePerHour,maxI,70,{id:'dsMIChart',unit:'kr',startHour:hourOffset})}</div><div id="dsMIChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div></div>`; }
 
     const title=document.getElementById('daySummaryTitle'); if(title) title.textContent=`Sammanfattning — ${dateStr}`;
     const subtitle=document.getElementById('daySummarySubtitle'); if(subtitle) subtitle.textContent=sv.hours&&sv.hours!=='Stängt'?`Öppettider: ${sv.hours}`:'';
@@ -1068,7 +1225,7 @@
   function enterDaySummaryEditMode(){
     const dateStr=window._daySummaryDate; if(!dateStr||!isAdmin) return;
     const sv=_getDaySummaryValues(dateStr);
-    const is='background:transparent;border:none;border-bottom:1px solid rgba(232,224,208,0.45);color:inherit;font-size:inherit;font-weight:bold;text-align:center;width:100%;padding:2px 0;font-family:inherit;outline:none;-webkit-appearance:none;';
+    const is='background:transparent;border:none;border-bottom:1px solid rgba(221,227,220,0.45);color:inherit;font-size:inherit;font-weight:bold;text-align:center;width:100%;padding:2px 0;font-family:inherit;outline:none;-webkit-appearance:none;';
     const pi=(id,val,t='number',ph='')=>`<input type="${t}" id="${id}" value="${escapeHtml(String(val))}" placeholder="${ph}" style="${is}" ${t==='number'?'min="0"':''}>`;
     const pe=(label,id,val,t='number',cls='',ph='')=>`<div class="day-summary-pill ${cls}" style="cursor:text;"><span>${label}</span>${pi(id,val,t,ph)}</div>`;
     const pill=(label,val,cls='')=>`<div class="day-summary-pill ${cls}"><span>${label}</span><strong>${val}</strong></div>`;
@@ -1080,7 +1237,7 @@
     html+=`<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Ekonomi</div><div class="day-summary-pills">${pe('Utgifter','dseCosts',sv.costs)}${pill('Resultat',net+' kr',net>=0?'positive':'negative')}</div></div>`;
     html+=`<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Öppettider</div><div class="day-summary-pills">${pe('Öppettider','dseHours',sv.hours,'text','','10:00–22:00')}</div></div>`;
     const _hde=loadSalesHistory()[dateStr]||{}; const _ovIph=Array.isArray(_hde._ov_intakePerHour)?_hde._ov_intakePerHour:Array.from({length:24},()=>0);
-    const _editRange=getOpenHourRange(sv.hours)||{start:0,end:24}; const _hourIs='width:42px;text-align:center;background:rgba(0,0,0,0.25);border:1px solid rgba(232,224,208,0.25);border-radius:4px;color:inherit;font-family:inherit;font-size:13px;padding:2px 0;-webkit-appearance:none;outline:none;';
+    const _editRange=getOpenHourRange(sv.hours)||{start:0,end:24}; const _hourIs='width:42px;text-align:center;background:rgba(0,0,0,0.25);border:1px solid rgba(221,227,220,0.25);border-radius:4px;color:inherit;font-family:inherit;font-size:13px;padding:2px 0;-webkit-appearance:none;outline:none;';
     let _hourCells=''; for(let h=_editRange.start;h<_editRange.end;h++){ _hourCells+=`<div style="text-align:center;"><div class="tiny muted" style="margin-bottom:2px;">${h}</div><input type="number" id="dseIntakeHour${h}" min="0" value="${_ovIph[h]||0}" style="${_hourIs}"></div>`; }
     html+=`<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Intäkt/timme (kr)</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">${_hourCells}</div></div>`;
     const content=document.getElementById('daySummaryContent'); if(content) content.innerHTML=html;
@@ -1127,7 +1284,7 @@
     for(let i=0;i<=gridLines;i++){const val=Math.round(max/gridLines*i);const y=top+h-Math.round(val/max*h);grid+=`<line x1="${yAx}" y1="${y}" x2="${fullW}" y2="${y}" stroke="currentColor" stroke-opacity="${i===0?0.12:0.06}" stroke-width="1"/>`;grid+=`<text x="${yAx-4}" y="${y+4}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.4">${val}</text>`;}
     let bars='';values.forEach((v,i)=>{const bH=Math.max(Math.round(v/max*h),v>0?2:0);const x=yAx+pad+i*(bW+gap);const y=top+h-bH;bars+=`<rect x="${x}" y="${y}" width="${bW}" height="${bH}" rx="3" fill="${colors[i]}"/>`;bars+=`<text x="${x+bW/2}" y="${y-6}" font-size="13" text-anchor="middle" fill="currentColor" font-weight="bold">${v}</text>`;bars+=`<text x="${x+bW/2}" y="${top+h+16}" font-size="11" text-anchor="middle" fill="currentColor" fill-opacity="0.6">${labels[i]}</text>`;});
     const svg=`<svg width="100%" viewBox="0 0 ${fullW} ${top+h+22}" style="display:block;">${grid}${bars}</svg>`;
-    return `<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(232,224,208,0.1);border-radius:10px;padding:14px 12px 10px;text-align:center;flex:1 1 130px;min-width:0;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.45;margin-bottom:12px;">${title}</div>${svg}</div>`;
+    return `<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(221,227,220,0.1);border-radius:10px;padding:14px 12px 10px;text-align:center;flex:1 1 130px;min-width:0;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.45;margin-bottom:12px;">${title}</div>${svg}</div>`;
   }
   function cockpitBarClick(chartId,hour,value,unit){ const info=document.getElementById(chartId+'-info'); if(!info) return; const start=String(hour).padStart(2,'0')+':00';const end=String((hour+1)%24).padStart(2,'0')+':00'; info.textContent=`${start}–${end}: ${value} ${unit}`.trim(); info.classList.remove('muted'); }
 
@@ -1141,7 +1298,7 @@
     const buyWasOpen=document.getElementById('buyPanel')?.style.display==='block';
     const detWasOpen=document.getElementById('intakeDetails')?.style.display==='block';
     const savedReconcile=document.getElementById('admitReconcilePanel')?.innerHTML||'';
-    const html=`<div class="section" style="margin-bottom:12px;"><div class="row" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;font-family:'IM Fell English SC',serif;letter-spacing:0.3px;">Cockpit – idag (${today})</h3><div class="row">${isAdmin?`<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button><button class="btn pill" type="button" id="tabIntake" aria-selected="false">Intäkt</button><button class="btn pill" type="button" id="tabWebb" aria-selected="false">Webb</button>`:`<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button><button class="btn pill" type="button" id="tabWebb" aria-selected="false">Webb</button>`}</div></div><div id="cockpitPills" class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px;"></div><div id="admitReconcilePanel"></div><div style="margin-top:10px;"><div id="cockpitChartLabel" class="tiny muted" style="margin-bottom:4px;"></div><div id="cockpitChartWrap" style="overflow:auto;"></div><div id="cockpitChart-info" class="tiny muted" aria-live="polite"></div></div></div>`;
+    const html=`<div class="section" style="margin-bottom:12px;"><div class="row" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;font-family:var(--f-label);letter-spacing:0.3px;">Idag</h3><div class="row">${isAdmin?`<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button><button class="btn pill" type="button" id="tabIntake" aria-selected="false">Intäkt</button><button class="btn pill" type="button" id="tabWebb" aria-selected="false">Webb</button>`:`<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button><button class="btn pill" type="button" id="tabWebb" aria-selected="false">Webb</button>`}</div></div><div id="cockpitPills" class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px;"></div><div id="admitReconcilePanel"></div><div style="margin-top:10px;"><div id="cockpitChartLabel" class="tiny muted" style="margin-bottom:4px;"></div><div id="cockpitChartWrap" style="overflow:auto;"></div><div id="cockpitChart-info" class="tiny muted" aria-live="polite"></div></div></div>`;
     upsert(statsRoot,'cockpitWrap',html);
     if(savedReconcile){const rp=document.getElementById('admitReconcilePanel');if(rp)rp.innerHTML=savedReconcile;}
     const btnG=document.getElementById('tabGuests');const btnI=document.getElementById('tabIntake');
@@ -1153,12 +1310,13 @@
       if(infoEl){infoEl.textContent='';infoEl.classList.add('muted');}
       if(isGuests){
         const guestTarget=getForecastTarget();
-        if(pillsEl) pillsEl.innerHTML=`<span class="pill">Insläppta idag: <strong>${admitted}</strong></span><span class="pill">Vuxna: ${totals.adult}</span><span class="pill">Barn: ${totals.child}</span><span class="pill">Re-Entry: <strong>${reEntryAdmitted}</strong></span><span class="pill">Dagens prognos: <strong>${guestTarget}</strong></span><span class="pill">Köp: ${totals.receipts}</span>${isAdmin?`<button class="btn pill" type="button" onclick="showAdmissionReconcile()" style="margin-left:auto;opacity:0.7;">Stäm av</button>`:''}`;
+        const kpi=(l,v,cls='')=>`<div class="st-kpi${cls}"><span>${l}</span><strong>${v}</strong></div>`;
+        if(pillsEl) pillsEl.innerHTML=`<div class="st-kpis">${kpi('Insläppta',admitted,' is-main')}${kpi('Fegade ur',fledToday())}${kpi('Vuxna',totals.adult)}${kpi('Barn',totals.child)}${kpi('Re-entry',reEntryAdmitted)}${kpi('Köp',totals.receipts)}${kpi('Prognos',guestTarget)}</div>${isAdmin?`<button class="btn st-tool" type="button" onclick="showAdmissionReconcile()">Stäm av insläppen</button>`:''}`;
         if(labelEl) labelEl.textContent='Gäster per timme';
         if(wrapEl) wrapEl.innerHTML=svgBars24(guestsPerHour,Math.max(maxG,5),90,{id:'cockpitChart',unit:'gäster',startHour:hourOffset});
       }else if(!isWebb){
         const fc=computeForecastForToday(totals.intake,admitted);const fcNote=`${fc.label} • ${admitted} insläppta`;
-        if(pillsEl) pillsEl.innerHTML=`<span class="pill">Dagens intäkt: <strong>${totals.intake} kr</strong></span><span class="pill" style="${net>=0?'border-color:rgba(40,167,69,0.5);':'border-color:rgba(192,57,43,0.5);'}">Resultat: <strong>${net} kr</strong></span><span class="pill">Beräknad intäkt: <strong>~ ${fc.predicted} kr</strong></span><button class="btn pill" type="button" id="buyBtn" style="margin-left:auto;">Köp: <strong>${totals.receipts}</strong></button><button class="btn pill" type="button" id="intakeDetailsBtn">+</button><div id="buyPanel" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill">Köptillfällen: <strong>${totals.receipts}</strong></span><span class="pill">Biljetter sålda: <strong>${totals.adult+totals.child}</strong></span><span class="pill">Vuxen: <strong>${totals.adult}</strong></span><span class="pill">Barn: <strong>${totals.child}</strong></span><span class="pill">Övrigt: <strong>${totals.intakeOther||0} kr</strong></span><span class="pill">Re-entry köp: <strong>${reEntryPurchasesForDate(todayStr())}</strong></span></div><div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px;">${['Swish','Kort','Kontant'].map(m=>payTots[m]?`<span class="pill">${m}: <strong>${payTots[m]} kr</strong></span>`:'').join('')}</div></div><div id="intakeDetails" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setDailyCostsViaPrompt()':''}">Utgifter: <strong>${costs} kr</strong></span>${(()=>{if(costs<=0) return '';const be=fc.avgUsed>0?Math.ceil(costs/fc.avgUsed):null;if(!be) return '';const covered=totals.intake>=costs;return `<span class="pill" style="${covered?'border-color:rgba(40,167,69,0.5);':''}">Nollpunkt: <strong>~${be} besökare</strong>${covered?' ✓':''}</span>`;})()}<span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setForecastTargetViaPrompt()':''}">Prognos insläppta: <strong>${fc.target}</strong></span><span class="pill tiny" style="opacity:.9;">${escapeHtml(fcNote)}</span>${isAdmin?`<span class="pill clickable" onclick="setForecastFallbackAvgViaPrompt()">Fallback-snitt: <strong>${Math.round(fc.fallbackAvg)} kr/p</strong></span>`:``}</div>${(()=>{ const hrs=loadOpeningHours(); const sim=getSimilarDays(hrs); if(!sim.length) return ''; const avg=Math.round(sim.reduce((s,d)=>s+d.admitted,0)/sim.length); const toggleBtn='<button class="btn pill" type="button" onclick="toggleSimilarDays()" style="font-size:12px;">'+(_showSimilarDays?'▲':'▼')+' Liknande dagar ('+sim.length+')</button>'; if(!_showSimilarDays) return '<div style="margin-top:8px;">'+toggleBtn+'</div>'; const rows=sim.map(d=>'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;"><span>'+d.date+'</span><span>'+d.admitted+' gäster</span></div>').join(''); const useBtn=isAdmin?'<button class="btn pill" type="button" onclick="useSimilarDaysAvg('+avg+')">Använd som prognos</button>':''; return '<div style="margin-top:8px;">'+toggleBtn+'<div style="margin-top:6px;background:rgba(0,0,0,.25);border-radius:8px;padding:8px 12px;">'+rows+'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><strong style="font-size:13px;">Snitt: '+avg+' gäster</strong>'+useBtn+'</div></div></div>'; })()}</div>`;
+        if(pillsEl) pillsEl.innerHTML=`<div class="st-kpis"><div class="st-kpi is-main"><span>Dagens intäkt</span><strong>${totals.intake} kr</strong></div><div class="st-kpi ${net>=0?'is-up':'is-down'}"><span>Resultat</span><strong>${net} kr</strong></div><div class="st-kpi"><span>Beräknad intäkt</span><strong>~ ${fc.predicted} kr</strong></div></div><button class="btn pill" type="button" id="buyBtn" style="margin-left:auto;">Köp: <strong>${totals.receipts}</strong></button><button class="btn pill" type="button" id="intakeDetailsBtn">+</button><div id="buyPanel" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill">Köptillfällen: <strong>${totals.receipts}</strong></span><span class="pill">Biljetter sålda: <strong>${totals.adult+totals.child}</strong></span><span class="pill">Vuxen: <strong>${totals.adult}</strong></span><span class="pill">Barn: <strong>${totals.child}</strong></span><span class="pill">Övrigt: <strong>${totals.intakeOther||0} kr</strong></span><span class="pill">Re-entry köp: <strong>${reEntryPurchasesForDate(todayStr())}</strong></span></div><div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px;">${['Swish','Kort','Kontant'].map(m=>payTots[m]?`<span class="pill">${m}: <strong>${payTots[m]} kr</strong></span>`:'').join('')}</div></div><div id="intakeDetails" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setDailyCostsViaPrompt()':''}">Utgifter: <strong>${costs} kr</strong></span>${(()=>{if(costs<=0) return '';const be=fc.avgUsed>0?Math.ceil(costs/fc.avgUsed):null;if(!be) return '';const covered=totals.intake>=costs;return `<span class="pill" style="${covered?'border-color:rgba(96,140,84,0.5);':''}">Nollpunkt: <strong>~${be} besökare</strong>${covered?' ✓':''}</span>`;})()}<span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setForecastTargetViaPrompt()':''}">Prognos insläppta: <strong>${fc.target}</strong></span><span class="pill tiny" style="opacity:.9;">${escapeHtml(fcNote)}</span>${isAdmin?`<span class="pill clickable" onclick="setForecastFallbackAvgViaPrompt()">Fallback-snitt: <strong>${Math.round(fc.fallbackAvg)} kr/p</strong></span>`:``}</div>${(()=>{ const hrs=loadOpeningHours(); const sim=getSimilarDays(hrs); if(!sim.length) return ''; const avg=Math.round(sim.reduce((s,d)=>s+d.admitted,0)/sim.length); const toggleBtn='<button class="btn pill" type="button" onclick="toggleSimilarDays()" style="font-size:12px;">'+(_showSimilarDays?'▲':'▼')+' Liknande dagar ('+sim.length+')</button>'; if(!_showSimilarDays) return '<div style="margin-top:8px;">'+toggleBtn+'</div>'; const rows=sim.map(d=>'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;"><span>'+d.date+'</span><span>'+d.admitted+' gäster</span></div>').join(''); const useBtn=isAdmin?'<button class="btn pill" type="button" onclick="useSimilarDaysAvg('+avg+')">Använd som prognos</button>':''; return '<div style="margin-top:8px;">'+toggleBtn+'<div style="margin-top:6px;background:rgba(0,0,0,.25);border-radius:8px;padding:8px 12px;">'+rows+'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><strong style="font-size:13px;">Snitt: '+avg+' gäster</strong>'+useBtn+'</div></div></div>'; })()}</div>`;
         if(buyWasOpen){const p=document.getElementById('buyPanel');if(p) p.style.display='block';}
         if(detWasOpen){const p=document.getElementById('intakeDetails');if(p) p.style.display='block';}
         const buyBtn=document.getElementById('buyBtn');if(buyBtn&&!buyBtn._bound){buyBtn.addEventListener('click',()=>{const buy=document.getElementById('buyPanel');const det=document.getElementById('intakeDetails');const open=buy&&buy.style.display==='block';if(buy) buy.style.display=open?'none':'block';if(!open&&det) det.style.display='none';});buyBtn._bound=true;}
@@ -1173,7 +1331,7 @@
           const td=visits[todayStr()]||{};
           let wg=0,wp=0;Object.values(visits).forEach(d=>{wg+=Number(d.guest||0);wp+=Number(d.personal||0);});
           const tg=Number(td.guest||0),tp=Number(td.personal||0);
-          if(pillsEl) pillsEl.innerHTML=`<span class="pill">Idag: <strong>${tg+tp}</strong></span><span class="pill">Veckan: <strong>${wg+wp}</strong></span><button id="webbRefreshBtn" title="Uppdatera" style="background:none;border:none;color:rgba(232,224,208,0.5);cursor:pointer;font-size:16px;padding:0 4px;line-height:1;margin-left:4px;">↻</button>`;
+          if(pillsEl) pillsEl.innerHTML=`<span class="pill">Idag: <strong>${tg+tp}</strong></span><span class="pill">Veckan: <strong>${wg+wp}</strong></span><button id="webbRefreshBtn" title="Uppdatera" style="background:none;border:none;color:rgba(221,227,220,0.5);cursor:pointer;font-size:16px;padding:0 4px;line-height:1;margin-left:4px;">↻</button>`;
           if(wrapEl) wrapEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;overflow:hidden;">${svgBars2([tg,tp],['Gäster','Personal'],'Idag',['rgba(232,180,60,0.9)','rgba(100,160,220,0.9)'])}${svgBars2([wg,wp],['Gäster','Personal'],'Senaste 7 dagarna',['rgba(232,180,60,0.5)','rgba(100,160,220,0.5)'])}</div>`;
           const rb=document.getElementById('webbRefreshBtn');
           if(rb) rb.addEventListener('click',()=>{
@@ -1200,21 +1358,26 @@
     setCockpitMode(getSavedCockpitTab());
   }
 
+  // "lör 26 sep 2026" (året bara om det inte är i år)
+  function svDayShort(d){ if(d===todayStr()) return 'Idag'; const x=new Date(d+'T12:00:00'); if(isNaN(x)) return d; const wd=['sön','mån','tis','ons','tor','fre','lör'][x.getDay()]; const mo=['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'][x.getMonth()]; return `${wd} ${x.getDate()} ${mo}${x.getFullYear()!==new Date().getFullYear()?' '+x.getFullYear():''}`; }
   function renderStats(){
     const root=document.getElementById('statsList');if(!root) return;
     if(!loggedInUser){root.innerHTML='<div class="muted" style="font-style:italic;">Logga in för att se historik.</div>';return;}
     const hist=loadSalesHistory();const dates=Object.keys(hist).filter(d=>!hist[d]?._deleted).sort().reverse();
     root.innerHTML='';
-    const _addDiv=document.createElement('div');_addDiv.style.marginBottom='12px';
-    _addDiv.innerHTML=isAdmin?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;"><button class="btn pill" type="button" onclick="toggleAddDayPanel()">+ Lägg till dag</button><button class="btn pill" type="button" onclick="showLocalBackupModal()" style="opacity:0.75;">Lokal säkerhetskopia</button></div><div id="addDayPanel" style="display:none;background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;margin-top:8px;"><div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;"><label style="flex:1;min-width:110px;font-size:13px;">Datum<br><input type="date" id="addDayDate" style="width:100%;"></label><label style="flex:1;min-width:80px;font-size:13px;">Vuxna<br><input type="number" id="addDayAdult" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:80px;font-size:13px;">Barn<br><input type="number" id="addDayChild" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:100px;font-size:13px;">Intäkt (kr)<br><input type="number" id="addDayIncome" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:110px;font-size:13px;">Öppettider<br><input type="text" id="addDayHours" placeholder="10:00–22:00" style="width:100%;"></label><label style="flex:1;min-width:100px;font-size:13px;">Utgifter (kr)<br><input type="number" id="addDayCosts" value="0" min="0" style="width:100%;"></label></div><div class="row" style="gap:8px;"><button class="btn" type="button" onclick="saveNewDay()">Spara dag</button><button class="btn" type="button" onclick="toggleAddDayPanel()">Avbryt</button></div></div>`:'';
-    root.appendChild(_addDiv);
-    if(!dates.length){const _nd=document.createElement('div');_nd.className='muted';_nd.style.fontStyle='italic';_nd.textContent='Ingen historik än.';root.appendChild(_nd);return;}
+    const _addDiv=document.createElement('div');_addDiv.className='st-tools';
+    _addDiv.innerHTML=isAdmin?`<h4 class="st-h">Verktyg</h4><div class="st-tools-row"><div><button class="btn" type="button" onclick="toggleAddDayPanel()">Lägg till en dag för hand</button><p class="tiny muted">För dagar som inte gick genom kassan.</p></div><div><button class="btn" type="button" onclick="showLocalBackupModal()">Lokal säkerhetskopia</button><p class="tiny muted">Återställ statistiken från den här enhetens kopia om något försvunnit.</p></div></div><div id="addDayPanel" style="display:none;background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;margin-top:8px;"><div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;"><label style="flex:1;min-width:110px;font-size:13px;">Datum<br><input type="date" id="addDayDate" style="width:100%;"></label><label style="flex:1;min-width:80px;font-size:13px;">Vuxna<br><input type="number" id="addDayAdult" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:80px;font-size:13px;">Barn<br><input type="number" id="addDayChild" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:100px;font-size:13px;">Intäkt (kr)<br><input type="number" id="addDayIncome" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:110px;font-size:13px;">Öppettider<br><input type="text" id="addDayHours" placeholder="10:00–22:00" style="width:100%;"></label><label style="flex:1;min-width:100px;font-size:13px;">Utgifter (kr)<br><input type="number" id="addDayCosts" value="0" min="0" style="width:100%;"></label></div><div class="row" style="gap:8px;"><button class="btn" type="button" onclick="saveNewDay()">Spara dag</button><button class="btn" type="button" onclick="toggleAddDayPanel()">Avbryt</button></div></div>`:'';
+    const _hh=document.createElement('h4');_hh.className='st-h';_hh.textContent='Tidigare dagar';root.appendChild(_hh);
+    if(!dates.length){const _nd=document.createElement('div');_nd.className='muted';_nd.style.fontStyle='italic';_nd.textContent='Ingen historik än.';root.appendChild(_nd);root.appendChild(_addDiv);return;}
     dates.forEach(date=>{
       const s=hist[date]||{};const totalGuests=(s.adult||0)+(s.child||0);const detailId=`statsDetail-${date}`;const btnId=`statsBtn-${date}`;const hoursLabel=s.hours&&s.hours!=='Stängt'?` • ${s.hours}`:'';const _sEntries=Array.isArray(s.entries)?s.entries:[];const _sPay={};_sEntries.forEach(e=>{const p=e.payType||'—';_sPay[p]=(_sPay[p]||0)+Number(e.sum||0);});const payLabel=['Swish','Kort','Kontant'].filter(m=>_sPay[m]).map(m=>`${m}: ${_sPay[m]} kr`).join(' / ');
       const wrap=document.createElement('div');wrap.className='section';
-      wrap.innerHTML=`<button id="${btnId}" class="disclosure" type="button" onclick="toggleStats('${date}',this)">${date}${hoursLabel} — Gäster: ${totalGuests} (Vuxna: ${s.adult||0}, Barn: ${s.child||0}) • Inkomst: ${s.income||0} kr • Köp: ${s.count||0}</button><div id="${detailId}" class="content" style="display:none;"></div>`;
+      const _fl=fledForDate(date);
+      wrap.className='section st-day';
+      wrap.innerHTML=`<button id="${btnId}" class="disclosure st-row" type="button" aria-expanded="false" onclick="toggleStats('${date}',this)"><span class="st-date">${svDayShort(date)}${s.hours&&s.hours!=='Stängt'?`<small>${escapeHtml(s.hours)}</small>`:''}</span><span class="st-num"><strong>${totalGuests}</strong> gäster<small>${s.adult||0} vuxna · ${s.child||0} barn${_fl?` · ${_fl} fegade ur`:''}</small></span><span class="st-num"><strong>${s.income||0}</strong> kr<small>${s.count||0} köp</small></span></button><div id="${detailId}" class="content" style="display:none;"></div>`;
       root.appendChild(wrap);
     });
+    root.appendChild(_addDiv);
     const openDays=loadOpenStatsDays();
     setTimeout(()=>{ openDays.forEach(d=>{ const btn=document.getElementById(`statsBtn-${d}`);const el=document.getElementById(`statsDetail-${d}`);if(btn&&el&&el.style.display!=='block') toggleStats(d,btn); }); },0);
   }
@@ -1228,14 +1391,14 @@
       const deleteBar=`<div class="row" style="justify-content:space-between;align-items:center;margin:6px 0 12px;gap:10px;flex-wrap:wrap;">${isAdmin?'<div class="tiny muted">Administratör: visa sammanfattning eller radera dagen.</div>':''}<div class="row" style="gap:8px;flex-wrap:wrap;"><button class="btn" onclick="showDaySummaryModal('${date}')">Visa sammanfattning</button>${isAdmin?`<button class="btn btn-danger" onclick="deleteStatsDay('${date}')">Radera dag</button>`:''}</div></div><hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:10px 0;">`;
       const _tPay=paymentTotalsForDate(date);const _tPayPills=['Swish','Kort','Kontant'].map(m=>_tPay[m]?`<span class="pill">${m}: <strong>${_tPay[m]} kr</strong></span>`:'').join('');const payRow=_tPayPills?`<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px;">${_tPayPills}</div>`:'';
       if(!s||!Array.isArray(s.entries)||!s.entries.length){el.innerHTML=deleteBar+payRow+'<div class="muted" style="font-style:italic;">Inga detaljposter för datumet.</div>';}
-      else{el.innerHTML=deleteBar+payRow+s.entries.map(e=>{ const isReEntryPurchase=Number(e?.reEntryCreated||0)>0||Number(e?.breakdown?.reEntry||0)>0;let usedBadge='';if(isReEntryPurchase){const day=histAll[date]||{};const passes=Array.isArray(day.reEntryPasses)?day.reEntryPasses:[];const countMap={};passes.forEach(p=>{countMap[p.id]=Number(p.count||0);});const ids=Array.isArray(e.reEntryIds)?e.reEntryIds:[];if(ids.length){usedBadge=ids.map(id=>{const p=passes.find(x=>x.id===id);const label=p?.label||'Re-entry';const n=(countMap[id]??0);return `<span class="pill" style="background:rgba(75,0,130,0.4);border-color:rgba(142,106,216,0.5);">${escapeHtml(label)}: ${n} gånger</span>`;}).join(' ');}else{usedBadge=`<span class="pill" style="background:rgba(75,0,130,0.4);">Re-entry</span>`;}}else if(typeof e.used==='boolean'){if(!window._reactivateTickets) window._reactivateTickets={}; const _rk='_re_'+(e.ticketUid||'').replace(/\W/g,'_')+'_'+date; window._reactivateTickets[_rk]={ticketUid:e.ticketUid,adult:e.adult,child:e.child,label:e.ticketLabel,sum:e.sum}; usedBadge=e.used?'<span class="pill" style="background:rgba(26,58,35,0.5);border-color:rgba(40,167,69,0.4);">Använd</span>':`<span class="pill" style="cursor:pointer;border-color:rgba(255,160,60,0.4);background:rgba(255,100,0,0.1);" onclick="reactivateTicketFromHistory('${_rk}')" title="Klicka för att återaktivera till aktiva biljetter">Ej använd ↩</span>`;}const labelPart=e.ticketLabel?` — <em>${escapeHtml(e.ticketLabel)}</em>`:'';return `<div class="log-entry"><strong>${escapeHtml(e.time)}<br></strong>${(e.items||[]).map(escapeHtml).join('<br>')}<br><em>Summa: ${e.sum} kr</em>${labelPart}${usedBadge?` ${usedBadge}`:``}<br><span class="tiny">Säljare: ${escapeHtml(e.seller||'—')} • Betalning: ${escapeHtml(e.payType||'—')}</span></div>`; }).join('');}
+      else{el.innerHTML=deleteBar+payRow+s.entries.map(e=>{ const isReEntryPurchase=Number(e?.reEntryCreated||0)>0||Number(e?.breakdown?.reEntry||0)>0;let usedBadge='';if(isReEntryPurchase){const day=histAll[date]||{};const passes=Array.isArray(day.reEntryPasses)?day.reEntryPasses:[];const countMap={};passes.forEach(p=>{countMap[p.id]=Number(p.count||0);});const ids=Array.isArray(e.reEntryIds)?e.reEntryIds:[];if(ids.length){usedBadge=ids.map(id=>{const p=passes.find(x=>x.id===id);const label=p?.label||'Re-entry';const n=(countMap[id]??0);return `<span class="pill" style="background:rgba(75,0,130,0.4);border-color:rgba(142,106,216,0.5);">${escapeHtml(label)}: ${n} gånger</span>`;}).join(' ');}else{usedBadge=`<span class="pill" style="background:rgba(75,0,130,0.4);">Re-entry</span>`;}}else if(typeof e.used==='boolean'){if(!window._reactivateTickets) window._reactivateTickets={}; const _rk='_re_'+(e.ticketUid||'').replace(/\W/g,'_')+'_'+date; window._reactivateTickets[_rk]={ticketUid:e.ticketUid,adult:e.adult,child:e.child,label:e.ticketLabel,sum:e.sum}; usedBadge=e.used?'<span class="pill" style="background:rgba(26,58,35,0.5);border-color:rgba(96,140,84,0.4);">Använd</span>':`<span class="pill" style="cursor:pointer;border-color:rgba(255,160,60,0.4);background:rgba(255,100,0,0.1);" onclick="reactivateTicketFromHistory('${_rk}')" title="Klicka för att återaktivera till aktiva biljetter">Ej använd ↩</span>`;}const labelPart=e.ticketLabel?` — <em>${escapeHtml(e.ticketLabel)}</em>`:'';return `<div class="log-entry"><strong>${escapeHtml(e.time)}<br></strong>${(e.items||[]).map(escapeHtml).join('<br>')}<br><em>Summa: ${e.sum} kr</em>${labelPart}${usedBadge?` ${usedBadge}`:``}<br><span class="tiny">Säljare: ${escapeHtml(e.seller||'—')} • Betalning: ${escapeHtml(e.payType||'—')}</span></div>`; }).join('');}
     }
-    if(btnEl){const base=btnEl.textContent.replace(/^Visa |^Dölj /,'');btnEl.textContent=(willOpen?'Dölj ':'Visa ')+base;}
+    if(btnEl) btnEl.setAttribute('aria-expanded',willOpen?'true':'false');
   }
 
   function saveStatsEdit(date){ if(!isAdmin||!date) return; const adult=Math.max(0,Number(document.getElementById('editAdult-'+date)?.value||0)); const child=Math.max(0,Number(document.getElementById('editChild-'+date)?.value||0)); const income=Math.max(0,Number(document.getElementById('editIncome-'+date)?.value||0)); const hours=(document.getElementById('editHours-'+date)?.value||'').trim(); const costs=Math.max(0,Number(document.getElementById('editCosts-'+date)?.value||0)); const hist=loadSalesHistory(); if(!hist[date]) hist[date]={adult:0,child:0,income:0,count:0,entries:[],reEntryPasses:[],admissionsEntries:[]}; hist[date].adult=adult; hist[date].child=child; hist[date].income=income; if(hours) hist[date].hours=hours; hist[date].costs=costs; saveSalesHistory(hist); _statsDirty=true; renderStats(); renderCockpit(); }
   function toggleAddDayPanel(){ const p=document.getElementById('addDayPanel'); if(p) p.style.display=p.style.display==='none'?'block':'none'; }
-  function saveNewDay(){ if(!isAdmin) return; const date=(document.getElementById('addDayDate')?.value||'').trim(); if(!date||!/^\d{4}-\d{2}-\d{2}$/.test(date)){alert('Ange ett giltigt datum (ÅÅÅÅ-MM-DD).');return;} const adult=Math.max(0,Number(document.getElementById('addDayAdult')?.value||0)); const child=Math.max(0,Number(document.getElementById('addDayChild')?.value||0)); const income=Math.max(0,Number(document.getElementById('addDayIncome')?.value||0)); const hours=(document.getElementById('addDayHours')?.value||'').trim(); const costs=Math.max(0,Number(document.getElementById('addDayCosts')?.value||0)); const hist=loadSalesHistory(); hist[date]={adult,child,income,count:0,entries:[],reEntryPasses:[],admissionsEntries:[],_clientTs:Date.now()}; if(hours) hist[date].hours=hours; if(costs) hist[date].costs=costs; saveSalesHistory(hist); _statsDirty=true; const p=document.getElementById('addDayPanel'); if(p) p.style.display='none'; renderStats(); renderCockpit(); }
+  function saveNewDay(){ if(!isAdmin) return; const date=(document.getElementById('addDayDate')?.value||'').trim(); if(!date||!/^\d{4}-\d{2}-\d{2}$/.test(date)){notify('Ange ett giltigt datum (ÅÅÅÅ-MM-DD).');return;} const adult=Math.max(0,Number(document.getElementById('addDayAdult')?.value||0)); const child=Math.max(0,Number(document.getElementById('addDayChild')?.value||0)); const income=Math.max(0,Number(document.getElementById('addDayIncome')?.value||0)); const hours=(document.getElementById('addDayHours')?.value||'').trim(); const costs=Math.max(0,Number(document.getElementById('addDayCosts')?.value||0)); const hist=loadSalesHistory(); hist[date]={adult,child,income,count:0,entries:[],reEntryPasses:[],admissionsEntries:[],_clientTs:Date.now()}; if(hours) hist[date].hours=hours; if(costs) hist[date].costs=costs; saveSalesHistory(hist); _statsDirty=true; const p=document.getElementById('addDayPanel'); if(p) p.style.display='none'; renderStats(); renderCockpit(); }
 
   function showLocalBackupModal(){
     if(!isAdmin) return;
@@ -1251,20 +1414,20 @@
     const tsStr=localTs?new Date(localTs).toLocaleString('sv-SE'):'okänt';
     const localLatest=localDates.length?localDates[localDates.length-1]:'—';
     const serverLatest=serverDates.length?serverDates[serverDates.length-1]:'—';
-    const dateRows=localDates.length?localDates.slice().reverse().map(d=>{ const day=localData[d]||{}; const guests=(day.adult||0)+(day.child||0); const income=day.income||0; const badge=serverData[d]&&!serverData[d]._deleted?'':'<span style="color:#f5a623;font-size:11px;margin-left:6px;">● saknas på server</span>'; return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);gap:8px;"><span style="font-size:13px;flex:1;">${escapeHtml(d)}${badge}</span><span style="font-size:12px;opacity:0.7;white-space:nowrap;">${guests} gäster · ${income} kr</span><button onclick="promptRemoveFromBackup('${d}')" style="background:none;border:none;color:rgba(232,224,208,0.3);font-size:13px;cursor:pointer;padding:0 2px;line-height:1;" title="Rensa ur säkerhetskopia">×</button></div>`; }).join(''):'<div style="opacity:0.5;font-size:13px;padding:8px 0;">Ingen lokal kopia hittades på den här enheten.</div>';
-    const statusBox=missing.length?`<div style="background:rgba(245,166,35,0.12);border:1px solid rgba(245,166,35,0.3);border-radius:8px;padding:10px 12px;margin:12px 0;font-size:13px;">${missing.length} dag${missing.length>1?'ar':''} finns lokalt men saknas på servern: ${missing.map(escapeHtml).join(', ')}</div>`:`<div style="background:rgba(40,167,69,0.12);border:1px solid rgba(40,167,69,0.3);border-radius:8px;padding:10px 12px;margin:12px 0;font-size:13px;">Lokal kopia och server är i synk — inga dagar saknas.</div>`;
+    const dateRows=localDates.length?localDates.slice().reverse().map(d=>{ const day=localData[d]||{}; const guests=(day.adult||0)+(day.child||0); const income=day.income||0; const badge=serverData[d]&&!serverData[d]._deleted?'':'<span style="color:#f5a623;font-size:11px;margin-left:6px;">● saknas på server</span>'; return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);gap:8px;"><span style="font-size:13px;flex:1;">${escapeHtml(d)}${badge}</span><span style="font-size:12px;opacity:0.7;white-space:nowrap;">${guests} gäster · ${income} kr</span><button onclick="promptRemoveFromBackup('${d}')" style="background:none;border:none;color:rgba(221,227,220,0.3);font-size:13px;cursor:pointer;padding:0 2px;line-height:1;" title="Rensa ur säkerhetskopia">×</button></div>`; }).join(''):'<div style="opacity:0.5;font-size:13px;padding:8px 0;">Ingen lokal kopia hittades på den här enheten.</div>';
+    const statusBox=missing.length?`<div style="background:rgba(245,166,35,0.12);border:1px solid rgba(245,166,35,0.3);border-radius:8px;padding:10px 12px;margin:12px 0;font-size:13px;">${missing.length} dag${missing.length>1?'ar':''} finns lokalt men saknas på servern: ${missing.map(escapeHtml).join(', ')}</div>`:`<div style="background:rgba(96,140,84,0.12);border:1px solid rgba(96,140,84,0.3);border-radius:8px;padding:10px 12px;margin:12px 0;font-size:13px;">Lokal kopia och server är i synk — inga dagar saknas.</div>`;
     let m=document.getElementById('localBackupModal');
     if(!m){ m=document.createElement('div'); m.id='localBackupModal'; m.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);'; m.addEventListener('click',e=>{ if(e.target===m) m.style.display='none'; }); document.body.appendChild(m); }
-    m.innerHTML=`<div style="background:#1a1228;border:1px solid rgba(232,224,208,0.15);border-radius:14px;max-width:460px;width:93%;max-height:82vh;overflow-y:auto;padding:22px;font-family:inherit;color:rgba(232,224,208,0.9);"><h3 style="margin:0 0 3px;font-size:17px;">Lokal säkerhetskopia</h3><p style="font-size:12px;opacity:0.45;margin:0 0 14px;">Data lagrad i webbläsarens minne på <em>den här enheten</em>.</p><div style="display:flex;gap:10px;margin-bottom:4px;"><div style="flex:1;background:rgba(255,255,255,0.05);border-radius:8px;padding:10px;"><div style="font-size:10px;opacity:0.45;margin-bottom:4px;letter-spacing:.05em;">LOKAL KOPIA</div><div style="font-size:14px;font-weight:bold;">${localDates.length} dagar</div><div style="font-size:12px;opacity:0.6;">Senaste: ${escapeHtml(localLatest)}</div><div style="font-size:11px;opacity:0.4;margin-top:4px;">${escapeHtml(tsStr)}</div></div><div style="flex:1;background:rgba(255,255,255,0.05);border-radius:8px;padding:10px;"><div style="font-size:10px;opacity:0.45;margin-bottom:4px;letter-spacing:.05em;">SERVER (nu)</div><div style="font-size:14px;font-weight:bold;">${serverDates.length} dagar</div><div style="font-size:12px;opacity:0.6;">Senaste: ${escapeHtml(serverLatest)}</div></div></div>${statusBox}<div style="max-height:210px;overflow-y:auto;margin-bottom:14px;">${dateRows}</div><div id="backupRemoveForm" style="display:none;background:rgba(0,0,0,0.25);border-radius:8px;padding:12px;margin-bottom:12px;"><div style="font-size:13px;margin-bottom:8px;">Ange adminlösenord för att rensa <strong id="backupRemoveDate"></strong> ur säkerhetskopian:</div><div style="display:flex;gap:8px;align-items:center;"><input id="backupRemovePw" type="password" placeholder="Lösenord" style="flex:1;background:rgba(0,0,0,0.3);border:1px solid rgba(232,224,208,0.25);border-radius:6px;color:inherit;font-family:inherit;font-size:13px;padding:6px 10px;outline:none;"><button class="btn" onclick="confirmRemoveFromBackup()">Ta bort</button><button class="btn" onclick="document.getElementById('backupRemoveForm').style.display='none'">Avbryt</button></div><div id="backupRemoveErr" style="color:#e07070;font-size:12px;margin-top:6px;display:none;">Fel lösenord.</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;">${missing.length?`<button class="btn" onclick="restoreFromLocalBackup()" style="background:rgba(245,166,35,0.18);border-color:rgba(245,166,35,0.5);">Lägg till ${missing.length} saknade dag${missing.length>1?'ar':''}</button>`:''}<button class="btn" onclick="document.getElementById('localBackupModal').style.display='none'">Stäng</button></div></div>`;
+    m.innerHTML=`<div style="background:#1a1228;border:1px solid rgba(221,227,220,0.15);border-radius:14px;max-width:460px;width:93%;max-height:82vh;overflow-y:auto;padding:22px;font-family:inherit;color:rgba(221,227,220,0.9);"><h3 style="margin:0 0 3px;font-size:17px;">Lokal säkerhetskopia</h3><p style="font-size:12px;opacity:0.45;margin:0 0 14px;">Data lagrad i webbläsarens minne på <em>den här enheten</em>.</p><div style="display:flex;gap:10px;margin-bottom:4px;"><div style="flex:1;background:rgba(255,255,255,0.05);border-radius:8px;padding:10px;"><div style="font-size:10px;opacity:0.45;margin-bottom:4px;letter-spacing:.05em;">LOKAL KOPIA</div><div style="font-size:14px;font-weight:bold;">${localDates.length} dagar</div><div style="font-size:12px;opacity:0.6;">Senaste: ${escapeHtml(localLatest)}</div><div style="font-size:11px;opacity:0.4;margin-top:4px;">${escapeHtml(tsStr)}</div></div><div style="flex:1;background:rgba(255,255,255,0.05);border-radius:8px;padding:10px;"><div style="font-size:10px;opacity:0.45;margin-bottom:4px;letter-spacing:.05em;">SERVER (nu)</div><div style="font-size:14px;font-weight:bold;">${serverDates.length} dagar</div><div style="font-size:12px;opacity:0.6;">Senaste: ${escapeHtml(serverLatest)}</div></div></div>${statusBox}<div style="max-height:210px;overflow-y:auto;margin-bottom:14px;">${dateRows}</div><div id="backupRemoveForm" style="display:none;background:rgba(0,0,0,0.25);border-radius:8px;padding:12px;margin-bottom:12px;"><div style="font-size:13px;margin-bottom:8px;">Ange ditt lösenord för att rensa <strong id="backupRemoveDate"></strong> ur säkerhetskopian:</div><div style="display:flex;gap:8px;align-items:center;"><input id="backupRemovePw" type="password" placeholder="Lösenord" style="flex:1;background:rgba(0,0,0,0.3);border:1px solid rgba(221,227,220,0.25);border-radius:6px;color:inherit;font-family:inherit;font-size:13px;padding:6px 10px;outline:none;"><button class="btn" onclick="confirmRemoveFromBackup()">Ta bort</button><button class="btn" onclick="document.getElementById('backupRemoveForm').style.display='none'">Avbryt</button></div><div id="backupRemoveErr" style="color:#e07070;font-size:12px;margin-top:6px;display:none;">Fel lösenord.</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;">${missing.length?`<button class="btn" onclick="restoreFromLocalBackup()" style="background:rgba(245,166,35,0.18);border-color:rgba(245,166,35,0.5);">Lägg till ${missing.length} saknade dag${missing.length>1?'ar':''}</button>`:''}<button class="btn" onclick="document.getElementById('localBackupModal').style.display='none'">Stäng</button></div></div>`;
     m.style.display='flex';
   }
 
-  function restoreFromLocalBackup(){
+  async function restoreFromLocalBackup(){
     if(!isAdmin) return;
     const {dates:missing,localData}=window._backupMissing||{};
-    if(!missing||!missing.length){ alert('Inga saknade dagar att återställa.'); return; }
+    if(!missing||!missing.length){ notify('Inga saknade dagar att återställa.'); return; }
     const preview=missing.map(d=>{ const day=localData[d]||{}; return `${d}: ${(day.adult||0)+(day.child||0)} gäster, ${day.income||0} kr`; }).join('\n');
-    if(!confirm(`Lägg till ${missing.length} dag${missing.length>1?'ar':''} från lokal kopia till servern?\n\n${preview}`)) return;
+    if(!await uiConfirm(`Lägg till ${missing.length} dag${missing.length>1?'ar':''} från lokal kopia till servern?\n\n${preview}`)) return;
     const serverData=loadSalesHistory();
     const merged=Object.assign({},serverData);
     missing.forEach(d=>{ merged[d]={...localData[d],_clientTs:Date.now()}; });
@@ -1285,10 +1448,10 @@
     setTimeout(()=>document.getElementById('backupRemovePw')?.focus(),50);
   }
 
-  function confirmRemoveFromBackup(){
+  async function confirmRemoveFromBackup(){
     const pw=(document.getElementById('backupRemovePw')?.value||'').trim();
-    const u=users[pw]; const isAdminPw=(u&&u.admin)||(pw==='spök123');
-    if(!isAdminPw){ document.getElementById('backupRemoveErr').style.display=''; return; }
+    const bad=await _verifyMyAdminPassword(pw);
+    if(bad){ const e=document.getElementById('backupRemoveErr'); if(e){ e.textContent=bad; e.style.display=''; } return; }
     const date=document.getElementById('backupRemoveForm')?.dataset.date; if(!date) return;
     try{ const snap=_readProtectedSnapshot(); if(snap?.v) { delete snap.v[date]; localStorage.setItem(PROTECTED_SNAPSHOT_KEY,JSON.stringify(snap)); } }catch(_e){}
     document.getElementById('backupRemoveForm').style.display='none';
@@ -1299,7 +1462,7 @@
     const oh=document.getElementById('openHoursText');const qt=document.getElementById('queueTimeText');
     if(oh) oh.textContent=openingHours||'Stängt';
     const shownQueue=(openingHours==='Stängt')?'Stängt':(queueTime||'Ingen info');
-    if(qt) qt.textContent=shownQueue;
+    if(qt) qt.textContent=queueLabel(shownQueue);
     const sym=document.getElementById('queueAutoSymbol'); if(sym){ const d=loadQueueData(); const isAuto=d.value===null||(d.until!==null&&Date.now()>=d.until); sym.textContent=isAuto?'↺':''; }
 
     const wQueueCard=document.getElementById('queueTimeDisplay')?.closest('.welcome-status-card');
@@ -1312,12 +1475,13 @@
 
     if(!guestIsClosed&&wQueueEl){
       const dotCls=(shownQueue==='Stängt för kvällen'||shownQueue==='Tillfälligt Stängt'||shownQueue==='Stängt')?'dead':'live';
-      wQueueEl.innerHTML=`<span class="status-dot ${dotCls}"></span>${escapeHtml(shownQueue)}`;
+      wQueueEl.innerHTML=`<span class="status-dot ${dotCls}"></span>${escapeHtml(queueLabel(shownQueue))}`;
       wQueueEl.className='welcome-status-value '+(dotCls==='live'?'is-open':'is-closed');
       if(wQueueCard) wQueueCard.className='welcome-status-card '+(dotCls==='live'?'queue-live':'queue-dim');
     }
 
     const isKvällen=shownQueue==='Stängt för kvällen';
+    let ghNextLabel=null;
     if(wHoursEl){
       if(guestIsClosed){
         const _todayEntry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===todayStr());
@@ -1328,10 +1492,11 @@
         let nextLabel;
         if(_opensToday){ nextLabel=`idag kl ${String(_todayRange.start).padStart(2,'0')}:00`; }
         else{ const nextDate=(!guestHidden&&!isClosed)?null:getNextOpenDate(); nextLabel=nextDate?formatNextOpen(nextDate):null; }
+        ghNextLabel=nextLabel;
         wHoursEl.innerHTML=nextLabel?`Stängt &ndash; öppnar ${escapeHtml(nextLabel)}`:'Stängt idag';
         wHoursEl.className='welcome-status-value is-closed';
       }else if(isKvällen){
-        wHoursEl.textContent='Stängt för kvällen';
+        wHoursEl.textContent='Stängt för idag';
         wHoursEl.className='welcome-status-value is-closed';
       }else{
         wHoursEl.textContent=openingHours||'Ingen info';
@@ -1339,21 +1504,27 @@
       }
     }
 
+    const ghStatus=document.getElementById('ghStatus');
+    if(ghStatus){
+      const ghOpen=!guestIsClosed&&!isKvällen;
+      const qClosed=['Stängt','Tillfälligt Stängt','Stängt för kvällen'].includes(shownQueue);
+      const hasQueue=ghOpen&&!qClosed&&shownQueue!=='Ingen info';
+      const ghText=!ghOpen?(ghNextLabel?'Öppnar '+ghNextLabel:(isKvällen?'Stängt för idag':'Stängt')):qClosed?queueLabel(shownQueue):(hasQueue?'Öppet · kö '+shownQueue:'Öppet '+(openingHours||''));
+      ghStatus.className='gh-status '+(ghOpen&&!qClosed?'is-open':'is-closed');
+      const dot=document.getElementById('ghStatusDot'); if(dot) dot.className='status-dot '+(ghOpen&&!qClosed?'live':'dead');
+      const txt=document.getElementById('ghStatusText'); if(txt) txt.textContent=ghText;
+      const dockDot=document.getElementById('ghDockDot'); if(dockDot) dockDot.className='status-dot '+(ghOpen&&!qClosed?'live':'dead');
+      const dockTxt=document.getElementById('ghDockText'); if(dockTxt) dockTxt.textContent=ghText;
+      const letter=document.getElementById('ghLetterToday');
+      if(letter){
+        if(ghOpen) letter.innerHTML=`<span class="is-open">I dag hålla vi öppet ${escapeHtml(openingHours||'')}.</span>${hasQueue?' Aktuell kötid: '+escapeHtml(shownQueue)+'.':''}`;
+        else letter.textContent=isKvällen?'Receptionen har stängt för idag. Välkommen åter!':(ghNextLabel?`I dag äro dörrarna stängda. Vi öppna åter ${ghNextLabel}.`:'I dag äro dörrarna stängda.');
+      }
+    }
+
     const wHoursLabel=wHoursEl?.previousElementSibling;
     if(wHoursLabel) wHoursLabel.textContent=(guestIsClosed||isKvällen)?'Idag':'Öppet idag';
 
-    const hiddenBtn=document.getElementById('guestHiddenToggle');
-    if(hiddenBtn){
-      hiddenBtn.style.background=guestHidden?'rgba(180,130,20,0.25)':'rgba(232,224,208,0.05)';
-      hiddenBtn.style.borderColor=guestHidden?'rgba(200,160,50,0.5)':'rgba(232,224,208,0.15)';
-      const lbl=hiddenBtn.querySelector('div:first-child');
-      const sub=hiddenBtn.querySelector('div:last-child');
-      if(lbl) lbl.style.color=guestHidden?'rgba(220,180,60,0.95)':'rgba(232,224,208,0.7)';
-      if(sub) sub.textContent=guestHidden?'Gäster ser Stängt':'Dölj öppettid för gäster';
-    }
-
-    const adminBar=document.getElementById('welcomeAdminBar');
-    if(adminBar) adminBar.style.display=(loggedInUser&&isAdmin)?'block':'none';
 
     const ln=document.getElementById('logoutName');if(ln) ln.textContent=loggedInUser||'Namn';
     const lo=document.getElementById('logoutBtn');const li=document.getElementById('loginBtn');
@@ -1373,17 +1544,17 @@
   }
   function hideDropdown(){ const dd=document.getElementById('userDropdown');if(dd) dd.style.display='none'; }
 
-  function logout(){ loggedInKey='';loggedInUser='';isAdmin=false;currentHasAccess=false;currentHasInslepp=false;_lastProfileWelcomeFor='';updateTopbar();hideAll();localStorage.removeItem(SESSION_KEY);localStorage.removeItem('kassaLockedV1');THEME_CLASSES.forEach(c=>document.body.classList.remove(c));
+  function logout(){ if(_authToken){ apiAction('logout',{ t:_authToken }).catch(()=>{}); _authToken=''; } _forgetPrivateData(); loggedInKey='';loggedInUser='';isAdmin=false;currentHasAccess=false;currentHasInslepp=false;_lastProfileWelcomeFor='';updateTopbar();hideAll();localStorage.removeItem(SESSION_KEY);localStorage.removeItem('kassaLockedV1');THEME_CLASSES.forEach(c=>document.body.classList.remove(c));
     document.getElementById('welcomeMessage').style.display='flex';
     document.body.classList.add('welcome-bg-on');
     const tb=document.querySelector('.topbar');if(tb) tb.style.display='none';
     const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';
   }
 
-  function saveDisplayTicker(){ const val=(document.getElementById('displayTickerInput')?.value||'').trim(); localStorage.setItem(DISPLAY_TICKER_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayTickerConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} apiSet(DISPLAY_TICKER_KEY,val).catch(()=>{}); }
-  function saveDisplayImages(){ const val=(document.getElementById('displayImagesInput')?.value||'').trim(); localStorage.setItem(DISPLAY_IMAGES_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayImagesConfirm'); if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);} apiSet(DISPLAY_IMAGES_KEY,val).catch(()=>{}); }
+  function saveDisplayTicker(){ const val=(document.getElementById('displayTickerInput')?.value||'').trim(); localStorage.setItem(DISPLAY_TICKER_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayTickerConfirm'); if(c){notify('Sparat.');} apiSet(DISPLAY_TICKER_KEY,val).catch(()=>{}); }
+  function saveDisplayImages(){ const val=(document.getElementById('displayImagesInput')?.value||'').trim(); localStorage.setItem(DISPLAY_IMAGES_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayImagesConfirm'); if(c){notify('Sparat.');} apiSet(DISPLAY_IMAGES_KEY,val).catch(()=>{}); }
 
-  function computeDisplayTextAndState(){ const q=String(queueTime||'').trim();const qLower=q.toLowerCase();const isClosed=openingHours==='Stängt'||qLower.includes('stängt');let text='Ingen info';if(qLower==='stängt för kvällen') text='Stängt för kvällen';else if(qLower==='tillfälligt stängt') text='Tillfälligt stängt';else if(openingHours==='Stängt'||qLower==='stängt') text='Stängt';else if(q) text=q;return {text,isClosed}; }
+  function computeDisplayTextAndState(){ const q=String(queueTime||'').trim();const qLower=q.toLowerCase();const isClosed=openingHours==='Stängt'||qLower.includes('stängt');let text='Ingen info';if(qLower==='stängt för kvällen') text='Stängt för idag';else if(qLower==='tillfälligt stängt') text='Tillfälligt stängt';else if(openingHours==='Stängt'||qLower==='stängt') text='Stängt';else if(q) text=q;return {text,isClosed}; }
 
   function showDisplay(){
     const o=document.createElement('div'); o.className='display-view'; document.body.appendChild(o);
@@ -1458,13 +1629,12 @@
     const comment=(document.getElementById('reviewComment')?.value||'').trim();
     const btn=document.getElementById('reviewSubmitBtn'); if(btn) btn.disabled=true;
     try{
-      // Garantera färsk data — rensa inflight så vi aldrig delar ett pågående anrop
-      if(_db.inflight.has(REVIEWS_KEY)){ try{ await _db.inflight.get(REVIEWS_KEY); }catch(_){} _db.inflight.delete(REVIEWS_KEY); }
-      const existing=await dbFetch(REVIEWS_KEY,[]);
-      const reviews=Array.isArray(existing)?existing:[];
-      reviews.push({rating:_reviewRating,comment,ts:new Date().toISOString(),date:todayStr()});
-      await dbSet(REVIEWS_KEY,reviews);
-    }catch(_e){ if(btn) btn.disabled=false; alert('Kunde inte spara recensionen — kontrollera anslutningen och försök igen.'); return; }
+      // Servern lägger till omdömet i gästboken. Är granskning påslagen i Hantera markerar den kommentaren som väntande.
+      if(!PREVIEW){
+        const res=await apiAction('addReview',{ rating:String(_reviewRating), comment });
+        if(!res||!res.ok) throw new Error(res&&res.error||'fel');
+      }
+    }catch(_e){ if(btn) btn.disabled=false; notify('Kunde inte spara recensionen — kontrollera anslutningen och försök igen.'); return; }
     // Visa tack-skärm, sedan redirect till välkomstsidan
     const inner=document.querySelector('.review-inner'); if(!inner) return;
     inner.innerHTML=`<span class="review-thanks-star">★</span>
@@ -1475,63 +1645,17 @@
 
   function loadWelcomeReviews(){ renderWelcomeReviews(); }
 
-  function renderWelcomeReviews(){
-    const el=document.getElementById('welcomeReviews'); if(!el) return;
-    const reviews=dbGet(REVIEWS_KEY,[])||[];
-    if(!reviews.length){ el.style.display='none'; return; }
-    const avg=reviews.reduce((s,r)=>s+Number(r.rating||0),0)/reviews.length;
-    const rounded=Math.round(avg);
-    const starsHtml=[1,2,3,4,5].map(i=>`<span style="color:${i<=rounded?'#d4872a':'rgba(232,224,208,0.18)'};">★</span>`).join('');
-    const withComment=[...reviews].reverse().filter(r=>(r.comment||'').trim()).slice(0,2);
-    const quotesHtml=withComment.map(r=>`<div class="welcome-review-quote">"${escapeHtml(r.comment.trim())}"</div>`).join('');
-    el.innerHTML=`<div class="welcome-reviews-wrap">
-      <div class="welcome-reviews-stars">${starsHtml} <span class="welcome-reviews-avg">${avg.toFixed(1)}</span></div>
-      <div class="welcome-reviews-count">${reviews.length} omdöme${reviews.length!==1?'n':''}</div>
-      ${quotesHtml}
-    </div>`;
-    el.style.display='block';
-  }
-
-  async function renderReviewsAdmin(){
-    const el=document.getElementById('reviewsContent'); if(!el) return;
-    el.innerHTML='<div class="muted" style="font-style:italic;padding:8px 0;">Laddar recensioner…</div>';
-    await dbFetch(REVIEWS_KEY,[]).catch(()=>{});
-    const reviews=dbGet(REVIEWS_KEY,[])||[];
-    const reviewUrl=window.location.origin+window.location.pathname+'?review';
-    const qrSrc=`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(reviewUrl)}&size=160x160&color=e8e0d0&bgcolor=0a0a0a&margin=10`;
-    const avg=reviews.length?(reviews.reduce((s,r)=>s+Number(r.rating||0),0)/reviews.length):0;
-    const avgFixed=avg?avg.toFixed(1):'–';
-    const starsHtml=[1,2,3,4,5].map(i=>`<span style="color:${i<=Math.round(avg)?'#d4872a':'rgba(232,224,208,0.15)'};">★</span>`).join('');
-    const dist=[5,4,3,2,1].map(s=>{ const n=reviews.filter(r=>r.rating===s).length; const pct=reviews.length?Math.round(n/reviews.length*100):0; return `<div class="row" style="gap:6px;align-items:center;margin-bottom:3px;"><span style="font-size:12px;color:rgba(232,224,208,0.5);width:10px;">${s}</span><div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:#d4872a;border-radius:3px;"></div></div><span style="font-size:11px;color:rgba(232,224,208,0.4);width:26px;text-align:right;">${n}</span></div>`; }).join('');
-    const listHtml=reviews.length?[...reviews].reverse().map(r=>`<div class="staff-reply-row" style="flex-direction:column;align-items:flex-start;gap:3px;"><div class="row" style="gap:8px;"><span style="color:#d4872a;letter-spacing:1px;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span><span class="staff-reply-time">${r.date} ${_fmtReplyTime(r.ts)}</span></div>${r.comment?`<div class="staff-reply-text" style="font-size:13px;">${escapeHtml(r.comment)}</div>`:''}</div>`).join(''):'<div class="muted" style="font-style:italic;">Inga recensioner än.</div>';
-    el.innerHTML=`<div class="row" style="gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px;">
-      <div style="text-align:center;">
-        <img src="${qrSrc}" width="160" height="160" style="border-radius:8px;display:block;" alt="QR-kod">
-        <div class="muted" style="font-size:11px;margin-top:5px;">Scanna för att betygsätta</div>
-      </div>
-      <div style="flex:1;min-width:180px;">
-        <div style="font-size:32px;margin-bottom:2px;">${starsHtml} <strong style="font-family:'IM Fell English SC',serif;font-size:28px;color:#e8e0d0;">${avgFixed}</strong></div>
-        <div class="muted" style="font-size:13px;margin-bottom:10px;">${reviews.length} recension${reviews.length!==1?'er':''}</div>
-        <div style="margin-bottom:12px;">${dist}</div>
-        <div class="muted" style="font-size:11px;margin-bottom:4px;">Recensionslänk</div>
-        <input class="input" value="${escapeHtml(reviewUrl)}" readonly onclick="this.select()" style="font-size:11px;width:100%;box-sizing:border-box;">
-        ${reviews.length?`<button class="btn btn-danger" style="margin-top:8px;font-size:12px;padding:4px 10px;" onclick="if(confirm('Rensa alla recensioner?')){dbSet(REVIEWS_KEY,[]).catch(()=>{});renderReviewsAdmin();}">Rensa alla</button>`:''}
-      </div>
-    </div>
-    <div class="staff-msg-section-title" style="margin-bottom:8px;">Inkomna recensioner</div>
-    <div class="staff-replies-list">${listHtml}</div>`;
-  }
-
-  function adminAccordion(id,btn){ const el=document.getElementById(id);if(!el) return;const isOpen=el.style.display==='block';if(document.getElementById('persPanel_laggTill')?.style.display==='block') closeAddUserPanel();document.querySelectorAll('#adminSettings .content,#statsContainer .content').forEach(c=>c.style.display='none');document.querySelectorAll('#adminSettings .section > button.disclosure,#statsContainer .section > button.disclosure').forEach(b=>{const base=b.textContent.replace(/^Visa |^Dölj /,'');b.textContent='Visa '+base;});if(!isOpen){el.style.display='block';if(btn){const base=btn.textContent.replace(/^Visa |^Dölj /,'');btn.textContent='Dölj '+base;}if(id==='productsContent') renderProductsManager();if(id==='catalogContent') renderCatalogManager();if(id==='welcomeEditContent') syncWelcomeEditor();if(id==='personalContent') initUserSelect();if(id==='reviewsContent') renderReviewsAdmin();if(id==='displayAdminContent'){ selectDisplayTab('enheter'); }} }
+  // Gästboken på gästsidan ritas som en bok i guest.js (renderGuestbook); här lämnas bara omdömena över
+  function renderWelcomeReviews(){ if(typeof renderGuestbook==='function') renderGuestbook(dbGet(REVIEWS_KEY,[])||[]); }
 
   function ensureProfileDefaults(name){ if(!userData[name]) userData[name]={};if(!userData[name].theme) userData[name].theme='default';if(!Array.isArray(userData[name].skills)) userData[name].skills=[];if(typeof userData[name].hours!=='string') userData[name].hours='';if(typeof userData[name].task!=='string') userData[name].task=''; }
   function saveUserData(){ dbSet(STORAGE_KEY,userData||{}).catch(()=>{}); }
   async function loadUserDataFromServer(){ const u=await dbEnsure(STORAGE_KEY,{});userData=(u&&typeof u==='object')?u:{}; }
-  function applyProfileTheme(theme){ const el=document.getElementById('profileContainer');if(!el) return;THEME_CLASSES.forEach(c=>{el.classList.remove(c);document.body.classList.remove(c);});const cls=theme==='forest'?'theme-forest':theme==='royal'?'theme-royal':'theme-default';el.classList.add(cls);document.body.classList.add(cls); }
+  function applyProfileTheme(theme){ theme='default'; const el=document.getElementById('profileContainer');if(!el) return;THEME_CLASSES.forEach(c=>{el.classList.remove(c);document.body.classList.remove(c);});const cls=theme==='forest'?'theme-forest':theme==='royal'?'theme-royal':'theme-default';el.classList.add(cls);document.body.classList.add(cls); }
   function setThemeRadios(theme){ const sel=theme||'default';document.querySelectorAll('.theme-dot').forEach(d=>d.classList.toggle('active',d.dataset.theme===sel)); }
   function renderSkillsBadges(skills){ if(!skills||!skills.length) return '<span class="muted">–</span>';return skills.map(s=>`<span class="tag">${escapeHtml(s)}</span>`).join(''); }
 
-  (function attachThemeDotHandlers(){ document.querySelectorAll('.theme-dot').forEach(dot=>{ dot.addEventListener('click',()=>{ if(!loggedInUser){alert('Logga in först.');return;}ensureProfileDefaults(loggedInUser);const theme=dot.dataset.theme;userData[loggedInUser]=Object.assign({},userData[loggedInUser],{theme});saveUserData();try{localStorage.setItem('userTheme_'+loggedInUser,theme);}catch(_e){}applyProfileTheme(theme);setThemeRadios(theme); }); }); })();
+  (function attachThemeDotHandlers(){ document.querySelectorAll('.theme-dot').forEach(dot=>{ dot.addEventListener('click',()=>{ if(!loggedInUser){notify('Logga in först.');return;}ensureProfileDefaults(loggedInUser);const theme=dot.dataset.theme;userData[loggedInUser]=Object.assign({},userData[loggedInUser],{theme});saveUserData();try{localStorage.setItem('userTheme_'+loggedInUser,theme);}catch(_e){}applyProfileTheme(theme);setThemeRadios(theme); }); }); })();
 
   let _staffMsgJustSent=false, _adminMsgJustSaved=false, _adminDirectMsgJustSent=false;
 
@@ -1590,7 +1714,7 @@
         await dbSet(STAFF_MSG_KEY,txt);
         _adminMsgJustSaved=true;
       } else {
-        if(!to){ alert('Välj mottagare.'); return; }
+        if(!to){ notify('Välj mottagare.'); return; }
         const messages=loadStaffMessages();
         messages.push({id:Date.now().toString(),name:loggedInUser||'Admin',text:txt,ts:new Date().toISOString(),replies:[],to});
         await dbSet(STAFF_REPLIES_KEY,messages);
@@ -1600,7 +1724,7 @@
       renderStaffMsgSection();
       updateMsgBadge();
       setTimeout(()=>{ _adminMsgJustSaved=false; _adminDirectMsgJustSent=false; },2500);
-    }catch(e){ alert('Kunde inte skicka. Försök igen.'); }
+    }catch(e){ notify('Kunde inte skicka. Försök igen.'); }
     finally{ if(btn){ btn.disabled=false; btn.classList.remove('loading'); } }
   }
   function clearStaffMsg(){
@@ -1634,7 +1758,7 @@
     if(btn){ btn.disabled=true; btn.classList.add('loading'); }
     try{
       await dbSet(STAFF_REPLIES_KEY,messages.filter(m=>m.id!==msgId));
-    }catch(e){ if(btn){ btn.disabled=false; btn.classList.remove('loading'); } alert('Kunde inte ta bort tråden. Försök igen.'); return; }
+    }catch(e){ if(btn){ btn.disabled=false; btn.classList.remove('loading'); } notify('Kunde inte ta bort tråden. Försök igen.'); return; }
     renderStaffMsgSection();
     updateMsgBadge();
     showUndoToast(`Meddelande från ${removed.name||'?'} borttaget`, async ()=>{
@@ -1680,7 +1804,7 @@
       renderStaffMsgSection();
       updateMsgBadge();
       setTimeout(()=>{ _staffMsgJustSent=false; },2500);
-    }catch(e){ alert('Kunde inte skicka meddelandet. Kontrollera anslutningen och försök igen.'); if(btn){ btn.disabled=false; btn.classList.remove('loading'); } }
+    }catch(e){ notify('Kunde inte skicka meddelandet. Kontrollera anslutningen och försök igen.'); if(btn){ btn.disabled=false; btn.classList.remove('loading'); } }
   }
 
   // ---- Admin svarar på meddelande ----
@@ -1697,7 +1821,7 @@
       await dbSet(STAFF_REPLIES_KEY,messages);
       inp.value='';
       renderStaffMsgSection();
-    }catch(e){ alert('Kunde inte skicka svar. Försök igen.'); if(btn){ btn.disabled=false; btn.classList.remove('loading'); } }
+    }catch(e){ notify('Kunde inte skicka svar. Försök igen.'); if(btn){ btn.disabled=false; btn.classList.remove('loading'); } }
   }
   function toggleAdminReplyInput(msgId){
     const row=document.getElementById('adminReplyRow_'+msgId); if(!row) return;
@@ -1721,7 +1845,7 @@
       inp.value='';
       renderStaffMsgSection();
       updateMsgBadge();
-    }catch(e){ alert('Kunde inte skicka svar.'); if(btn) btn.disabled=false; }
+    }catch(e){ notify('Kunde inte skicka svar.'); if(btn) btn.disabled=false; }
   }
   function toggleStaffReplyInput(msgId){
     const row=document.getElementById('staffReplyRow_'+msgId); if(!row) return;
@@ -1744,9 +1868,9 @@
       const msgsHtml=adminMessages.length
         ? adminMessages.map(m=>{
             const toLabel=m.to&&m.to!==me&&m.to!==loggedInUser
-              ? `<span style="font-size:10px;color:rgba(212,135,42,0.55);margin-left:4px;">→ ${escapeHtml(m.to==='all'?'Alla':m.to)}</span>`
+              ? `<span style="font-size:10px;color:rgba(214,207,189,0.55);margin-left:4px;">→ ${escapeHtml(m.to==='all'?'Alla':m.to)}</span>`
               : '';
-            const repliesHtml=m.replies.map(r=>`<div style="padding-left:14px;margin-top:4px;border-left:2px solid rgba(212,135,42,0.3);">
+            const repliesHtml=m.replies.map(r=>`<div style="padding-left:14px;margin-top:4px;border-left:2px solid rgba(214,207,189,0.3);">
               <span class="staff-reply-name" style="font-size:11px;">${escapeHtml(r.name||'Admin')}</span>
               <span class="staff-reply-time">${_fmtReplyTime(r.ts)}</span>
               <span class="staff-reply-text" style="font-size:13px;">${escapeHtml(r.text)}</span>
@@ -1807,19 +1931,19 @@
             const fromDisplay=senderIsAdmin?'Admin':escapeHtml(m.name);
             const isDirectToMe=m.to===me||m.to===loggedInUser;
             const isFromMe=m.name===me||m.name===loggedInUser;
-            const toLabel=isFromMe&&m.to?`<span style="font-size:10px;color:rgba(232,224,208,0.35);">→ Admin</span>`:'';
-            const directBadge=isDirectToMe?`<span style="font-size:10px;background:rgba(212,135,42,0.15);border:1px solid rgba(212,135,42,0.3);border-radius:3px;padding:1px 6px;color:rgba(212,135,42,0.85);margin-left:2px;">Direkt till dig</span>`:'';
-            const repliesHtml=m.replies.map(r=>`<div style="padding-left:14px;margin-top:4px;border-left:2px solid rgba(212,135,42,0.35);">
+            const toLabel=isFromMe&&m.to?`<span style="font-size:10px;color:rgba(221,227,220,0.35);">→ Admin</span>`:'';
+            const directBadge=isDirectToMe?`<span style="font-size:10px;background:rgba(214,207,189,0.15);border:1px solid rgba(214,207,189,0.3);border-radius:3px;padding:1px 6px;color:rgba(214,207,189,0.85);margin-left:2px;">Direkt till dig</span>`:'';
+            const repliesHtml=m.replies.map(r=>`<div style="padding-left:14px;margin-top:4px;border-left:2px solid rgba(214,207,189,0.35);">
               <span class="staff-reply-name" style="font-size:11px;">${escapeHtml(r.name||'Admin')}</span>
               <span class="staff-reply-time">${_fmtReplyTime(r.ts)}</span>
-              <div style="font-family:'IM Fell English',serif;font-size:13px;color:rgba(232,224,208,0.8);margin-top:2px;">${escapeHtml(r.text)}</div>
+              <div style="font-family:var(--f-body);font-size:13px;color:rgba(221,227,220,0.8);margin-top:2px;">${escapeHtml(r.text)}</div>
             </div>`).join('');
             const replyBtn=isDirectToMe?`<button class="btn" style="padding:3px 10px;font-size:12px;margin-left:auto;" onclick="toggleStaffReplyInput('${m.id}')">Svara</button>`:'';
             const replyInput=isDirectToMe?`<div id="staffReplyRow_${m.id}" class="row" style="display:none;gap:8px;margin-top:6px;padding-left:14px;">
               <input id="staffReplyInput_${m.id}" class="input" style="flex:1;" placeholder="Skriv ett svar…">
               <button id="staffReplyBtn_${m.id}" class="btn btn-green" onclick="submitStaffReply('${m.id}')">Skicka</button>
             </div>`:'';
-            return `<div class="staff-reply-row" style="flex-direction:column;align-items:flex-start;gap:0;${isDirectToMe?'border-color:rgba(212,135,42,0.28);background:rgba(212,135,42,0.04);':''}">
+            return `<div class="staff-reply-row" style="flex-direction:column;align-items:flex-start;gap:0;${isDirectToMe?'border-color:rgba(214,207,189,0.28);background:rgba(214,207,189,0.04);':''}">
               <div class="row" style="gap:6px;width:100%;flex-wrap:wrap;">
                 <span class="staff-reply-name">${fromDisplay}</span>${toLabel}${directBadge}
                 <span class="staff-reply-time">${_fmtReplyTime(m.ts)}</span>
@@ -1839,7 +1963,7 @@
           <input id="staffNewMsgInput" class="input" style="flex:1;" placeholder="Skriv ett meddelande till admin…">
           <button class="btn btn-green" onclick="submitStaffMessage()">Skicka</button>
         </div>
-        ${_staffMsgJustSent?`<div style="margin-top:6px;font-family:'IM Fell English',serif;font-size:13px;color:#7ec97e;">Meddelandet skickades!</div>`:''}
+        ${_staffMsgJustSent?`<div style="margin-top:6px;font-family:var(--f-body);font-size:13px;color:#7ec97e;">Meddelandet skickades!</div>`:''}
       </div>`;
 
       const ni=wrap.querySelector('#staffNewMsgInput');
@@ -1880,15 +2004,15 @@
         const rows=upcoming.map(([date,day])=>{
           const sh=day[name]; const openEntry=loadOpenDates().find(e=>(typeof e==='string'?e:e.date)===date);
           const openHours=typeof openEntry==='object'?openEntry.hours||'':'';
-          return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid rgba(232,224,208,0.07);gap:12px;flex-wrap:wrap;"><span style="font-family:'IM Fell English SC',serif;">${date}</span><span style="color:rgba(232,224,208,0.7);">${escapeHtml(sh.hours)}${sh.task?` · ${escapeHtml(sh.task)}`:''}</span>${openHours?`<span style="color:rgba(232,224,208,0.35);font-size:11px;">${escapeHtml(openHours)}</span>`:''}</div>`;
+          return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid rgba(221,227,220,0.07);gap:12px;flex-wrap:wrap;"><span style="font-family:var(--f-label);">${date}</span><span style="color:rgba(221,227,220,0.7);">${escapeHtml(sh.hours)}${sh.task?` · ${escapeHtml(sh.task)}`:''}</span>${openHours?`<span style="color:rgba(221,227,220,0.35);font-size:11px;">${escapeHtml(openHours)}</span>`:''}</div>`;
         }).join('');
         const open=localStorage.getItem('upcomingShiftsOpen')!=='false';
         upsEl.innerHTML=`<div style="margin-top:20px;">
           <button onclick="toggleUpcomingShifts()" style="background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;gap:6px;color:inherit;">
-            <strong style="font-family:'IM Fell English SC',serif;">Kommande pass</strong>
+            <strong style="font-family:var(--f-label);">Kommande pass</strong>
             <svg id="upcomingChevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="transition:transform 0.2s;transform:rotate(${open?'0':'180'}deg)"><path d="M2 4l4 4 4-4"/></svg>
           </button>
-          <div id="upcomingShiftsList" style="margin-top:8px;font-family:'IM Fell English',serif;font-size:14px;${open?'':'display:none;'}">${rows}</div>
+          <div id="upcomingShiftsList" style="margin-top:8px;font-family:var(--f-body);font-size:14px;${open?'':'display:none;'}">${rows}</div>
         </div>`;
       } else { upsEl.innerHTML=''; }
     }
@@ -1913,15 +2037,14 @@
     const skills=loadSkillCatalog();const tasks=loadTaskCatalog();
     renderCatalogList(document.getElementById('skillCatalogList'),skills,'skill');
     renderCatalogList(document.getElementById('taskCatalogList'),tasks,'task');
-    const addSkill=document.getElementById('addSkillBtn');if(addSkill&&!addSkill._bound){addSkill.addEventListener('click',()=>{const inp=document.getElementById('newSkillInput');const val=(inp?.value||'').trim();if(!val) return;const list=loadSkillCatalog();if(list.includes(val)){alert('Finns redan.');return;}list.push(val);saveSkillCatalog(list);inp.value='';renderCatalogManager();if(isAdmin&&document.getElementById('adminSettings').style.display==='block') initUserSelect();});addSkill._bound=true;}
-    const addTask=document.getElementById('addTaskBtn');if(addTask&&!addTask._bound){addTask.addEventListener('click',()=>{const inp=document.getElementById('newTaskInput');const val=(inp?.value||'').trim();if(!val) return;const list=loadTaskCatalog();if(list.includes(val)){alert('Finns redan.');return;}list.push(val);saveTaskCatalog(list);inp.value='';renderCatalogManager();if(isAdmin&&document.getElementById('adminSettings').style.display==='block') initUserSelect();});addTask._bound=true;}
-    const catRoot=document.getElementById('catalogContent');if(catRoot&&!catRoot._bound){catRoot.addEventListener('click',(e)=>{const t=e.target;if(!(t instanceof HTMLElement)) return;if(t.classList.contains('save-skill')){const idx=+t.dataset.index;const list=loadSkillCatalog();const input=catRoot.querySelector(`.skill-name[data-index="${idx}"]`);const val=(input?.value||'').trim();if(!val){alert('Tomt namn.');return;}list[idx]=val;saveSkillCatalog(list);renderCatalogManager();initUserSelect();}if(t.classList.contains('del-skill')){const idx=+t.dataset.index;const list=loadSkillCatalog();const removed=list.splice(idx,1)[0];saveSkillCatalog(list);Object.keys(userData||{}).forEach(u=>{const arr=userData[u]?.skills;if(Array.isArray(arr)){const i=arr.indexOf(removed);if(i>-1) arr.splice(i,1);}});saveUserData();renderCatalogManager();initUserSelect();}if(t.classList.contains('save-task')){const idx=+t.dataset.index;const list=loadTaskCatalog();const input=catRoot.querySelector(`.task-name[data-index="${idx}"]`);const val=(input?.value||'').trim();if(!val){alert('Tomt namn.');return;}const oldName=list[idx];list[idx]=val;saveTaskCatalog(list);const descInput=catRoot.querySelector(`.task-desc[data-index="${idx}"]`);if(descInput){const descs=loadTaskDescriptions();if(oldName!==val){descs[val]=descs[oldName]||'';delete descs[oldName];}descs[val]=(descInput.value||'').trim();saveTaskDescriptions(descs);}renderCatalogManager();initUserSelect();}if(t.classList.contains('del-task')){const idx=+t.dataset.index;const list=loadTaskCatalog();const removed=list.splice(idx,1)[0];saveTaskCatalog(list);if(removed){const descs=loadTaskDescriptions();delete descs[removed];saveTaskDescriptions(descs);}renderCatalogManager();initUserSelect();}});catRoot._bound=true;}
+    const addSkill=document.getElementById('addSkillBtn');if(addSkill&&!addSkill._bound){addSkill.addEventListener('click',()=>{const inp=document.getElementById('newSkillInput');const val=(inp?.value||'').trim();if(!val) return;const list=loadSkillCatalog();if(list.includes(val)){notify('Finns redan.');return;}list.push(val);saveSkillCatalog(list);inp.value='';renderCatalogManager();if(isAdmin&&document.getElementById('adminSettings').style.display==='block') initUserSelect();});addSkill._bound=true;}
+    const addTask=document.getElementById('addTaskBtn');if(addTask&&!addTask._bound){addTask.addEventListener('click',()=>{const inp=document.getElementById('newTaskInput');const val=(inp?.value||'').trim();if(!val) return;const list=loadTaskCatalog();if(list.includes(val)){notify('Finns redan.');return;}list.push(val);saveTaskCatalog(list);inp.value='';renderCatalogManager();if(isAdmin&&document.getElementById('adminSettings').style.display==='block') initUserSelect();});addTask._bound=true;}
+    const catRoot=document.getElementById('catalogContent');if(catRoot&&!catRoot._bound){catRoot.addEventListener('click',(e)=>{const t=e.target;if(!(t instanceof HTMLElement)) return;if(t.classList.contains('save-skill')){const idx=+t.dataset.index;const list=loadSkillCatalog();const input=catRoot.querySelector(`.skill-name[data-index="${idx}"]`);const val=(input?.value||'').trim();if(!val){notify('Tomt namn.');return;}list[idx]=val;saveSkillCatalog(list);renderCatalogManager();initUserSelect();}if(t.classList.contains('del-skill')){const idx=+t.dataset.index;const list=loadSkillCatalog();const removed=list.splice(idx,1)[0];saveSkillCatalog(list);Object.keys(userData||{}).forEach(u=>{const arr=userData[u]?.skills;if(Array.isArray(arr)){const i=arr.indexOf(removed);if(i>-1) arr.splice(i,1);}});saveUserData();renderCatalogManager();initUserSelect();}if(t.classList.contains('save-task')){const idx=+t.dataset.index;const list=loadTaskCatalog();const input=catRoot.querySelector(`.task-name[data-index="${idx}"]`);const val=(input?.value||'').trim();if(!val){notify('Tomt namn.');return;}const oldName=list[idx];list[idx]=val;saveTaskCatalog(list);const descInput=catRoot.querySelector(`.task-desc[data-index="${idx}"]`);if(descInput){const descs=loadTaskDescriptions();if(oldName!==val){descs[val]=descs[oldName]||'';delete descs[oldName];}descs[val]=(descInput.value||'').trim();saveTaskDescriptions(descs);}renderCatalogManager();initUserSelect();}if(t.classList.contains('del-task')){const idx=+t.dataset.index;const list=loadTaskCatalog();const removed=list.splice(idx,1)[0];saveTaskCatalog(list);if(removed){const descs=loadTaskDescriptions();delete descs[removed];saveTaskDescriptions(descs);}renderCatalogManager();initUserSelect();}});catRoot._bound=true;}
   }
 
   function selectCatalogTab(tab){
     ['kompetenser','uppgifter','beskrivningar'].forEach(t=>{ const p=document.getElementById('catPanel_'+t); if(p) p.style.display=tab===t?'':'none'; });
-    const base='background:none;border:none;font-family:\'IM Fell English SC\',serif;font-size:13px;padding:6px 16px 8px;cursor:pointer;letter-spacing:0.5px;';
-    ['kompetenser','uppgifter','beskrivningar'].forEach(t=>{ const b=document.getElementById('catTab_'+t); if(b) b.style.cssText=base+(tab===t?'border-bottom:2px solid #d4872a;color:#f0ebe2;':'border-bottom:2px solid transparent;color:rgba(232,224,208,0.45);'); });
+    ['kompetenser','uppgifter','beskrivningar'].forEach(t=>{ const b=document.getElementById('catTab_'+t); if(b) b.classList.toggle('is-active',tab===t); });
     if(tab==='beskrivningar') renderTaskDescriptionsPanel();
   }
 
@@ -1929,7 +2052,7 @@
     const el=document.getElementById('taskDescList'); if(!el) return;
     const tasks=loadTaskCatalog(); const descs=loadTaskDescriptions();
     if(!tasks.length){ el.innerHTML='<div class="muted">Inga uppgifter tillagda än.</div>'; return; }
-    el.innerHTML=tasks.map((name,idx)=>`<div style="margin-bottom:12px;"><div style="font-family:'IM Fell English SC',serif;font-size:13px;margin-bottom:4px;">${escapeHtml(name)}</div><div class="row" style="gap:8px;"><input class="input taskdesc-input" data-task="${escapeHtml(name)}" value="${escapeHtml(descs[name]||'')}" placeholder="Beskrivning som visas på Min sida…" style="flex:1;font-size:12px;"><button class="btn save-taskdesc" data-task="${escapeHtml(name)}">Spara</button></div></div>`).join('');
+    el.innerHTML=tasks.map((name,idx)=>`<div style="margin-bottom:12px;"><div style="font-family:var(--f-label);font-size:13px;margin-bottom:4px;">${escapeHtml(name)}</div><div class="row" style="gap:8px;"><input class="input taskdesc-input" data-task="${escapeHtml(name)}" value="${escapeHtml(descs[name]||'')}" placeholder="Beskrivning som visas på Min sida…" style="flex:1;font-size:12px;"><button class="btn save-taskdesc" data-task="${escapeHtml(name)}">Spara</button></div></div>`).join('');
     if(!el._bound){ el.addEventListener('click',e=>{ const t=e.target; if(!(t instanceof HTMLElement)||!t.classList.contains('save-taskdesc')) return; const taskName=t.dataset.task; const inp=el.querySelector(`.taskdesc-input[data-task="${CSS.escape(taskName)}"]`); if(!inp) return; const descs=loadTaskDescriptions(); descs[taskName]=(inp.value||'').trim(); saveTaskDescriptions(descs); t.textContent='Sparat!'; setTimeout(()=>t.textContent='Spara',1500); }); el._bound=true; }
   }
 
@@ -1938,13 +2061,13 @@
 
   function initUserSelect(){
     const sel=document.getElementById('userSelect');if(!sel) return;
-    // Rensa userData-poster som inte längre har en användare i users
+    // Rensa userData-poster som inte längre har en användare i users (bara när listan faktiskt är hämtad)
     const validNames=new Set(Object.values(users).map(u=>u.name));
     let cleaned=false;
-    Object.keys(userData).forEach(n=>{ if(!validNames.has(n)){ delete userData[n]; cleaned=true; } });
+    if(validNames.size&&_db.serverLoaded.has(USERS_KEY)) Object.keys(userData).forEach(n=>{ if(!validNames.has(n)){ delete userData[n]; cleaned=true; } });
     if(cleaned) saveUserData();
     sel.innerHTML='';
-    const allaOpt=document.createElement('option');allaOpt.value='__alla__';allaOpt.textContent='Alla';sel.appendChild(allaOpt);
+    const allaOpt=document.createElement('option');allaOpt.value='__alla__';allaOpt.textContent='Alla – schema per dag';sel.appendChild(allaOpt);
     Object.entries(users).forEach(([k,u])=>{const o=document.createElement('option');o.value=k;o.textContent=u.name;sel.appendChild(o);});
     const pwRow=document.querySelector('.admin-password');
     const tabIdag=document.getElementById('persTab_idag');
@@ -1960,11 +2083,10 @@
       if(pwRow) pwRow.style.display='';
       if(tabIdag) tabIdag.style.display='';
       const u=users[key];if(!u) return;
-      const pwEl=document.getElementById('selectedUserPassword');if(pwEl) pwEl.textContent=key;
       ensureProfileDefaults(u.name);
       const a=document.getElementById('accessCheckbox');const n=document.getElementById('adamNote');
       const ai=document.getElementById('insleppCheckbox');const ni=document.getElementById('insleppNote');
-      if(a) a.checked=!!u.hasAccess;if(ai) ai.checked=!!u.hasInslepp;saveUsers();
+      if(a) a.checked=!!u.hasAccess;if(ai) ai.checked=!!u.hasInslepp;
       if(u.name==='Adam'||u.name==='Casper'){if(a) a.disabled=true;if(n){n.textContent=`${u.name} har alltid kassaaccess och kan inte stängas av.`;n.style.display='block';}}else{if(a) a.disabled=false;if(n) n.style.display='none';}
       if(u.name==='Casper'){if(ai) ai.disabled=true;if(ni){ni.textContent=`Casper har alltid insläpp-access och kan inte stängas av.`;ni.style.display='block';}}else{if(ai) ai.disabled=false;if(ni) ni.style.display='none';}
       const vol=document.getElementById('voluntarCheckbox');
@@ -2011,7 +2133,7 @@
       const toMin=s=>{if(!s)return 9999;const p=s.replace('–','-').split('-')[0].trim().split(':');return parseInt(p[0]||0)*60+parseInt(p[1]||0);};
       const entries=Object.entries(dayPlan).filter(([,d])=>d.hours||d.task).sort(([,a],[,b])=>toMin(a.hours)-toMin(b.hours));
       if(!entries.length) return `<div class="muted" style="font-style:italic;margin-top:8px;">Inget schema inlagt för det här datumet.</div>`;
-      const rows=entries.map(([name,d])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(232,224,208,0.07);"><div><div style="font-family:'IM Fell English SC',serif;font-size:15px;">${escapeHtml(name)}</div><div class="tiny muted" style="margin-top:2px;">${escapeHtml(d.task||'—')}</div></div><div style="font-size:14px;opacity:0.75;white-space:nowrap;">${escapeHtml(d.hours||'—')}</div></div>`).join('');
+      const rows=entries.map(([name,d])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(221,227,220,0.07);"><div><div style="font-family:var(--f-label);font-size:15px;">${escapeHtml(name)}</div><div class="tiny muted" style="margin-top:2px;">${escapeHtml(d.task||'—')}</div></div><div style="font-size:14px;opacity:0.75;white-space:nowrap;">${escapeHtml(d.hours||'—')}</div></div>`).join('');
       const deleteBtn=isPast?`<button class="btn" style="margin-top:14px;opacity:0.45;font-size:12px;" onclick="deleteSchemaDate('${escapeHtml(date)}')">Ta bort schema för denna dag</button>`:'';
       return rows+deleteBtn;
     }
@@ -2033,7 +2155,7 @@
     if(u.name==='Adam'||u.name==='Casper'){if(volEl) volEl.checked=false;u.isVoluntar=false;}else{u.isVoluntar=!!(volEl&&volEl.checked);}
     const skills=[...document.querySelectorAll('.admin-skill:checked')].map(el=>el.value);
     userData[u.name].skills=skills;saveUserData();saveUsers();snapshotStaffHoursToday();if(loggedInUser===u.name) loadProfile();
-    const c=document.getElementById('adminConfirm');if(c){c.textContent=`Sparat för ${u.name}`;c.style.display='block';setTimeout(()=>c.style.display='none',2000);}
+    const c=document.getElementById('adminConfirm');if(c){notify(`Sparat för ${u.name}.`);}
   });
 
   function openAddUserPanel(){
@@ -2066,11 +2188,12 @@
   function executeDeleteUser(){
     closeDeleteUserModal();
     const sel=document.getElementById('userSelect');
-    const pw=sel?.value;const u=users[pw];if(!u) return;
-    const savedUser={...u};const savedPw=pw;const name=u.name;
+    const id=sel?.value;const u=users[id];if(!u) return;
+    if(u.admin&&Object.values(users).filter(x=>x.admin).length<2){ notify('Den sista admin kan inte tas bort.'); return; }
+    const savedUser={...u};const savedId=id;const name=u.name;
     const savedUserData={...userData[name]};
-    const wasSelf=(loggedInKey===pw);
-    delete users[pw];
+    const wasSelf=(loggedInKey===id);
+    delete users[id];
     delete userData[name];
     const plan=loadShiftPlan();
     const savedPlan={};
@@ -2079,7 +2202,7 @@
     saveUserData();
     saveShiftPlan(plan);
     if(wasSelf) logout(); else initUserSelect();
-    showUndoToast(`${name} borttagen`, ()=>{ users[savedPw]=savedUser; userData[name]=savedUserData; const p=loadShiftPlan(); Object.keys(savedPlan).forEach(date=>{ if(!p[date]) p[date]={}; p[date][name]=savedPlan[date]; }); saveUsers(); saveUserData(); saveShiftPlan(p); initUserSelect(); }, 10000);
+    showUndoToast(`${name} borttagen`, ()=>{ users[savedId]=savedUser; userData[name]=savedUserData; const p=loadShiftPlan(); Object.keys(savedPlan).forEach(date=>{ if(!p[date]) p[date]={}; p[date][name]=savedPlan[date]; }); saveUsers(); saveUserData(); saveShiftPlan(p); initUserSelect(); }, 10000);
   }
 
   (function bindUserMgmt(){
@@ -2092,21 +2215,39 @@
         const pw=(document.getElementById('newUserPass')?.value||'').trim();
         const acc=!!document.getElementById('newUserAccessCheckbox')?.checked;
         const insl=!!document.getElementById('newUserInsleppCheckbox')?.checked;
-        if(!name||!pw){alert('Fyll i både namn och lösenord.');return;}
-        if(users[pw]){alert('Det finns redan en användare med det lösenordet.');return;}
-        users[pw]={name,admin:false,hasAccess:acc,hasInslepp:insl};
-        ensureProfileDefaults(name);saveUserData();saveUsers();
-        closeAddUserPanel();
-        initUserSelect();
-        // Välj den nya medarbetaren i dropdown
-        const sel=document.getElementById('userSelect');if(sel){sel.value=pw;sel.dispatchEvent(new Event('change'));}
+        if(!name||!pw){notify('Fyll i både namn och lösenord.');return;}
+        if(pw.length<4){notify('Lösenordet måste ha minst 4 tecken.');return;}
+        if(SCREEN_LOGIN_NAMES.includes(name.toLowerCase())){notify('Det namnet används för skärmarna. Välj ett annat.');return;}
+        if(Object.values(users).some(u=>String(u.name||'').trim().toLowerCase()===name.toLowerCase())){notify('Det finns redan någon som heter så.');return;}
+        if(t.disabled) return;
+        t.disabled=true;
+        (async()=>{
+          const id=_newUserId();
+          users[id]={name,admin:false,hasAccess:acc,hasInslepp:insl};
+          let saved=false;
+          try{
+            await dbSet(USERS_KEY,users); saved=true;
+            const r=await apiAction('setPassword',{ id, pw });
+            if(!r||!r.ok) throw new Error(r&&r.error||'fel');
+          }catch(_e){
+            t.disabled=false;
+            if(saved) notify(`${name} lades till, men lösenordet kunde inte sparas. Välj ${name} och tryck Byt lösenord.`);
+            else { delete users[id]; dbSet(USERS_KEY,users).catch(()=>{}); notify('Kunde inte lägga till personen. Kontrollera anslutningen.'); return; }
+          }
+          t.disabled=false;
+          ensureProfileDefaults(name);saveUserData();
+          closeAddUserPanel();
+          initUserSelect();
+          // Välj den nya medarbetaren i dropdown
+          const sel=document.getElementById('userSelect');if(sel){sel.value=id;sel.dispatchEvent(new Event('change'));}
+        })();
       }
     });
     document.getElementById('newUserPass')?.addEventListener('input', function(){
       const pw = this.value.trim();
       const warn = document.getElementById('newUserPassWarn');
       if(!warn) return;
-      if(pw && users[pw]){ warn.textContent = 'Det lösenordet används redan av någon annan.'; warn.style.display = 'block'; }
+      if(pw && pw.length<4){ warn.textContent = 'Minst 4 tecken. Längre är säkrare.'; warn.style.display = 'block'; }
       else { warn.textContent = ''; warn.style.display = 'none'; }
     });
     root._boundUserMgmt=true;
@@ -2139,6 +2280,8 @@
     const igUrl=(ig||'').trim(); const fbUrl=(fb||'').trim();
     if(igBtn){ igBtn.href=igUrl||'#'; igBtn.style.display=igUrl?'':'none'; }
     if(fbBtn){ fbBtn.href=fbUrl||'#'; fbBtn.style.display=fbUrl?'':'none'; }
+    // Hänvisningarna "öppettiderna finns även på …" står kvar som text även om en länk saknas
+    [['.js-social-ig',igUrl],['.js-social-fb',fbUrl]].forEach(([sel,url])=>document.querySelectorAll(sel).forEach(a=>{ if(url) a.href=url; else a.removeAttribute('href'); }));
   }
   function loadSocialLinks(){ setSocialLinks(dbGet(SOCIAL_IG_KEY,''), dbGet(SOCIAL_FB_KEY,'')); }
 
@@ -2156,14 +2299,14 @@
   }
 
   function bindWelcomeControls(){
-    document.getElementById('saveWelcomeTextBtn')?.addEventListener('click',()=>{const v=(document.getElementById('welcomeTextInput')?.value||'');dbSet(WELCOME_TEXT_KEY,v).catch(()=>{});setWelcomeText(v);alert('Sparat.');});
-    document.getElementById('clearWelcomeTextBtn')?.addEventListener('click',()=>{dbSet(WELCOME_TEXT_KEY,'').catch(()=>{});setWelcomeText('');const inp=document.getElementById('welcomeTextInput');if(inp) inp.value='';alert('Borttaget.');});
-    const bg=document.getElementById('welcomeBgFile');if(bg&&!bg._bound){bg.addEventListener('change',(e)=>{const f=e.target.files&&e.target.files[0];if(!f) return;const r=new FileReader();r.onload=()=>{try{localStorage.setItem(WELCOME_BG_KEY,r.result);setWelcomeBg(r.result);document.body.classList.add('welcome-bg-on');}catch(err){alert('Kunde inte spara bilden (för stor?).');}};r.readAsDataURL(f);});bg._bound=true;}
+    document.getElementById('saveWelcomeTextBtn')?.addEventListener('click',()=>{const v=(document.getElementById('welcomeTextInput')?.value||'');dbSet(WELCOME_TEXT_KEY,v).catch(()=>{});setWelcomeText(v);notify('Sparat.');});
+    document.getElementById('clearWelcomeTextBtn')?.addEventListener('click',()=>{dbSet(WELCOME_TEXT_KEY,'').catch(()=>{});setWelcomeText('');const inp=document.getElementById('welcomeTextInput');if(inp) inp.value='';notify('Borttaget.');});
+    const bg=document.getElementById('welcomeBgFile');if(bg&&!bg._bound){bg.addEventListener('change',(e)=>{const f=e.target.files&&e.target.files[0];if(!f) return;const r=new FileReader();r.onload=()=>{try{localStorage.setItem(WELCOME_BG_KEY,r.result);setWelcomeBg(r.result);document.body.classList.add('welcome-bg-on');}catch(err){notify('Kunde inte spara bilden (för stor?).');}};r.readAsDataURL(f);});bg._bound=true;}
     document.getElementById('clearWelcomeBg')?.addEventListener('click',()=>{localStorage.removeItem(WELCOME_BG_KEY);setWelcomeBg(null);document.body.classList.remove('welcome-bg-on');});
-    const lg=document.getElementById('welcomeLogoFile');if(lg&&!lg._bound){lg.addEventListener('change',(e)=>{const f=e.target.files&&e.target.files[0];if(!f) return;const r=new FileReader();r.onload=()=>{try{localStorage.setItem(WELCOME_LOGO_KEY,r.result);setWelcomeLogo(r.result);}catch(err){alert('Kunde inte spara loggan (för stor?).');}};r.readAsDataURL(f);});lg._bound=true;}
+    const lg=document.getElementById('welcomeLogoFile');if(lg&&!lg._bound){lg.addEventListener('change',(e)=>{const f=e.target.files&&e.target.files[0];if(!f) return;const r=new FileReader();r.onload=()=>{try{localStorage.setItem(WELCOME_LOGO_KEY,r.result);setWelcomeLogo(r.result);}catch(err){notify('Kunde inte spara loggan (för stor?).');}};r.readAsDataURL(f);});lg._bound=true;}
     document.getElementById('clearWelcomeLogo')?.addEventListener('click',()=>{localStorage.removeItem(WELCOME_LOGO_KEY);setWelcomeLogo(null);});
-    document.getElementById('saveWelcomeFaqBtn')?.addEventListener('click',()=>{const v=(document.getElementById('welcomeFaqInput')?.value||'');dbSet(WELCOME_FAQ_KEY,v).catch(()=>{});setWelcomeFAQText(v);alert('FAQ sparad.');});
-    document.getElementById('clearWelcomeFaqBtn')?.addEventListener('click',()=>{dbSet(WELCOME_FAQ_KEY,'').catch(()=>{});setWelcomeFAQText('');const inp=document.getElementById('welcomeFaqInput');if(inp) inp.value='';alert('FAQ borttagen.');});
+    document.getElementById('saveWelcomeFaqBtn')?.addEventListener('click',()=>{const v=(document.getElementById('welcomeFaqInput')?.value||'');dbSet(WELCOME_FAQ_KEY,v).catch(()=>{});setWelcomeFAQText(v);notify('FAQ sparad.');});
+    document.getElementById('clearWelcomeFaqBtn')?.addEventListener('click',()=>{dbSet(WELCOME_FAQ_KEY,'').catch(()=>{});setWelcomeFAQText('');const inp=document.getElementById('welcomeFaqInput');if(inp) inp.value='';notify('FAQ borttagen.');});
     document.getElementById('saveWelcomeHeroBtn')?.addEventListener('click',()=>{
       const name=(document.getElementById('welcomeHotelNameInput')?.value||'').trim();
       const headline=(document.getElementById('welcomeHeadlineInput')?.value||'').trim();
@@ -2172,10 +2315,10 @@
       dbSet(WELCOME_HEADLINE_KEY,headline).catch(()=>{});
       dbSet(WELCOME_TAGLINE_KEY,tagline).catch(()=>{});
       setWelcomeHeroTexts(name,headline,tagline);
-      alert('Herotext sparad.');
+      notify('Herotext sparad.');
     });
-    document.getElementById('resetWelcomeHeroBtn')?.addEventListener('click',()=>{
-      if(!confirm('Återställa all herotext till standardvärden?')) return;
+    document.getElementById('resetWelcomeHeroBtn')?.addEventListener('click',async ()=>{
+      if(!(await uiConfirm('Återställa all herotext till standardvärden?',{okLabel:'Återställ'}))) return;
       dbSet(WELCOME_HOTEL_NAME_KEY,'').catch(()=>{});
       dbSet(WELCOME_HEADLINE_KEY,'').catch(()=>{});
       dbSet(WELCOME_TAGLINE_KEY,'').catch(()=>{});
@@ -2190,17 +2333,17 @@
       dbSet(SOCIAL_IG_KEY,ig).catch(()=>{});
       dbSet(SOCIAL_FB_KEY,fb).catch(()=>{});
       setSocialLinks(ig,fb);
-      alert('Sociala länkar sparade.');
+      notify('Sociala länkar sparade.');
     });
   }
 
   function selectMenu(menu){
     hideDropdown();hideAll();
     switch(menu){
-      case 'kassa':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}if(!currentHasAccess&&!isAdmin){alert('Du har inte access till kassan.');return selectMenu('profile');}const tbK=document.querySelector('.topbar');if(tbK)tbK.style.display='';document.getElementById('kassaContainer').style.display='block';renderProductButtons();syncDisplayOwnership();const deviceOk=isAdmin||isDeviceRegisteredAsKassa();const closed=(openingHours==='Stängt'&&!isAdmin);const notRegistered=!deviceOk;document.getElementById('closedMessage').style.display=(closed&&!notRegistered)?'block':'none';document.getElementById('deviceNotRegisteredMessage').style.display=notRegistered?'block':'none';['displayBtn','kassaLockBtn','kbHelpBtn'].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display=notRegistered?'none':'';});const showFull=!closed&&!notRegistered;document.querySelector('.products').style.display=showFull?'flex':'none';document.querySelector('.cart-table').style.display=showFull?'table':'none';document.getElementById('checkout').style.display=showFull?'block':'none';document.getElementById('discountBtn').style.display=showFull?'block':'none';document.getElementById('total').style.display=showFull?'block':'none';break;}
+      case 'kassa':{ if(!loggedInUser){notify('Logga in först.');return selectMenu('profile');}if(!currentHasAccess&&!isAdmin){notify('Du har inte access till kassan.');return selectMenu('profile');}const tbK=document.querySelector('.topbar');if(tbK)tbK.style.display='';document.getElementById('kassaContainer').style.display='block';renderProductButtons();syncDisplayOwnership();const deviceOk=isAdmin||PRACTICE||isDeviceRegisteredAsKassa();const closed=(openingHours==='Stängt'&&!isAdmin);const notRegistered=!deviceOk;document.getElementById('closedMessage').style.display=(closed&&!notRegistered)?'block':'none';document.getElementById('deviceNotRegisteredMessage').style.display=notRegistered?'block':'none';['displayBtn','kassaLockBtn','kbHelpBtn'].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display=notRegistered?'none':'';});const showFull=!closed&&!notRegistered;document.querySelector('.products').style.display=showFull?'flex':'none';document.querySelector('.cart-table').style.display=showFull?'table':'none';document.getElementById('checkout').style.display=showFull?'block':'none';document.getElementById('discountBtn').style.display=showFull?'block':'none';document.getElementById('total').style.display=showFull?'block':'none';break;}
       case 'profile':{ if(!loggedInUser){document.getElementById('welcomeMessage').style.display='flex';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');const tb=document.querySelector('.topbar');if(tb)tb.style.display='none';const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';return;}const tb2=document.querySelector('.topbar');if(tb2)tb2.style.display='';document.getElementById('profileContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadProfile();markMsgSeen();break;}
-      case 'admin':{ if(!isAdmin){alert('Endast admin.');return selectMenu('profile');}const tbA=document.querySelector('.topbar');if(tbA)tbA.style.display='';document.getElementById('adminSettings').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');initUserSelect();break;}
-      case 'stats':{ if(!loggedInUser){alert('Logga in först.');return selectMenu('profile');}const tbS=document.querySelector('.topbar');if(tbS)tbS.style.display='';document.getElementById('statsContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadDailyStats();openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();loadDailyCosts();loadDailyForecast();saveCockpitTab('guests');renderCockpit();renderStats();break;}
+      case 'admin':{ if(!isAdmin){notify('Endast admin.');return selectMenu('profile');}const tbA=document.querySelector('.topbar');if(tbA)tbA.style.display='';document.getElementById('adminSettings').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');initUserSelect();break;}
+      case 'stats':{ if(!loggedInUser){notify('Logga in först.');return selectMenu('profile');}const tbS=document.querySelector('.topbar');if(tbS)tbS.style.display='';document.getElementById('statsContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadDailyStats();openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();loadDailyCosts();loadDailyForecast();saveCockpitTab('guests');renderCockpit();renderStats();break;}
       case 'logout': logout(); return;
       default:{ document.getElementById('welcomeMessage').style.display='flex';document.body.classList.add('welcome-bg-on');const tb=document.querySelector('.topbar');if(tb)tb.style.display='none';const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';}
     }
@@ -2215,12 +2358,6 @@
     if(hm&&hm.style.display==='block'&&!hm.contains(e.target)&&!(openHours&&openHours.contains(e.target))) hm.style.display='none';
     const qm=document.getElementById('queueMenu');const queueTop=document.getElementById('queueTopbar');
     if(qm&&qm.style.display==='block'&&!qm.contains(e.target)&&!(queueTop&&queueTop.contains(e.target))) qm.style.display='none';
-    // Stäng öppen admin-accordion om man klickar utanför den sektionen
-    const adminEl=document.getElementById('adminSettings');
-    if(adminEl&&adminEl.style.display!=='none'){
-      const openSection=[...adminEl.querySelectorAll('.content')].find(c=>c.style.display==='block');
-      if(openSection){const wrap=openSection.closest('.section');if(wrap&&!wrap.contains(e.target)){openSection.style.display='none';const btn=wrap.querySelector('.disclosure');if(btn){const base=btn.textContent.replace(/^Visa |^Dölj /,'');btn.textContent='Visa '+base;}}}
-    }
     // Stäng öppna dagsdetaljer i statistik om man klickar utanför
     const statsEl=document.getElementById('statsList');
     if(statsEl){
@@ -2229,7 +2366,7 @@
           const dateMatch=openContent.id.match(/statsDetail-(.+)/);
           if(dateMatch) rememberStatsDayOpen(dateMatch[1],false);
           openContent.style.display='none';
-          const btn=wrap.querySelector('.disclosure');if(btn){const base=btn.textContent.replace(/^Visa |^Dölj /,'');btn.textContent='Visa '+base;}
+          const btn=wrap.querySelector('.disclosure');if(btn) btn.setAttribute('aria-expanded','false');
         }
       });
     }
@@ -2246,7 +2383,7 @@
     if(e.repeat) return;
     closeKbHelp();
     if(e.key==='Escape'&&e.shiftKey){e.preventDefault();if(loggedInUser&&!isAnyModalOpen()&&document.getElementById('kassaContainer')?.style.display==='block') lockKassa();return;}
-    if(isPayModalOpen()){ const labelInput=document.getElementById('ticketLabelInput');if(e.key==='1'){setPayChoice('Swish');e.preventDefault();return;}if(e.key==='2'){setPayChoice('Kort');e.preventDefault();return;}if(e.key==='3'){setPayChoice('Kontant');e.preventDefault();return;}if(e.key==='Enter'){e.preventDefault();if(document.activeElement!==labelInput){labelInput?.focus();return;}document.getElementById('payConfirm')?.click();return;}if(e.key==='Escape'){e.preventDefault();document.getElementById('payCancel')?.click();return;}return;}
+    if(isPayModalOpen()){ if(e.key==='1'){setPayChoice('Swish');e.preventDefault();return;}if(e.key==='2'){setPayChoice('Kort');e.preventDefault();return;}if(e.key==='3'){setPayChoice('Kontant');e.preventDefault();return;}if(e.key==='Enter'){e.preventDefault();document.getElementById('payConfirm')?.click();return;}if(e.key==='Escape'){e.preventDefault();document.getElementById('payCancel')?.click();return;}return;}
     if(isApproveModalOpen()){if(e.key==='Enter'){e.preventDefault();document.getElementById('approveYes')?.click();return;}if(e.key==='Escape'){e.preventDefault();document.getElementById('approveNo')?.click();return;}return;}
     const kontantEl=document.getElementById('kontantModal');if(kontantEl&&kontantEl.style.display==='flex'){if(e.key==='Enter'){e.preventDefault();handleKontantYes();return;}if(e.key==='Escape'){e.preventDefault();handleKontantNo();return;}return;}
   });
@@ -2291,18 +2428,64 @@
     if(wm) obs.observe(wm,{attributes:true,attributeFilter:['style']});
   }
 
-  /* ============================== VÄLKOMSTFLIKAR ============================== */
-  function showWelcomeTab(name){
-    document.querySelectorAll('.ws-panel').forEach(p=>p.style.display='none');
-    document.querySelectorAll('.ws-tab').forEach(t=>t.classList.remove('active'));
-    const panel=document.getElementById('panel-'+name);
-    if(panel) panel.style.display='';
-    const tab=document.querySelector(`.ws-tab[data-tab="${name}"]`);
-    if(tab) tab.classList.add('active');
-    const staffBtn=document.querySelector('.welcome-staff-btn');
-    if(staffBtn) staffBtn.style.display=name==='info'?'':'none';
+  /* ============================== GÄSTSIDAN ============================== */
+  // Flikarna är ersatta av en scrollbar sida – behålls som no-op för bakåtkompatibilitet
+  function showWelcomeTab(name){ if(name&&name!=='info') document.getElementById(name)?.scrollIntoView({behavior:'smooth'}); }
+
+  function initGuestPage(){
+    const nav=document.getElementById('ghNav'); if(!nav||nav._bound) return; nav._bound=true;
+    const progress=document.getElementById('ghProgress');
+    const toTop=document.getElementById('ghToTop');
+    const burger=document.getElementById('ghBurger');
+    const links=[...document.querySelectorAll('#ghLinks a[data-spy]')];
+    const reduceMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Toppmeny: solid bakgrund, läsförlopp och "till toppen" när man scrollar
+    let ticking=false;
+    function onScroll(){
+      ticking=false;
+      const y=window.scrollY||0;
+      nav.classList.toggle('is-scrolled', y>30);
+      const max=document.documentElement.scrollHeight-window.innerHeight;
+      if(progress) progress.style.transform=`scaleX(${max>0?Math.min(1,y/max):0})`;
+      if(toTop) toTop.classList.toggle('visible', y>700);
+    }
+    window.addEventListener('scroll',()=>{ if(!ticking){ ticking=true; requestAnimationFrame(onScroll); } },{passive:true});
+    onScroll();
+
+    // Mobilmeny
+    function setMenu(open){ nav.classList.toggle('menu-open',open); burger?.setAttribute('aria-expanded',String(open)); burger?.setAttribute('aria-label',open?'Stäng menyn':'Öppna menyn'); }
+    burger?.addEventListener('click',()=>setMenu(!nav.classList.contains('menu-open')));
+    document.getElementById('ghLinks')?.addEventListener('click',e=>{ if(e.target.closest('a,button')) setMenu(false); });
+    document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&nav.classList.contains('menu-open')){ setMenu(false); burger?.focus(); } });
+    document.addEventListener('click',e=>{ if(nav.classList.contains('menu-open')&&!nav.contains(e.target)) setMenu(false); });
+
+    // Ankarlänkar: scrolla utan att #hash hamnar i adressfältet
+    document.getElementById('welcomeMessage')?.addEventListener('click',e=>{
+      const a=e.target.closest('a[href^="#"]'); if(!a) return;
+      const id=a.getAttribute('href').slice(1); const target=id==='top'?document.body:document.getElementById(id);
+      if(!target) return;
+      e.preventDefault();
+      if(id==='top') window.scrollTo({top:0,behavior:reduceMotion?'auto':'smooth'});
+      else target.scrollIntoView({behavior:reduceMotion?'auto':'smooth'});
+    });
+
+    if(!('IntersectionObserver' in window)){ document.querySelectorAll('.gh-reveal').forEach(el=>el.classList.add('is-visible')); return; }
+
+    // Scroll-spy: markera aktiv sektion i menyn
+    const spy=new IntersectionObserver(entries=>{
+      entries.forEach(en=>{ if(!en.isIntersecting) return; links.forEach(l=>l.classList.toggle('active', l.dataset.spy===en.target.id)); });
+    },{rootMargin:'-45% 0px -50% 0px'});
+    links.forEach(l=>{ const sec=document.getElementById(l.dataset.spy); if(sec) spy.observe(sec); });
+
+    // Tona in innehåll när det kommer in i bild
+    const reveal=new IntersectionObserver(entries=>{
+      entries.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add('is-visible'); reveal.unobserve(en.target); } });
+    },{rootMargin:'0px 0px -8% 0px',threshold:0.08});
+    document.querySelectorAll('.gh-reveal').forEach(el=>reveal.observe(el));
   }
-  function renderWelcomePrices(){ const c=document.getElementById('wsPrices'); if(!c) return; const prods=loadProducts().filter(p=>Number(p.price)>0&&!p.internal); c.innerHTML=`<div class="ds-prices" style="max-width:420px;margin:0 auto;">${prods.map((p,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.08+0.08}s"><span class="ds-price-name">${escapeHtml(p.name)}</span><span class="ds-price-dots"></span><span class="ds-price-val">${p.price} kr</span></div>`).join('')}</div>`; }
+
+  function renderWelcomePrices(){ const c=document.getElementById('wsPrices'); if(!c) return; const prods=loadProducts().filter(p=>Number(p.price)>0&&!p.internal); const pc=document.getElementById('ghPriceCard'); const pf=document.getElementById('ghPriceFrom'); const tickets=prods.filter(p=>/biljett/i.test(p.name)); const minP=tickets.length?Math.min(...tickets.map(p=>Number(p.price))):null; if(pc) pc.style.display=minP?'':'none'; if(pf&&minP) pf.textContent='från '+minP+' kr'; c.innerHTML=`<div class="ds-prices" style="max-width:420px;margin:0 auto;">${prods.map((p,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.08+0.08}s"><span class="ds-price-name">${escapeHtml(p.name)}</span><span class="ds-price-dots"></span><span class="ds-price-val">${p.price} kr</span></div>`).join('')}</div>`; }
 
   function renderUpcomingDates(){
     const el=document.getElementById('wsOpenDates'); const tab=document.getElementById('tabOppettider'); if(!el) return;
@@ -2310,8 +2493,8 @@
     const MONTHS=['Januari','Februari','Mars','April','Maj','Juni','Juli','Augusti','September','Oktober','November','December'];
     const DAYS=['Söndag','Måndag','Tisdag','Onsdag','Torsdag','Fredag','Lördag'];
     const entries=loadOpenDates().map(e=>typeof e==='string'?{date:e,hours:''}:e).filter(e=>e.date>today).sort((a,b)=>a.date.localeCompare(b.date));
-    if(tab) tab.style.display=entries.length?'':'none';
-    if(!entries.length){ el.innerHTML='<p style="font-family:\'IM Fell English\',serif;font-style:italic;color:rgba(232,224,208,0.4);text-align:center;margin:0;">Inga kommande öppettider inlagda</p>'; return; }
+    if(tab) tab.style.display=entries.length?'':'none'; const sec=document.getElementById('oppettider'); if(sec) sec.style.display=entries.length?'':'none';
+    if(!entries.length){ el.innerHTML='<p class="gh-empty">Kommande öppetdagar annonseras här, på Facebook och på Instagram.</p>'; return; }
     const currentYear=new Date().getFullYear();
     const groups={};
     entries.forEach(e=>{ const d=new Date(e.date+'T00:00:00'); const key=d.getFullYear()+'-'+d.getMonth(); if(!groups[key]) groups[key]={label:MONTHS[d.getMonth()]+' '+d.getFullYear(),items:[]}; groups[key].items.push({...e,d}); });
@@ -2335,8 +2518,16 @@
 
     const BOOT_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:GUEST_HIDDEN_KEY,fallback:false},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()},{key:PRODUCTS_KEY,fallback:defaultProducts()},{key:SKILL_CATALOG_KEY,fallback:defaultSkillCatalog()},{key:TASK_CATALOG_KEY,fallback:defaultTaskCatalog()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:WELCOME_TEXT_KEY,fallback:''},{key:WELCOME_FAQ_KEY,fallback:''},{key:DAILY_COSTS_KEY,fallback:defaultDailyCosts()},{key:DAILY_FORECAST_KEY,fallback:defaultDailyForecast()},{key:OPEN_DATES_KEY,fallback:[]},{key:SOCIAL_IG_KEY,fallback:''},{key:SOCIAL_FB_KEY,fallback:''},{key:WELCOME_HOTEL_NAME_KEY,fallback:''},{key:WELCOME_HEADLINE_KEY,fallback:''},{key:WELCOME_TAGLINE_KEY,fallback:''},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:REVIEWS_KEY,fallback:[]},{key:WAGE_SETTINGS_KEY,fallback:defaultWageSettings()},{key:SHIFT_PLAN_KEY,fallback:{}},{key:TASK_DESCRIPTIONS_KEY,fallback:{}},{key:REGISTERED_DEVICES_KEY,fallback:{}}];
     // Bara nycklar som ändras löpande — hämtas vid periodisk refresh
-    const REFRESH_KEYS=[{key:OPENING_KEY,fallback:'Stängt'},{key:QUEUE_KEY,fallback:''},{key:GUEST_HIDDEN_KEY,fallback:false},{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:OPEN_TICKETS_KEY,fallback:defaultOpenTickets()},{key:REENTRY_KEY,fallback:defaultReEntry()},{key:ADMIT_KEY,fallback:defaultAdmissions()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()}];
+    const REFRESH_KEYS=[{key:STORAGE_KEY,fallback:{}},{key:USERS_KEY,fallback:defaultUsers()},{key:STAFF_MSG_KEY,fallback:''},{key:STAFF_REPLIES_KEY,fallback:[]},{key:DAILY_KEY,fallback:defaultDailyStats()},{key:SALESHISTORY_KEY,fallback:defaultSalesHistory()}];
 
+    _BOOT_KEYS=BOOT_KEYS;
+    // Engångsrensning: den gamla inloggningen sparade lösenordet i webbläsaren, och personallistan (med lösenord) låg i cachen.
+    if(!PREVIEW&&localStorage.getItem('authV2')!=='1'){
+      try{ const old=JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); if(old&&'pw' in old) localStorage.removeItem(SESSION_KEY); }catch(_e){ localStorage.removeItem(SESSION_KEY); }
+      ['dbcache_v1__','practice_dbcache__'].forEach(pre=>localStorage.removeItem(pre+USERS_KEY));
+      _dirtyRemove(USERS_KEY);
+      localStorage.setItem('authV2','1');
+    }
     persistCacheHydrate(BOOT_KEYS);
     openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();guestHidden=loadGuestHidden();
     if(openingHours==='Stängt') queueTime='Stängt';
@@ -2345,21 +2536,22 @@
     users=dbGet(USERS_KEY,defaultUsers())||defaultUsers();
 
     try{
-      const s=JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
-      const pw=s?.pw;const u=pw?users[pw]:null;
-      if(u){loggedInKey=pw;loggedInUser=u.name;isAdmin=(pw==='spök123')?true:!!u.admin;currentHasAccess=!!u.hasAccess||u.name==='Adam'||u.name==='Casper';currentHasInslepp=!!u.hasInslepp||u.name==='Adam'||u.name==='Casper';}
+      const s=PREVIEW?null:JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
+      if(s&&s.t){
+        _authToken=s.t;
+        if(s.role==='staff'&&s.id){ loggedInKey=s.id; const u=users[s.id]||(s.user&&s.user.name?s.user:null); if(u) _applyMe(u); else { loggedInKey=''; } }
+      }
     }catch(_e){}
     (()=>{
       const PING_KEY='webVisitLastPing';const THROTTLE=30*60*1000;
       const last=Number(localStorage.getItem(PING_KEY)||0);
-      if(Date.now()-last>THROTTLE){
+      if(!PREVIEW&&!PRACTICE&&Date.now()-last>THROTTLE){
         localStorage.setItem(PING_KEY,String(Date.now()));
         apiSet('webVisit', loggedInUser ? 'personal' : 'guest').catch(()=>{});
       }
     })();
 
-    enforceCoreUsers();
-    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();renderWelcomePrices();renderUpcomingDates();showWelcomeTab('info');bindWelcomeControls();
+    loadWelcomeHeroTexts();loadWelcomeText();loadWelcomeFAQ();loadSocialLinks();renderWelcomeReviews();loadWelcomeReviews();renderWelcomePrices();renderUpcomingDates();bindWelcomeControls();
     hideAll();
 
     if(loggedInUser && localStorage.getItem('kassaLockedV1')){
@@ -2374,11 +2566,11 @@
       const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';
     }
 
-    updateTopbar();renderCart();
+    updateTopbar();renderCart();syncKassaSoundBtn();
     if(localStorage.getItem('overlayModeV1')==='ko') showDisplay();
     if(localStorage.getItem('overlayModeV1')==='pos') setTimeout(startCustomerDisplayMode, 0);
     setupLiveStatus();
-    initEmbers();
+    initGuestPage();
     (function tickClock(){
       const el=document.getElementById('kassaClock');
       if(el){
@@ -2395,20 +2587,28 @@
     const _offlineBanner = document.getElementById('offlineBanner');
     function _setOffline(on){ if(_offlineBanner) _offlineBanner.classList.toggle('visible', on); }
 
-    document.body.style.overflow='hidden';
-    function dismissWelcomeLoading(){
+    // Laddskärmen visas bara vid första besöket (ingen cache) och bara om hämtningen dröjer
+    const _hasCache=persistCacheRead(PRODUCTS_KEY)!==null||persistCacheRead(WELCOME_HEADLINE_KEY)!==null;
+    let _wlShown=false;
+    const _wlDelay=_hasCache?null:setTimeout(()=>{
       const el=document.getElementById('welcomeLoading'); if(!el) return;
-      el.classList.add('wl-out');
-      setTimeout(()=>{ el.remove(); document.body.style.overflow=''; }, 750);
+      _wlShown=true; el.hidden=false; requestAnimationFrame(()=>el.classList.add('wl-in'));
+    }, 350);
+    function dismissWelcomeLoading(){
+      clearTimeout(_wlDelay);
+      const el=document.getElementById('welcomeLoading'); if(!el) return;
+      if(!_wlShown){ el.remove(); return; }
+      el.classList.remove('wl-in'); el.classList.add('wl-out');
+      setTimeout(()=>el.remove(), 500);
     }
-    const _wlFallback=setTimeout(dismissWelcomeLoading, 5000);
+    const _wlFallback=setTimeout(dismissWelcomeLoading, 8000);
 
     (async()=>{
       try{
-        await _flushDirty();
+        if(!PREVIEW) await _flushDirty();
         await dbRefreshMany(BOOT_KEYS);
         await loadUserDataFromServer();await loadUsersFromServer();
-        { const vn=new Set(Object.values(users).map(u=>u.name)); let c=false; Object.keys(userData).forEach(n=>{ if(!vn.has(n)){ delete userData[n]; c=true; } }); if(c) saveUserData(); const plan=loadShiftPlan(); let cp=false; Object.keys(plan).forEach(date=>{ Object.keys(plan[date]).forEach(n=>{ if(!vn.has(n)){ delete plan[date][n]; cp=true; } }); }); if(cp) saveShiftPlan(plan); }
+        if(_isStaffSession()&&_db.serverLoaded.has(USERS_KEY)&&Object.keys(users).length){ const vn=new Set(Object.values(users).map(u=>u.name)); let c=false; Object.keys(userData).forEach(n=>{ if(!vn.has(n)){ delete userData[n]; c=true; } }); if(c) saveUserData(); const plan=loadShiftPlan(); let cp=false; Object.keys(plan).forEach(date=>{ Object.keys(plan[date]).forEach(n=>{ if(!vn.has(n)){ delete plan[date][n]; cp=true; } }); }); if(cp) saveShiftPlan(plan); }
         openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();guestHidden=loadGuestHidden();
         if(openingHours==='Stängt') queueTime='Stängt';
         loadDailyStats();loadDailyCosts();loadDailyForecast();
@@ -2438,9 +2638,10 @@
       }catch(e){ _setOffline(true); }
     };
 
-    setInterval(_doRefresh,20000);
+    // Den tunga uppdateringen (personaldata, meddelanden, statistik) behövs bara för inloggad personal. Driftdatan kommer via _liveSync.
+    setInterval(()=>{ if(loggedInUser&&!document.hidden) _doRefresh(); },60000);
     // Uppdatera direkt när fliken blir aktiv igen (istället för att vänta på nästa interval)
-    document.addEventListener('visibilitychange',()=>{ if(!document.hidden) _doRefresh?.(); });
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&loggedInUser) _doRefresh?.(); });
   }
 
   /* ============================== AUTO-LÅS ============================== */
@@ -2462,7 +2663,7 @@
   function saveSwishNumber(){
     const val=(document.getElementById('swishNumberInput')?.value||'').trim();
     localStorage.setItem(SWISH_NUMBER_KEY, val);
-    const c=document.getElementById('swishNumberConfirm');if(c){c.style.display='block';setTimeout(()=>c.style.display='none',2000);}
+    const c=document.getElementById('swishNumberConfirm');if(c){notify('Sparat.');}
   }
 
   function getSwishNumber(){ return localStorage.getItem(SWISH_NUMBER_KEY)||''; }
@@ -2658,7 +2859,7 @@
     function showCart(data){
       cdHideAll(); document.getElementById('cdCart').style.display='flex';
       const itemsEl=document.getElementById('cdItems');
-      if(itemsEl) itemsEl.innerHTML=data.items.map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(232,224,208,0.1);font-size:1.15rem;"><span>${escapeHtml(it.name)}<span style="color:rgba(232,224,208,0.45);margin-left:8px;">x${it.qty}</span></span><span>${it.qty*it.price} kr</span></div>`).join('');
+      if(itemsEl) itemsEl.innerHTML=data.items.map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(221,227,220,0.1);font-size:1.15rem;"><span>${escapeHtml(it.name)}<span style="color:rgba(221,227,220,0.45);margin-left:8px;">x${it.qty}</span></span><span>${it.qty*it.price} kr</span></div>`).join('');
       const totalEl=document.getElementById('cdTotal');
       if(totalEl) totalEl.textContent=`${data.total} kr${data.discount?' (50% rabatt)':''}`;
     }
@@ -2684,7 +2885,7 @@
         const lbl=document.getElementById('cdConnLabel');
         const wrap=document.getElementById('cdConnStatus');
         const connected=!!owner;
-        if(dot) dot.style.background=connected?'#6f6':'rgba(232,224,208,0.2)';
+        if(dot) dot.style.background=connected?'#6f6':'rgba(221,227,220,0.2)';
         if(lbl) lbl.textContent=connected?owner:'ej kopplad';
         if(wrap) wrap.style.opacity=connected?'0.35':'0.2';
       }catch(_e){}
@@ -2704,9 +2905,9 @@
         else if(data.state==='swish'&&data.qrUrl){ showSwish(data); }
         else if(data.state==='kontant'){ cdHideAll(); document.getElementById('cdKontant').style.display='flex';
           const itemsEl=document.getElementById('cdKontantItems');
-          if(itemsEl&&data.items) itemsEl.innerHTML=data.items.map(it=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(232,224,208,0.1);font-size:1.05rem;"><span>${escapeHtml(it.name)}<span style="opacity:0.4;margin-left:8px;">x${it.qty}</span></span><span>${it.qty*it.price} kr</span></div>`).join('');
+          if(itemsEl&&data.items) itemsEl.innerHTML=data.items.map(it=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(221,227,220,0.1);font-size:1.05rem;"><span>${escapeHtml(it.name)}<span style="opacity:0.4;margin-left:8px;">x${it.qty}</span></span><span>${it.qty*it.price} kr</span></div>`).join('');
           const totalEl=document.getElementById('cdKontantTotal'); if(totalEl) totalEl.textContent=`${data.total||0} kr${data.discount?' (50% rabatt)':''}`;
-          const el=document.getElementById('cdChange'); if(el){ el.textContent=data.change>=0?`${data.change} kr`:`Saknas ${Math.abs(data.change)} kr`; el.style.color=data.change>=0?'#f0ebe2':'rgba(220,100,100,0.9)'; } }
+          const el=document.getElementById('cdChange'); if(el){ el.textContent=data.change>=0?`${data.change} kr`:`Saknas ${Math.abs(data.change)} kr`; el.style.color=data.change>=0?'#dde3dc':'rgba(220,100,100,0.9)'; } }
         else if(data.state==='cart'&&data.items&&data.items.length){ showCart(data); }
         else{ showIdle(); }
       }catch(_e){}
