@@ -7,7 +7,7 @@
   <meta name="description" content="Spökhotellet Korpen är en skräckattraktion byggd i en ladugård. Vågar du checka in på ett hotell som inte borde finnas?">
   <meta property="og:title" content="Spökhotellet Korpen – skräckattraktion">
   <meta property="og:description" content="En skräckattraktion byggd i en ladugård. Vågar du checka in?">
-  <meta property="og:image" content="https://spokhotellet.github.io/hotellarkiv-1936.jpg">
+  <meta property="og:image" content="https://spokhotellet.github.io/bilder/hotellarkiv-1936.jpg">
   <meta property="og:url" content="https://spokhotellet.github.io/">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="sv_SE">
@@ -17,15 +17,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://script.google.com">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="preload" as="image" href="hotellarkiv-1936.jpg" media="(min-width: 801px) and (orientation: landscape)">
-  <link rel="preload" as="image" href="hotellarkiv-1936-mobil.jpg" media="(max-width: 800px) and (orientation: landscape)">
-  <link rel="preload" as="image" href="hotellarkiv-1936-staende.jpg" media="(orientation: portrait)">
+  <link rel="preload" as="image" href="bilder/hotellarkiv-1936.jpg" media="(min-width: 801px) and (orientation: landscape)">
+  <link rel="preload" as="image" href="bilder/hotellarkiv-1936-mobil.jpg" media="(max-width: 800px) and (orientation: landscape)">
+  <link rel="preload" as="image" href="bilder/hotellarkiv-1936-staende.jpg" media="(orientation: portrait)">
   <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700&family=Cutive+Mono&family=Gloock&family=Caveat:wght@500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <meta name="theme-color" content="#182024">
-  <link rel="stylesheet" href="app.css">
-  <link rel="stylesheet" href="lager.css">
+  <link rel="stylesheet" href="kod/app.css">
+  <link rel="stylesheet" href="kod/lager.css">
 </head>
 
 <body>
@@ -41,6 +41,10 @@
     <span id="saveErrorMsg"></span>
     <button onclick="hideSaveError()">OK</button>
   </div>
+  <div id="statsLossBanner" role="alert" style="display:none;">
+    <span id="statsLossMsg"></span>
+    <button onclick="muteStatsLoss()">Påminn om 6 timmar</button>
+  </div>
 
 
   <!-- ===== ÅNGRA-TOAST ===== -->
@@ -55,7 +59,7 @@
     <div class="login-box">
       <button class="login-close" onclick="closeLoginModal()" aria-label="Stäng">✕</button>
       <div class="login-logo">
-        <img src="korpen.png" alt="Spökhotellet Korpen" class="login-logo-img" width="974" height="573" loading="lazy" decoding="async" onerror="this.style.display='none'">
+        <img src="bilder/korpen.png" alt="Spökhotellet Korpen" class="login-logo-img" width="974" height="573" loading="lazy" decoding="async" onerror="this.style.display='none'">
       </div>
       <h2 class="login-title" id="loginTitle">Spökhotellet Korpen</h2>
       <p class="login-subtitle">Personalingång. Ange namn och lösenord.</p>
@@ -106,6 +110,16 @@
     </div>
   </div>
 
+  <!-- ===== LADDSKÄRM EFTER INLOGGNING (döljer hämtningen innan personalens sida visas) ===== -->
+  <div id="staffLoading" role="status" aria-live="polite" hidden>
+    <div class="wl-card">
+      <svg class="wl-key" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="18" cy="18" r="10"/><circle cx="18" cy="18" r="4"/><path d="M25 25l24 24M36 36l5-5M42 42l5-5"/></svg>
+      <div class="wl-word"><span>Välkommen in</span><strong id="staffLoadingName">Korpen</strong></div>
+      <div class="wl-bar" aria-hidden="true"><span></span></div>
+      <p class="wl-text">Receptionen lägger fram dagens papper…</p>
+    </div>
+  </div>
+
   <!-- ===== GÄSTSIDAN ===== -->
   <div class="welcome-message" id="welcomeMessage">
 
@@ -121,6 +135,7 @@
         </a>
         <nav class="gh-links" id="ghLinks" aria-label="Huvudmeny">
           <a href="#besok" data-spy="besok">Besök &amp; priser</a>
+          <a href="?boka" class="js-book-link" hidden>Boka besök</a>
           <a href="#gastbok" data-spy="gastbok">Gästbok</a>
           <a href="#regler" data-spy="regler">Ordningsregler</a>
           <a href="#arkiv" data-spy="arkiv">Historia</a>
@@ -148,7 +163,7 @@
       </div>
       <div class="welcome-hero">
         <p class="welcome-hotel-name" id="welcomeHotelName">Välkommen</p>
-        <img id="welcomeKorpenLogo" src="korpen.png" alt="Spökhotellet Korpen" width="974" height="573" fetchpriority="high" onerror="this.style.display='none'">
+        <img id="welcomeKorpenLogo" src="bilder/korpen.png" alt="Spökhotellet Korpen" width="974" height="573" fetchpriority="high" onerror="this.style.display='none'">
         <p class="gh-hero-title">Vågar ni checka in?</p>
         <h1 id="welcomeHeadline"></h1>
         <p class="welcome-tagline" id="welcomeTagline"></p>
@@ -175,6 +190,7 @@
         <a class="gh-hero-rating" id="ghHeroRating" href="#gastbok" hidden></a>
         <div class="gh-hero-actions">
           <a class="gh-btn" href="#besok">Planera ert besök <span aria-hidden="true">↓</span></a>
+          <a class="gh-btn gh-btn--line js-book-link" href="?boka" hidden>Boka besök</a>
         </div>
       </div>
     </section>
@@ -202,10 +218,10 @@
       <!-- Om attraktionen -->
       <section class="gh-section gh-intro" id="om">
         <figure class="gh-postcard gh-reveal">
-          <img src="vykort-korpen.jpg" alt="Gammalt vykort: Hotell Korpens fasad en månljus höstkväll, med skylten Hotell Korpen, tända fönster, en stege mot väggen och cyklar vid muren." width="800" height="1200" loading="lazy" decoding="async">
+          <img src="bilder/vykort-korpen.jpg" alt="Gammalt vykort: Hotell Korpens fasad en månljus höstkväll, med skylten Hotell Korpen, tända fönster, en stege mot väggen och cyklar vid muren." width="800" height="1200" loading="lazy" decoding="async">
           <figcaption>Vykort från Hotell Korpen. Odaterat.</figcaption>
           <!-- EXPERIMENT: en korp på väg ut ur vykortet (lager.css) -->
-          <img class="lx-perch lx-perch-postcard" src="lager/korp-vingar-upp.webp" alt="" width="509" height="520" loading="lazy" decoding="async" aria-hidden="true">
+          <img class="lx-perch lx-perch-postcard" src="bilder/lager/korp-vingar-upp.webp" alt="" width="509" height="520" loading="lazy" decoding="async" aria-hidden="true">
         </figure>
         <div class="gh-intro-text gh-reveal">
           <span class="gh-kicker"><span class="gh-plate">N:o 1</span>Om attraktionen</span>
@@ -244,6 +260,7 @@
               </button>
             </div>
           </div>
+          <div class="gh-visit-col">
           <div class="gh-letter gh-reveal">
             <div class="gh-letter-head">
               <span class="gh-letter-name">Hotell Korpen</span>
@@ -255,6 +272,8 @@
             <div id="wsOpenDates"></div>
             <p class="gh-letter-social">Öppettiderna kungöras även på <a class="js-social-ig" target="_blank" rel="noopener">Instagram</a> och <a class="js-social-fb" target="_blank" rel="noopener">Facebook</a>.</p>
             <p class="gh-letter-sign">Med vänlig hälsning,<br><em>Receptionen</em></p>
+          </div>
+          <a class="gh-btn gh-book-cta js-book-link" href="?boka" hidden>Boka besök <span aria-hidden="true">→</span></a>
           </div>
         </div>
         <div class="gh-faq gh-reveal" id="fragor">
@@ -298,6 +317,17 @@
         </form>
       </section>
 
+      <!-- Bokningssidan (bokning.js): visas bara på index.html?boka, då resten av gästsidan döljs -->
+      <section class="gh-section gh-booking" id="boka" hidden>
+        <header class="gh-section-head">
+          <a class="gh-link bk-back" href="index.html">← Till startsidan</a>
+          <span class="gh-kicker">Receptionen · Bokning</span>
+          <h2 class="gh-title">Boka ert besök.</h2>
+          <p class="gh-sub">Välj dag och tid, så håller receptionen tiden åt er. Betalning sker på plats. Ni är också välkomna utan bokning, kön brukar vara kort.</p>
+        </header>
+        <div class="bk-card" id="bkCard"></div>
+      </section>
+
       <!-- Gästboken -->
       <section class="gh-section gh-guestbook" id="gastbok">
         <div class="gh-ledger gh-reveal">
@@ -309,7 +339,7 @@
           <div class="gh-ledger-foot">
             <a class="gh-btn gh-btn-small" href="?review">Skriv i gästboken</a>
             <!-- EXPERIMENT: fjäderpennan ligger bredvid gästboken (lager.css) -->
-            <img class="lx-quill" src="lager/fjaderpenna.webp" alt="" width="400" height="675" loading="lazy" decoding="async" aria-hidden="true">
+            <img class="lx-quill" src="bilder/lager/fjaderpenna.webp" alt="" width="400" height="675" loading="lazy" decoding="async" aria-hidden="true">
           </div>
         </div>
       </section>
@@ -339,7 +369,7 @@
           <p>Personalen står, som förr, till er tjänst. Skulle någon av dem plötsligt bli stående och stirra tomt framför sig, ber vi er vänligen att inte störa.</p>
           <figure class="gh-photo">
             <div class="gh-photo-img">
-              <img src="personalen-1936.jpg" alt="Hotell Korpens personal uppställd i en korridor: kocken, två städerskor, en portier i hatt och två unga män i hotelluniform." width="1100" height="733" loading="lazy" decoding="async">
+              <img src="bilder/personalen-1936.jpg" alt="Hotell Korpens personal uppställd i en korridor: kocken, två städerskor, en portier i hatt och två unga män i hotelluniform." width="1100" height="733" loading="lazy" decoding="async">
             </div>
             <figcaption>Personalen samlad i korridoren, sommaren 1921.</figcaption>
           </figure>
@@ -361,7 +391,7 @@
         </figure>
         <figure class="gh-clipping gh-clipping-ad gh-reveal" aria-label="Annons för Hotell Korpen">
           <div class="gh-ad-kicker">Annons</div>
-          <img class="gh-ad-logo" src="hotell-korpen.png" alt="Hotell Korpen" width="600" height="316" loading="lazy" decoding="async">
+          <img class="gh-ad-logo" src="bilder/hotell-korpen.png" alt="Hotell Korpen" width="600" height="316" loading="lazy" decoding="async">
           <p class="gh-ad-line">Moderna rum med varmt och kallt vatten<br>Förnämligt kök · Telefon 272</p>
           <p class="gh-ad-foot">Resande hälsas välkomna. <em>A. Janson.</em></p>
         </figure>
@@ -375,7 +405,7 @@
         <div class="gh-contact-text gh-postcard-back gh-reveal">
           <span class="gh-postmark" aria-hidden="true"><span>Spökhotellet</span><b>2022</b><span>Korpen</span></span>
           <!-- EXPERIMENT: en korp som bär bud (lager.css) -->
-          <img class="lx-perch lx-perch-letter" src="lager/korp-glidflykt.webp" alt="" width="520" height="340" loading="lazy" decoding="async" aria-hidden="true">
+          <img class="lx-perch lx-perch-letter" src="bilder/lager/korp-glidflykt.webp" alt="" width="520" height="340" loading="lazy" decoding="async" aria-hidden="true">
           <span class="gh-kicker">Korrespondens</span>
           <h2 class="gh-title">Hotellet har mer att berätta.</h2>
           <p class="gh-sub">Följ Korpen för nyheter, öppettider och glimtar från hotellet. Frågor inför besöket besvaras gärna på Instagram och Facebook.</p>
@@ -405,6 +435,7 @@
       <a href="#besok" class="gh-dock-status"><span class="status-dot dead" id="ghDockDot"></span><span id="ghDockText">–</span></a>
       <a href="#besok">Priser</a>
       <a href="#ghQuiz">Hur läskigt?</a>
+      <a href="?boka" class="js-book-link" hidden>Boka</a>
     </nav>
   </div>
 
@@ -441,8 +472,8 @@
         <button type="button" data-adm="meddelanden">Meddelanden <span class="adm-badge" id="admMsgBadge" hidden>!</span></button>
       </div>
       <div class="adm-nav-group"><span class="adm-nav-label">Planering</span>
-        <button type="button" data-adm="dagar">Öppetdagar</button>
-        <button type="button" data-adm="schema">Schema</button>
+        <button type="button" data-adm="schema">Kalender</button>
+        <button type="button" data-adm="bokning">Bokningar</button>
         <button type="button" data-adm="produkter">Produkter &amp; priser</button>
         <button type="button" data-adm="sidan">Redigera sidan</button>
       </div>
@@ -452,11 +483,10 @@
       </div>
       <div class="adm-nav-group"><span class="adm-nav-label">Inställningar</span>
         <button type="button" data-adm="personal">Personal</button>
-        <button type="button" data-adm="katalog">Kompetenser &amp; uppgifter</button>
+        <button type="button" data-adm="listor">Listor</button>
         <button type="button" data-adm="skarmar">Skärmar &amp; enheter</button>
-        <button type="button" data-adm="checklistor">Checklistor</button>
-        <button type="button" data-adm="logg">Ändringslogg</button>
       </div>
+      <div class="adm-nav-foot"><button type="button" data-adm="kopia">Säkerhetskopia</button><button type="button" data-adm="logg">Ändringslogg</button></div>
     </nav>
 
     <div class="adm-main">
@@ -466,125 +496,17 @@
       <h4 class="adm-panel-title">Meddelanden</h4>
       <p class="adm-intro">Anslaget visas överst på allas Min sida tills du tar bort det. Direktmeddelanden går till en person, som kan svara.</p>
     </section>
-    <section class="adm-panel" data-panel="dagar" id="admDagar" aria-label="Öppetdagar" hidden></section>
-    <section class="adm-panel" data-panel="schema" id="admSchema" aria-label="Schema" hidden></section>
+    <section class="adm-panel" data-panel="schema" id="admSchema" aria-label="Kalender" hidden></section>
+    <section class="adm-panel" data-panel="bokning" id="admBokning" aria-label="Bokningar" hidden></section>
 
     <div class="section adm-panel" data-panel="personal" hidden>
       <h4 class="adm-panel-title">Personal</h4>
-      <div id="personalContent" class="content">
-
-        <div id="admStaffTable"></div>
-
-        <!-- Medarbetarval — alltid synligt -->
-        <div id="userSelectSection">
-          <h4>Redigera en person</h4>
-          <div class="adm-pick-row">
-            <label class="adm-pick"><span class="ui-mini-label">Välj person</span><select id="userSelect"></select></label>
-            <button id="addUserPlusBtn" class="btn btn-green u-noshrink" onclick="openAddUserPanel()">Lägg till person</button>
-          </div>
-          <div class="admin-password">
-            <span class="label">Lösenord</span>
-            <span class="value">Dolt</span>
-            <button type="button" class="adm-linkbtn" id="admPwChange" onclick="admSetPassword()">Byt lösenord</button>
-          </div>
-        </div>
-
-        <!-- Underflikar -->
-        <div class="ui-tabs u-mt-14 u-mb-16" id="persTabRow">
-          <button class="ui-tab is-active" id="persTab_idag" onclick="selectPersonalTab('idag')">Allmänt</button>
-          <button class="ui-tab" id="persTab_schema" onclick="selectPersonalTab('schema')">Personens schema</button>
-        </div>
-
-        <!-- Panel: Allmänt -->
-        <div id="persPanel_idag">
-          <h4>Åtkomst</h4>
-          <label class="u-mb-6" style="display:block;"><input type="checkbox" id="accessCheckbox"> Kassa-access</label>
-          <small id="adamNote" style="display:none;color:var(--ok);"></small>
-          <label class="u-mb-6" style="display:block;"><input type="checkbox" id="insleppCheckbox"> Insläpp-access</label>
-          <small id="insleppNote" style="display:none;color:var(--ok);"></small>
-          <h4>Lön</h4>
-          <label class="u-mb-6" style="display:block;"><input type="checkbox" id="voluntarCheckbox"> Volontär (ingen bassumma)</label>
-          <h4>Kompetenser</h4>
-          <div id="adminSkillsOptions" class="row"></div>
-          <button id="saveAdminBtn" class="btn btn-green u-mt-12">Spara ändringar</button>
-          <div class="ui-hint-ok" id="adminConfirm" style="display:none;"></div>
-          <button id="deleteUserBtn" class="btn btn-danger u-mt-16 u-w100" onclick="openDeleteUserModal()" style="display:none;">Ta bort medarbetare</button>
-        </div>
-
-        <!-- Panel: Schema -->
-        <div id="persPanel_schema" style="display:none;">
-          <div id="schemaEmployeeRows"></div>
-          <div class="row u-mt-14 u-jc-end">
-            <button class="btn btn-green" onclick="saveSchemaForEmployee()">Spara schema</button>
-          </div>
-          <div class="ui-hint-ok" id="schemaSavedConfirm" style="display:none;">Sparat!</div>
-        </div>
-
-        <!-- Panel: Lägg till ny medarbetare -->
-        <div id="persPanel_laggTill" style="display:none;">
-          <h4>Ny medarbetare</h4>
-          <div class="admin-field">
-            <label class="admin-label" for="newUserName">Användarnamn</label>
-            <input id="newUserName" class="input u-w100" placeholder="Användarnamn" autocomplete="off">
-          </div>
-          <div class="admin-field">
-            <label class="admin-label" for="newUserPass">Lösenord</label>
-            <input id="newUserPass" class="input u-w100" placeholder="Lösenord" autocomplete="off">
-            <div class="ui-hint-err" id="newUserPassWarn" style="display:none;"></div>
-          </div>
-          <label class="u-mb-6" style="display:block;"><input type="checkbox" id="newUserAccessCheckbox"> Kassa-access</label>
-          <label class="u-mb-10" style="display:block;"><input type="checkbox" id="newUserInsleppCheckbox"> Insläpp-access</label>
-          <div class="row u-gap-8">
-            <button id="addUserBtn" class="btn btn-primary">Lägg till</button>
-            <button class="btn" onclick="closeAddUserPanel()">Avbryt</button>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <div class="section adm-panel" data-panel="katalog" hidden>
-      <h4 class="adm-panel-title">Kompetenser &amp; uppgifter</h4>
-      <div id="catalogContent" class="content">
-        <div class="ui-tabs u-mb-14">
-          <button class="ui-tab is-active" id="catTab_kompetenser" onclick="selectCatalogTab('kompetenser')">Kompetenser</button>
-          <button class="ui-tab" id="catTab_uppgifter" onclick="selectCatalogTab('uppgifter')">Uppgifter</button>
-          <button class="ui-tab" id="catTab_beskrivningar" onclick="selectCatalogTab('beskrivningar')">Beskrivningar</button>
-        </div>
-        <div id="catPanel_kompetenser">
-          <div id="skillCatalogList"></div>
-          <div class="row u-mt-10">
-            <input id="newSkillInput" class="input u-flex1" placeholder="Ny kompetens…">
-            <button id="addSkillBtn" class="btn btn-green">Lägg till</button>
-          </div>
-        </div>
-        <div id="catPanel_uppgifter" style="display:none;">
-          <div id="taskCatalogList"></div>
-          <div class="row u-mt-10">
-            <input id="newTaskInput" class="input u-flex1" placeholder="Ny uppgift…">
-            <button id="addTaskBtn" class="btn btn-green">Lägg till</button>
-          </div>
-        </div>
-        <div id="catPanel_beskrivningar" style="display:none;">
-          <div class="tiny muted u-mb-10">Beskrivningarna visas på personalens Min sida under deras uppgift.</div>
-          <div id="taskDescList"></div>
-        </div>
-      </div>
+      <div id="personalContent" class="content"></div>
     </div>
 
     <div class="section adm-panel" data-panel="produkter" hidden>
       <h4 class="adm-panel-title">Produkter &amp; priser</h4>
-      <div id="productsContent" class="content">
-        <div id="productsList"></div>
-        <div class="row u-jc-between u-mt-8 u-wrap u-gap-8">
-          <div class="row u-wrap u-gap-6">
-            <input id="pNewName" class="input" placeholder="Produktnamn">
-            <input id="pNewPrice" class="input" type="number" min="0" step="1" placeholder="Pris" style="width:80px;">
-            <label class="u-ai-center u-gap-4 u-fs-12 u-pointer" style="display:flex;"><input type="checkbox" id="pNewInternal"> Intern</label>
-          </div>
-          <button id="pAddBtn" class="btn btn-green">Lägg till produkt</button>
-        </div>
-      </div>
+      <div id="admProdukter"></div>
     </div>
 
     <div class="section adm-panel" data-panel="skarmar" hidden>
@@ -592,7 +514,7 @@
       <div id="displayAdminContent" class="content">
         <div class="ui-tabs u-mb-16">
           <button class="ui-tab is-active" id="displayTab_enheter" onclick="selectDisplayTab('enheter')">Kassaenheter</button>
-          <button class="ui-tab" id="displayTab_kundskarm" onclick="selectDisplayTab('kundskarm')">Kundskärm</button>
+          <button class="ui-tab" id="displayTab_kundskarm" onclick="selectDisplayTab('kundskarm')">Kö- och kundskärm</button>
         </div>
 
         <div id="displayPanel_enheter">
@@ -642,71 +564,12 @@
 
     <div class="section adm-panel" data-panel="loner" hidden>
       <h4 class="adm-panel-title">Löner</h4>
-      <div id="lonContent" class="content">
-        <div class="ui-tabs u-mb-16">
-          <button class="ui-tab is-active" id="lonTab_idag" onclick="selectLonTab('idag')">Idag</button>
-          <button class="ui-tab" id="lonTab_historik" onclick="selectLonTab('historik')">Historik</button>
-          <button class="ui-tab" id="lonTab_berakna" onclick="selectLonTab('berakna')">Beräkna</button>
-          <button class="ui-tab" id="lonTab_installningar" onclick="selectLonTab('installningar')">Inställningar</button>
-        </div>
-
-        <div id="lonPanel_idag">
-
-          <div id="lonResultIdag"></div>
-        </div>
-
-        <div id="lonPanel_historik" style="display:none;">
-          <div id="lonHistorikList"></div>
-        </div>
-
-        <div id="lonPanel_berakna" style="display:none;">
-          <div class="row u-gap-16 u-wrap u-ai-end">
-            <div>
-              <div class="ui-mini-label">Från</div>
-              <input type="date" id="lonFromDate" class="input">
-            </div>
-            <div>
-              <div class="ui-mini-label">Till (valfritt)</div>
-              <input type="date" id="lonToDate" class="input">
-            </div>
-            <button class="btn btn-green" onclick="renderLon()">Beräkna</button>
-          </div>
-
-          <div id="lonResult"></div>
-        </div>
-
-        <div id="lonPanel_installningar" style="display:none;">
-          <div class="row u-gap-16 u-wrap u-mt-4">
-            <div class="u-flex1" style="min-width:150px;">
-              <label class="admin-label" for="lonBassumma">Bassumma per person (kr)</label>
-              <input id="lonBassumma" type="number" min="0" step="50" class="input u-w100" placeholder="200">
-            </div>
-            <div class="u-flex1" style="min-width:150px;">
-              <label class="admin-label" for="lonVerksamhet">Verksamhetsandel (%)</label>
-              <input id="lonVerksamhet" type="number" min="0" max="100" step="1" class="input u-w100" placeholder="20">
-            </div>
-            <div class="u-flex1" style="min-width:150px;">
-              <label class="admin-label" for="lonSkatteprocent">Skatteprocent (%)</label>
-              <input id="lonSkatteprocent" type="number" min="0" max="100" step="1" class="input u-w100" placeholder="50">
-            </div>
-          </div>
-          <div class="tiny muted u-mt-6">Intäkt − utgifter − skatt = netto att fördela. Verksamhetsandelen tas av nettot, resten delas ut som lön.</div>
-
-          <hr style="border:none;border-top:1px solid rgba(221,227,220,0.1);margin:14px 0;">
-          <div class="u-fs-12 u-mb-4 u-f--label u-ls-0_5" style="color:var(--muted);">Rollvikter</div>
-          <div class="tiny muted u-mb-10">Vikt per uppgift. Tomt = 1.0.</div>
-          <div class="u-col u-gap-8 u-mb-10" id="lonTaskVikterList" style="display:flex;"></div>
-
-          <div class="row u-jc-end">
-            <button class="btn btn-green" onclick="saveLonSettings()">Spara</button>
-          </div>
-          <div class="ui-hint-ok" id="lonSettingsConfirm" style="display:none;">Sparat!</div>
-        </div>
-      </div>
+      <div id="lonContent" class="content"></div>
     </div>
     <section class="adm-panel" data-panel="sidan" id="admSidan" aria-label="Redigera sidan" hidden></section>
-    <section class="adm-panel" data-panel="checklistor" id="admChecklistor" aria-label="Checklistor" hidden></section>
+    <section class="adm-panel" data-panel="listor" id="admListor" aria-label="Listor" hidden></section>
     <section class="adm-panel" data-panel="logg" id="admLogg" aria-label="Ändringslogg" hidden></section>
+    <section class="adm-panel" data-panel="kopia" id="admKopia" aria-label="Säkerhetskopia" hidden></section>
     </div>
   </div>
 
@@ -781,6 +644,7 @@
     <!-- Produkter och varukorg; på iPad i liggande läge två kolumner (app.css, KASSA PÅ IPAD) -->
     <div class="kassa-body">
     <div class="kassa-pick">
+    <div class="bk-kassa" id="kassaBookings" hidden></div>
     <div class="products"></div>
     <button id="discountBtn" title="Använd 50% rabatt en gång på denna kund">50% rabatt (1 gång)</button>
     </div>
@@ -933,18 +797,6 @@
     </div>
   </div>
 
-  <!-- ===== TA BORT MEDARBETARE-MODAL ===== -->
-  <div id="deleteUserModal" class="modal-overlay" role="dialog" aria-modal="true" onclick="if(event.target===this)closeDeleteUserModal()" onkeydown="if(event.key==='Escape')closeDeleteUserModal();else if(event.key==='Enter'){event.preventDefault();executeDeleteUser();}">
-    <div class="modal" style="width:min(360px,96vw);">
-      <h3 class="u-m-0-0-10 u-f--label">Är du säker?</h3>
-      <p id="deleteUserModalMsg" class="tiny muted u-m-0-0-20"></p>
-      <div class="actions">
-        <button class="btn" onclick="closeDeleteUserModal()">Avbryt</button>
-        <button class="btn btn-danger" onclick="executeDeleteUser()">Ja, ta bort</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ===== STATISTIK ===== -->
   <div id="statsContainer" style="display:none;max-width:820px;margin:40px auto;">
     <div class="section">
@@ -956,13 +808,15 @@
     </div>
   </div>
 
-  <script src="sidtext.js"></script>
-  <script src="ui.js"></script>
-  <script src="app.js"></script>
-  <script src="admin.js"></script>
-  <script src="guest.js"></script>
+  <script src="kod/sidtext.js"></script>
+  <script src="kod/ui.js"></script>
+  <script src="kod/app.js"></script>
+  <script src="kod/lon.js"></script>
+  <script src="kod/admin.js"></script>
+  <script src="kod/bokning.js"></script>
+  <script src="kod/guest.js"></script>
   <!-- EXPERIMENT: three.js-scen i hero (ficklampa och damm). Stäng av med ?3d=av -->
-  <script src="korpen3d.js"></script>
+  <script src="kod/korpen3d.js"></script>
 
   <!-- ===== KUNDSKÄRM (iPhone-display) ===== -->
   <div class="u-f--label u-ai-stretch" id="customerDisplayView" style="display:none;position:fixed;inset:0;background:var(--soot);color:var(--cream);z-index:9999;flex-direction:row;box-sizing:border-box;">

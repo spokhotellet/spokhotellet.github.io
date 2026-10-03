@@ -1,0 +1,57 @@
+/* ============================== EXPERIMENT: LAGER ==============================
+   Transparenta bilder i mappen lager/. I hero ligger dammet som ett eget lager framför skrivbordsfotot
+   (reserv när three.js-scenen i korpen3d.js inte körs). Ingen parallax.
+   Hela experimentet stängs av med ?lager=av i adressen; dammet står still vid "minska rörelse". */
+
+.lx-layer {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+}
+.lx-scene { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+
+/* Damm som svävar i ljuskäglan */
+.lx-dust { inset: 0; background: url("../bilder/lager/damm.png") 0 0 / 520px repeat; opacity: 0.55;
+  animation: lx-dust 40s linear infinite; mix-blend-mode: screen; }
+@keyframes lx-dust { from { background-position: 0 0; } to { background-position: -520px -1040px; } }
+
+/* ---------- Stillastående föremål utanför hero: korparna och fjäderpennan ---------- */
+/* De rör sig inte och flaxar inte. En svag kant av månljus skiljer de svarta fjädrarna från den mörka bakgrunden. */
+.lx-perch, .lx-quill { position: absolute; pointer-events: none; user-select: none; height: auto; }
+.lx-perch { filter: brightness(1.35) drop-shadow(0 0 1px rgba(226,231,225,0.35)) drop-shadow(0 12px 14px rgba(0,0,0,0.55)); }
+
+/* En korp på väg ut ur vykortet med hotellfasaden */
+.gh-postcard { position: relative; }
+.gh-postcard img.lx-perch-postcard { width: 46%; top: -12%; left: -22%; border-radius: 0; rotate: 4deg; }
+
+/* En korp som bär bud, över kortet i Korrespondens */
+.lx-perch-letter { width: clamp(120px, 17vw, 190px); top: clamp(-70px, -6vw, -40px); left: clamp(-80px, -6vw, -12px); rotate: -6deg; }
+
+/* Fjäderpennan ligger bredvid knappen "Skriv i gästboken" */
+.gh-ledger-foot { position: relative; }
+.lx-quill { width: clamp(58px, 6vw, 78px); left: calc(50% + 118px); top: -58px; rotate: 38deg;
+  filter: brightness(1.2) drop-shadow(8px 12px 8px rgba(0,0,0,0.5)); }
+
+/* ---------- Mobil: färre och mindre föremål ---------- */
+@media (max-width: 800px) {
+  .gh-postcard img.lx-perch-postcard { left: -12%; }
+  .lx-dust { opacity: 0.35; }
+}
+@media (max-width: 560px) {
+  .lx-quill { width: 56px; left: calc(50% + 100px); top: -50px; }
+  .lx-perch-letter { left: 0; }
+}
+
+/* ---------- Av: ?lager=av, eller stilla vid minska rörelse ---------- */
+.lx-off .lx-scene, .lx-off .lx-perch, .lx-off .lx-quill { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .lx-dust { animation: none; }
+}
+
+/* ---------- EXPERIMENT: three.js-scenen i hero (korpen3d.js) ----------
+   Duken ligger på samma nivå som skrivbordsfotot, under mörkläggningen (::after) och texten.
+   Den tonas in när första bilden är ritad; först då göms CSS-fotot och CSS-dammet. */
+.k3-canvas { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 0.9s ease; pointer-events: none; }
+.gh-hero.k3-live .k3-canvas { opacity: 1; }
+.gh-hero.k3-live::before { opacity: 0; transition: opacity 0s linear 0.9s; }
+.gh-hero.k3-live .lx-dust { display: none; }

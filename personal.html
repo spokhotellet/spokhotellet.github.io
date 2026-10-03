@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex">
+  <title>Korpen – Personal</title>
+  <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#182024">
+  <!-- Personalsidan är samma app som gästsidan. Den här sidan skickar vidare till den, och appen visar sedan /personal i adressfältet. -->
+  <script>location.replace('index.html?personal'+location.hash);</script>
+</head>
+<body style="background:#182024;">
+  <noscript><p style="color:#ddd;font-family:sans-serif;padding:20px;">Personalsidan kräver JavaScript. <a href="index.html" style="color:#ddd;">Till startsidan</a></p></noscript>
+</body>
+</html>
