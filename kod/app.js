@@ -1,10 +1,28 @@
   /* ============================== LOGIN MODAL ============================== */
   function openLoginModal(){
+    _guestViewCheck();
+    const back = inGuestView();
+    _loginShowBack(back);
     const m = document.getElementById('loginModal');
     if(m){ m.classList.add('active'); }
-    setTimeout(()=>{ document.getElementById('loginPasswordInput')?.focus(); }, 80);
+    setTimeout(()=>{ document.getElementById(back ? 'loginBackGo' : 'loginPasswordInput')?.focus(); }, 80);
   }
+  // Inloggad personal som tittar på gästsidan får välja: tillbaka, byta person (namn och lösenord) eller logga ut
+  function _loginShowBack(on){
+    const back = document.getElementById('loginBack'), form = document.getElementById('loginFormPart');
+    if(back) back.hidden = !on;
+    if(form) form.hidden = on;
+    if(!on) return;
+    const nm = document.getElementById('loginBackName'); if(nm) nm.textContent = loggedInUser;
+    const left = document.getElementById('loginBackLeft'); if(left) left.textContent = `Du loggas ut automatiskt om ${Math.max(1, Math.ceil(_guestViewLeft()/60000))} min.`;
+  }
+  function loginSwitchPerson(){
+    _loginShowBack(false);
+    const ni = document.getElementById('loginNameInput'); if(ni){ ni.value = ''; ni.focus(); }
+  }
+  function guestViewLogout(){ closeLoginModal(); logout(); }
   function closeLoginModal(){
+    _loginShowBack(false);
     const m = document.getElementById('loginModal');
     if(m) m.classList.remove('active');
     const inp = document.getElementById('loginPasswordInput');
@@ -50,13 +68,19 @@
       const screen = typedName.toLowerCase();
       if(res.role !== 'staff'){
         closeLoginModal();
+        // Startas en skärm från gästsidan (Byt person) loggas personen ut först, så att skärmen inte bär med sig personalens inloggning
+        if(loggedInUser) logout();
         _authToken = res.token; loggedInKey = ''; _saveSession({ role:res.role });
         if(screen === 'kö'){ localStorage.setItem('overlayModeV1','ko'); showDisplay(); }
         else if(screen === 'biljett'){ showStaffLoading('Insläppet'); const need=new Set([OPEN_TICKETS_KEY,ADMIT_KEY,REENTRY_KEY,QUEUE_KEY,DAILY_KEY,SALESHISTORY_KEY]); await dbRefreshMany(_BOOT_KEYS.filter(k=>need.has(k.key))).catch(()=>{}); openRecentTicketsFull(); hideStaffLoading(); }
         else if(screen === 'pos'){ localStorage.setItem('overlayModeV1','pos'); startCustomerDisplayMode(); }
         return;
       }
+      // Byter man person från gästsidan (Byt person) lämnas den förra inloggningen tillbaka
+      const prevToken = _authToken;
       _authToken = res.token; _authLostShown = false;
+      if(prevToken && prevToken !== res.token) apiAction('logout', { t: prevToken }).catch(()=>{});
+      _guestViewSet(0);
       loggedInKey = res.id;
       if(res.user) users[res.id] = res.user;
       _applyMe(users[res.id] || { name: typedName });
@@ -72,6 +96,7 @@
     })();
   }
   document.getElementById('loginModal')?.addEventListener('click', function(e){ if(e.target === this) closeLoginModal(); });
+  document.getElementById('loginModal')?.addEventListener('keydown', function(e){ if(e.key === 'Escape' && !e.target.closest('input')) closeLoginModal(); });
   document.getElementById('loginNameInput')?.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('loginPasswordInput')?.focus(); } if(e.key === 'Escape'){ closeLoginModal(); } });
   document.getElementById('loginPasswordInput')?.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); submitLogin(); } if(e.key === 'Escape'){ closeLoginModal(); } });
   function promptPassword(){ openLoginModal(); }
@@ -103,6 +128,7 @@
     if(pw) pw.value = '';
     const err = document.getElementById('kassaLockError');
     if(err) err.textContent = '';
+    _klReset();
     document.getElementById('kassaLockModal').classList.add('active');
     setTimeout(() => document.getElementById('kassaLockPw')?.focus(), 80);
   }
@@ -134,19 +160,26 @@
   }
 
   // Upplåsning loggar in den valda personen på nytt, så att passerkortet byts om någon annan tar över kassan.
+  // Medan servern kontrollerar sitter nyckeln i låset och vickar; när det går igenom vrids den om, byglen hoppar upp
+  // och en nyckelbricka med personens namn och rumsnummer svänger in innan kassan visas (app.css, KASSALÅSETS NYCKEL).
   let _unlockBusy=false;
+  const _klWait=ms=>new Promise(r=>setTimeout(r,ms));
+  // Varje person får ett eget "rum" på hotellet, räknat från namnet så att det alltid blir samma
+  function _klRoom(name){ let h=7; for(const c of String(name||'')) h=(h*31+c.charCodeAt(0))%997; return 1+h%40; }
+  function _klReset(){ const box=document.querySelector('.kassa-lock-box'); if(box) box.classList.remove('is-checking','is-open'); }
   async function submitLockUnlock(){
     const pw=(document.getElementById('kassaLockPw')?.value || '').trim();
     const errEl=document.getElementById('kassaLockError');
     const inp=document.getElementById('kassaLockPw');
-    const fail=(msg)=>{ if(errEl) errEl.textContent=msg; if(inp){ inp.classList.add('shake'); inp.addEventListener('animationend', () => inp.classList.remove('shake'), {once:true}); inp.select(); } };
+    const box=document.querySelector('.kassa-lock-box');
+    const fail=(msg)=>{ box?.classList.remove('is-checking'); if(errEl) errEl.textContent=msg; if(inp){ inp.classList.add('shake'); inp.addEventListener('animationend', () => inp.classList.remove('shake'), {once:true}); inp.select(); } };
     if(!pw||!kassaLockTargetUser||_unlockBusy) return;
-    _unlockBusy=true; if(errEl) errEl.textContent='Kontrollerar…';
+    _unlockBusy=true; if(errEl) errEl.textContent='Receptionen letar fram nyckeln…';
+    box?.classList.add('is-checking');
     let res=null;
     try{ res=await apiAction('login',{ name:kassaLockTargetUser, pw }); }
-    catch(_e){ fail('Kunde inte nå servern. Kontrollera anslutningen.'); return; }
-    finally{ _unlockBusy=false; }
-    if(!res||!res.ok||res.role!=='staff'){ fail(_loginErrorText(res)); return; }
+    catch(_e){ _unlockBusy=false; fail('Kunde inte nå servern. Kontrollera anslutningen.'); return; }
+    if(!res||!res.ok||res.role!=='staff'){ _unlockBusy=false; fail(_loginErrorText(res)); return; }
     const prevToken=_authToken, switched=res.id!==loggedInKey;
     _authToken=res.token; _authLostShown=false;
     if(prevToken&&prevToken!==res.token) apiAction('logout',{ t:prevToken }).catch(()=>{});
@@ -154,14 +187,30 @@
     if(res.user) users[res.id]=res.user;
     _applyMe(users[res.id]||{ name:kassaLockTargetUser });
     _saveSession({ role:'staff', user:users[res.id]||{ name:loggedInUser } });
-    if(switched) _refreshAfterLogin();
+    // Kassavyn ritas om för den nya personen: admin ser kassan på alla enheter, övrig personal bara på registrerade
+    // och öppna kassor, och den som saknar kassabehörighet skickas till Min sida. Görs igen när servern svarat.
+    const _reKassa=()=>{ if(document.getElementById('kassaContainer')?.style.display==='block') selectMenu('kassa'); };
+    if(switched) _refreshAfterLogin().then(_reKassa);
     updateTopbar();
     if(_displayActive){ const _dispBtn=document.getElementById('displayBtn'); if(_dispBtn) _dispBtn.classList.add('loading'); apiSet(CUSTOMER_DISPLAY_OWNER_KEY, loggedInUser).then(()=>{ updateDisplayBtn(); }).catch(()=>{}).finally(()=>{ if(_dispBtn) _dispBtn.classList.remove('loading'); }); }
     localStorage.removeItem('kassaLockedV1');
-    document.getElementById('kassaLockModal').classList.remove('active');
-    kassaLockTargetUser = '';
+    _reKassa();
     renderProductButtons();
     renderCart();
+    // Nyckelbrickan: kort, så att kassan inte står och väntar
+    const nm=document.getElementById('klWelcomeName'), no=document.getElementById('klWelcomeRoom'), hi=document.getElementById('klWelcomeHi'), sub=document.getElementById('klWelcomeSub');
+    if(nm) nm.textContent=loggedInUser;
+    if(no) no.textContent='N:o '+_klRoom(loggedInUser);
+    if(hi) hi.textContent=switched?'Välkommen':'Välkommen tillbaka';
+    if(sub) sub.textContent=switched?'Kassan är din nu':'Allt ligger kvar';
+    if(errEl) errEl.textContent='';
+    if(box){ box.classList.remove('is-checking'); box.classList.add('is-open'); }
+    const still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    await _klWait(still?600:1550);
+    document.getElementById('kassaLockModal').classList.remove('active');
+    _klReset();
+    kassaLockTargetUser = '';
+    _unlockBusy=false;
   }
 
   document.getElementById('kassaLockPw')?.addEventListener('keydown', function(e){
@@ -190,15 +239,13 @@
   async function apiGetMany(keys){ const out={}, remote=[]; keys.forEach(k=>{ if(PRACTICE&&PRACTICE_KEYS.has(k)){ const v=_practiceStore()[k]; out[k]=v===undefined?null:v; } else remote.push(k); }); if(!remote.length) return out; const r=await fetch(`${API_URL}?keys=${encodeURIComponent(remote.join(','))}${_authToken?'&t='+_authToken:''}&_=${Date.now()}`,{ cache:'no-store' }); const j=await r.json(); if(j&&j.ok===false&&j.error==='auth'){ if(_authToken){ _onAuthLost(); throw _authError(); } } if(!j||j.ok!==true||!j.values) throw new Error('Oväntat svar från servern'); remote.forEach(k=>{ out[k]=j.values[k]??null; }); return out; }
   async function apiSet(key, value){ if(PREVIEW) return {ok:true}; if(PRACTICE){ if(PRACTICE_KEYS.has(key)){ const st=_practiceStore(); st[key]=String(value??''); try{ localStorage.setItem('practiceStoreV1',JSON.stringify(st)); }catch(_e){} } else if(loggedInUser&&!/^(seen_|webVisit|customerDisplay)/.test(key)&&Date.now()-_practiceNoticeAt>8000){ _practiceNoticeAt=Date.now(); notify('Övningsläge: ändringen sparades inte på servern.','info'); } return {ok:true}; } const body = new URLSearchParams({ key, value: String(value ?? '') }); if(_authToken) body.set('t',_authToken); const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body }); const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch(e){} if(j&&j.ok===false&&(j.error==='auth'||j.error==='forbidden')){ if(j.error==='auth'&&_authToken) _onAuthLost(); throw _authError(); } if(!r.ok) throw new Error(`HTTP ${r.status}: ${text.slice(0,200)}`); if(!j || j.ok !== true) throw new Error(`Bad JSON: ${text.slice(0,200)}`); return j; }
 
-  const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1'; const DISPLAY_TICKER_KEY='displayTickerTextV1'; const DISPLAY_IMAGES_KEY='displayImagesV1';
-  const SHIFT_PLAN_KEY='shiftPlanV1'; const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const COCKPIT_TAB_KEY = 'cockpitTabV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1'; const WAGE_SETTINGS_KEY='wageSettingsV1'; const TASK_DESCRIPTIONS_KEY='taskDescriptionsV1'; const GUEST_HIDDEN_KEY='guestHiddenV1';
+  const CUSTOMER_DISPLAY_OWNER_KEY='customerDisplayOwnerV1'; const CUSTOMER_DISPLAY_CART_KEY='customerDisplayCartV1'; const SWISH_NUMBER_KEY='swishNumberV1'; const DISPLAY_TICKER_KEY='displayTickerTextV1'; const DISPLAY_IMAGES_KEY='displayImagesV1'; const DISPLAY_SETTINGS_KEY='displaySettingsV1';
+  const SHIFT_PLAN_KEY='shiftPlanV1'; const STORAGE_KEY='userData'; const DAILY_KEY='dailyStats'; const SALESHISTORY_KEY='salesHistoryV1'; const PRODUCTS_KEY='productsV1'; const WELCOME_BG_KEY='welcomeBg'; const WELCOME_LOGO_KEY='welcomeLogo'; const WELCOME_TEXT_KEY='welcomeTextV1'; const SKILL_CATALOG_KEY='skillCatalogV1'; const TASK_CATALOG_KEY='taskCatalogV1'; const OPEN_TICKETS_KEY='openTicketsV1'; const REENTRY_KEY='reEntryV1'; const ADMIT_KEY='admissionsTodayV1'; const QUEUE_KEY='queueTimeV1'; const OPENING_KEY='openingHoursV1'; const OPEN_DATES_KEY='openDatesV1'; const WELCOME_FAQ_KEY='welcomeFaqV1'; const DAILY_COSTS_KEY='dailyCostsV1'; const DAILY_FORECAST_KEY='dailyForecastV1'; const USERS_KEY='usersV1'; const SESSION_KEY = 'sessionV1'; const SOCIAL_IG_KEY='socialInstagramV1'; const SOCIAL_FB_KEY='socialFacebookV1'; const WELCOME_HOTEL_NAME_KEY='welcomeHotelNameV1'; const WELCOME_HEADLINE_KEY='welcomeHeadlineV1'; const WELCOME_TAGLINE_KEY='welcomeTaglineV1'; const STAFF_MSG_KEY='staffMsgV1'; const STAFF_REPLIES_KEY='staffRepliesV1'; const REVIEWS_KEY='reviewsV1'; const WAGE_SETTINGS_KEY='wageSettingsV1'; const TASK_DESCRIPTIONS_KEY='taskDescriptionsV1'; const GUEST_HIDDEN_KEY='guestHiddenV1';
 
   const WEB_VISITS_KEY = 'webVisitsV1';
   const REGISTERED_DEVICES_KEY = 'registeredDevicesV1';
-  function getSavedCockpitTab(){ const v = localStorage.getItem(COCKPIT_TAB_KEY); return (v === 'intake' || v === 'guests' || v === 'webb') ? v : 'guests'; }
-  function saveCockpitTab(mode){ localStorage.setItem(COCKPIT_TAB_KEY, mode); }
 
-  const SERVER_JSON_KEYS = new Set(['siteContentV1','bookingsV1','bookingSettingsV1','staffBroadcastV1','adminLogV1','checklistsV1','availabilityV1','reviewSettingsV1','deviceDirV1',STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY,TASK_DESCRIPTIONS_KEY,GUEST_HIDDEN_KEY,REGISTERED_DEVICES_KEY]);
+  const SERVER_JSON_KEYS = new Set(['siteContentV1','seasonCostsV1','bookingsV1','bookingSettingsV1','staffBroadcastV1','adminLogV1','checklistsV1','availabilityV1','reviewSettingsV1','deviceDirV1',STORAGE_KEY,DAILY_KEY,SALESHISTORY_KEY,PRODUCTS_KEY,SKILL_CATALOG_KEY,TASK_CATALOG_KEY,OPEN_TICKETS_KEY,REENTRY_KEY,ADMIT_KEY,WELCOME_TEXT_KEY,WELCOME_FAQ_KEY,DAILY_COSTS_KEY,DAILY_FORECAST_KEY,QUEUE_KEY,OPENING_KEY,OPEN_DATES_KEY,USERS_KEY,STAFF_MSG_KEY,STAFF_REPLIES_KEY,REVIEWS_KEY,WAGE_SETTINGS_KEY,SHIFT_PLAN_KEY,TASK_DESCRIPTIONS_KEY,GUEST_HIDDEN_KEY,REGISTERED_DEVICES_KEY]);
 
   const _db = { cache: new Map(), loaded: new Set(), serverLoaded: new Set(), inflight: new Map(), pendingWrites: new Map(), writeSeq: new Map() };
   // Räknas upp när en lokal skrivning börjar och när den blir klar. En hämtning som överlappar en skrivning kan bära serverns
@@ -430,7 +477,12 @@
   // När dagen öppnar ska kötiden gå tillbaka till auto (styrd av biljetter och insläpp). Tidigare låstes den manuellt på "Stängt" tills någon tryckte Auto.
   function resetQueueForHours(hours){ const closed=!hours||hours==='Stängt'; const p=saveQueueData({value:closed?'Stängt':null,until:null}); queueTime=closed?'Stängt':getEffectiveQueueTime(); return p; }
   async function presetSelected(v){ const inp=document.getElementById('customHours'); if(v==='custom'){if(inp){inp.style.display='inline-block';inp.focus();}return;} openingHours=v; try{ await saveOpeningHours(openingHours); await resetQueueForHours(openingHours); updateTopbar(); refreshCockpitIfOpen(); const hm=document.getElementById('hoursMenu'); if(hm) hm.style.display='none'; }catch(e){ notify('Kunde inte spara öppettid:\n'+(e?.message||e)); } }
-  function maybeEditQueueTime(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!loggedInUser) return; if(openingHours==='Stängt'&&!isAdmin) return; const el=document.getElementById('queueMenu'); if(el) el.style.display='block'; updateQueueStatusRow(); }
+  // Kötidsmenyn fälls ned under kötiden i topbaren; ett nytt tryck på kötiden stänger den
+  function maybeEditQueueTime(ev){ if(ev){ev.stopPropagation();ev.preventDefault();} if(!loggedInUser) return; if(openingHours==='Stängt'&&!isAdmin) return; const el=document.getElementById('queueMenu'); if(!el) return; if(el.style.display==='block'){ el.style.display='none'; return; } const d=loadQueueData(); const auto=d.value===null||(d.until!==null&&Date.now()>=d.until); el.querySelectorAll('[data-q]').forEach(b=>b.setAttribute('aria-pressed',String(auto?b.dataset.q==='__auto__':b.dataset.q===d.value))); updateQueueStatusRow(); el.style.display='block'; placeQueueMenu(); }
+  function placeQueueMenu(){ const el=document.getElementById('queueMenu'), chip=document.getElementById('queueTopbar'); if(!el||!chip||el.style.display!=='block') return; const r=chip.getBoundingClientRect(); const w=el.offsetWidth; el.style.top=Math.round(r.bottom+8)+'px'; el.style.left=Math.round(Math.max(8,Math.min(r.right-w,innerWidth-w-8)))+'px'; }
+  document.getElementById('queueMenu')?.addEventListener('click',e=>{ const b=e.target.closest('[data-q]'); if(b) applyQueuePreset(b.dataset.q); });
+  window.addEventListener('resize',placeQueueMenu);
+  document.addEventListener('keydown',e=>{ const el=document.getElementById('queueMenu'); if(e.key==='Escape'&&el&&el.style.display==='block'){ el.style.display='none'; document.getElementById('queueTopbar')?.focus(); } });
   function applyQueuePreset(v){ if(!v) return; if(v==='__auto__'){ saveQueueData({value:null,until:null}); }else{ const isStangt=v.toLowerCase().includes('stängt'); saveQueueData({value:v,until:isStangt?null:Date.now()+5*60*1000}); } queueTime=getEffectiveQueueTime(); updateTopbar(); updateQueueStatusRow(); const el=document.getElementById('queueMenu'); if(el) el.style.display='none'; }
   function refreshCockpitIfOpen(){ const sc=document.getElementById('statsContainer'); if(!sc) return; const isVisible=getComputedStyle(sc).display!=='none'; if(!isVisible) return; openingHours=loadOpeningHours(); queueTime=getEffectiveQueueTime(); loadDailyCosts(); loadDailyForecast(); renderCockpit(); if(_statsDirty){renderStats();_statsDirty=false;} }
 
@@ -442,21 +494,11 @@
   function saveDailyCosts(costs){ const n=Math.max(0,Number(costs||0)); dbSet(DAILY_COSTS_KEY,{date:todayStr(),costs:Math.round(n)}).catch(()=>{}); mutateSalesHistory(hist=>{ ensureHistDay(hist,todayStr()).costs=Math.round(n); }); }
   function getCostsForDate(dateStr){ if(dateStr===todayStr()) return getDailyCosts(); const hist=loadSalesHistory(); return Number(hist[dateStr]?.costs||0); }
   function getDailyCosts(){ return Number(loadDailyCosts().costs||0); }
-  async function setDailyCostsViaPrompt(){ if(!isAdmin) return; const current=getDailyCosts(); const raw=await uiPrompt('Dagens utgifter (kr)',String(current),{inputMode:'numeric'}); if(raw===null) return; const n=Number(String(raw).replace(',','.').trim()); if(!Number.isFinite(n)||n<0){notify('Skriv en giltig siffra.');return;} saveDailyCosts(Math.round(n)); const fc=computeForecastForToday(cockpitTotals(todayStr()).intake,admittedToday()); if(n>0&&fc.avgUsed>0){const be=Math.ceil(n/fc.avgUsed);const o=loadDailyForecast();o.target=be;saveDailyForecast(o);} refreshCockpitIfOpen(); }
   function loadDailyForecast(){ let o=dbGet(DAILY_FORECAST_KEY,defaultDailyForecast()); if(o.date!==todayStr()) o=defaultDailyForecast(); o.target=Math.max(0,Number(o.target||0)); o.fallbackAvg=Math.max(0,Number(o.fallbackAvg||0)); return o; }
   function saveDailyForecast(next){ const safe=next&&typeof next==='object'?next:{}; const o={date:todayStr(),target:Math.max(0,Number(safe.target||0)),fallbackAvg:Math.max(0,Number(safe.fallbackAvg||0))}; dbSet(DAILY_FORECAST_KEY,o).catch(()=>{}); }
-  function getForecastTarget(){ return loadDailyForecast().target; }
-  function getForecastFallbackAvg(){ return loadDailyForecast().fallbackAvg; }
-  async function setForecastTargetViaPrompt(){ if(!isAdmin) return; const cur=getForecastTarget(); const costs=getDailyCosts(); const fc=computeForecastForToday(cockpitTotals(todayStr()).intake,admittedToday()); const be=(costs>0&&fc.avgUsed>0)?Math.ceil(costs/fc.avgUsed):null; const def=be??cur; const raw=await uiPrompt('Prognos: antal insläppta idag',String(def),{inputMode:'numeric'}); if(raw===null) return; const n=Number(String(raw).replace(',','.').trim()); if(!Number.isFinite(n)||n<0){notify('Skriv en giltig siffra.');return;} const o=loadDailyForecast(); o.target=Math.round(n); saveDailyForecast(o); refreshCockpitIfOpen(); }
-  async function setForecastFallbackAvgViaPrompt(){ if(!isAdmin) return; const cur=getForecastFallbackAvg(); const raw=await uiPrompt('Fallback-snitt (kr per insläppt)',String(cur),{inputMode:'numeric'}); if(raw===null) return; const n=Number(String(raw).replace(',','.').trim()); if(!Number.isFinite(n)||n<0){notify('Skriv en giltig siffra.');return;} const o=loadDailyForecast(); o.fallbackAvg=Math.round(n); saveDailyForecast(o); refreshCockpitIfOpen(); }
-  function computeForecastForToday(totalsIntake,admitted){ const target=getForecastTarget(); const fallbackAvg=getForecastFallbackAvg(); const liveAvg=(Number(admitted||0)>0)?(Number(totalsIntake||0)/Number(admitted||0)):0; let avgUsed=fallbackAvg,label='Fallback (tidigt på dagen)'; if(admitted>=10&&liveAvg>0){avgUsed=liveAvg;label='Live-snitt (dagens data)';}else if(admitted>=5){const a=fallbackAvg;const b=(liveAvg>0?liveAvg:fallbackAvg);avgUsed=(a+b)/2;label='Blandad (fallback + live)';} const predicted=Math.round(Number(target||0)*Number(avgUsed||0)); return {target,fallbackAvg,liveAvg,avgUsed,predicted,label}; }
 
   function loadSalesHistory(){ return dbGet(SALESHISTORY_KEY,defaultSalesHistory()); }
   function saveSalesHistory(h){ const _persist=(data)=>{ const _attempt=(n)=>dbSet(SALESHISTORY_KEY,data||{}).catch(e=>{ if(n>0) return new Promise(r=>setTimeout(r,1500)).then(()=>_attempt(n-1)); showSaveError('⚠ Köpet sparades INTE på servern — notera det manuellt och försök igen!'); }); _attempt(2); }; const _mergeWithServer=(serverHist)=>{ const today=todayStr(); const merged=Object.assign({},h,serverHist); Object.keys(h).forEach(d=>{ if(d>=today || (h[d]?._clientTs||0)>(serverHist[d]?._clientTs||0)) merged[d]=h[d]; }); _db.cache.set(SALESHISTORY_KEY,_clone(merged)); _persist(merged); }; if(!_db.serverLoaded.has(SALESHISTORY_KEY)){ const p=_db.inflight.has(SALESHISTORY_KEY)?_db.inflight.get(SALESHISTORY_KEY):dbFetch(SALESHISTORY_KEY,defaultSalesHistory()); p.then(_mergeWithServer).catch(()=>_persist(h)); }else{ _persist(h); } }
-  function getSimilarDays(hours){ const hist=loadSalesHistory();const today=todayStr(); return Object.entries(hist).filter(([date,d])=>date!==today&&!d._deleted&&d.hours===hours).map(([date,d])=>{ const fromAdm=Array.isArray(d.admissionsEntries)?d.admissionsEntries.reduce((s,e)=>s+Number(e.n||0),0):0; const admitted=fromAdm||(Number(d.adult||0)+Number(d.child||0)); return {date,admitted}; }).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,10); }
-  let _showSimilarDays=false;
-  function toggleSimilarDays(){ _showSimilarDays=!_showSimilarDays; refreshCockpitIfOpen(); }
-  function useSimilarDaysAvg(avg){ if(!isAdmin) return; const o=loadDailyForecast(); o.target=Number(avg); saveDailyForecast(o); refreshCockpitIfOpen(); }
   function ensureHistDay(hist,date){ if(!hist[date]||hist[date]._deleted) hist[date]={adult:0,child:0,income:0,count:0,entries:[],hours:loadOpeningHours(),_clientTs:Date.now()}; if(!hist[date].hours) hist[date].hours=loadOpeningHours(); if(!Array.isArray(hist[date].entries)) hist[date].entries=[]; if(!Array.isArray(hist[date].reEntryPasses)) hist[date].reEntryPasses=[]; if(!Array.isArray(hist[date].admissionsEntries)) hist[date].admissionsEntries=[]; return hist[date]; }
   function recordAdmission(n,isoTs,staffer){ const date=todayStr(); const entry={ts:isoTs||new Date().toISOString(),n:Number(n||0),staffer:staffer||'—'}; mutateSalesHistory(hist=>{ const day=ensureHistDay(hist,date); if(!day.admissionsEntries.some(e=>e.ts===entry.ts&&e.staffer===entry.staffer)) day.admissionsEntries.push({...entry}); }); }
   function histUpsertReEntryPass({id,label,createdAt}){ const date=todayStr(); const pass={id,label:label||'Re-entry',createdAt:createdAt||new Date().toISOString(),count:0,uses:[]}; mutateSalesHistory(hist=>{ const day=ensureHistDay(hist,date); if(!day.reEntryPasses.find(p=>p.id===id)) day.reEntryPasses.push(_clone(pass)); }); }
@@ -493,12 +535,6 @@
 
 
 
-  function selectDisplayTab(tab){
-    ['enheter','kundskarm'].forEach(t=>{ const p=document.getElementById('displayPanel_'+t); if(p) p.style.display=tab===t?'':'none'; });
-    ['enheter','kundskarm'].forEach(t=>{ const b=document.getElementById('displayTab_'+t); if(b) b.classList.toggle('is-active',tab===t); });
-    if(tab==='enheter') renderDevicesAdmin();
-    if(tab==='kundskarm') loadDisplayAdminStatus();
-  }
 
 
 
@@ -671,7 +707,7 @@
   function addProductByIndex(idx){ const prods=loadProducts(); const p=prods[idx]; if(!p) return false; const kassaOpen=document.getElementById('kassaContainer')?.style.display==='block'; const closed=(openingHours==='Stängt'&&!isAdmin); if(!kassaOpen||closed) return false; addItem(p.name,p.price); return true; }
 
   document.addEventListener('keydown',(e)=>{
-    if(isTypingContext()) return; if(isAnyModalOpen()) return; if(!loggedInUser) return; if(!currentHasAccess&&!isAdmin) return;
+    if(isTypingContext()) return; if(isAnyModalOpen()) return; if(!loggedInUser||inGuestView()) return; if(!currentHasAccess&&!isAdmin) return;
     const digit=parseInt(e.key,10); if(digit>=1&&digit<=9){ if(addProductByIndex(digit-1)){ e.preventDefault(); return; } }
     else if(e.key==='+'||e.key==='='){ const b=document.getElementById('discountBtn'); if(b&&b.style.display!=='none'){b.click();e.preventDefault();} }
     else if(e.key==='Backspace'){
@@ -989,7 +1025,7 @@
   function reEntryPurchasesForDate(dateStr){ const day=loadSalesHistory()[dateStr]||{}; const passes=Array.isArray(day.reEntryPasses)?day.reEntryPasses:[]; return passes.length; }
   function reEntryAdmittedForDate(dateStr){ if(dateStr===todayStr()) return reEntryAdmittedToday(); return reEntryUsesForDate(dateStr); }
 
-  function buildDayExportText(dateStr){ const s=summaryForDate(dateStr); let guestsPerHour=(dateStr===todayStr())?guestBucketsByHour():guestBucketsByHourFromAdmissionsHistory(dateStr); const hasAnyAdmission=guestsPerHour.some(v=>Number(v||0)>0); if(!hasAnyAdmission) guestsPerHour=guestsByHourFromSales(dateStr); const intakePerHour=intakeBucketsByHour(dateStr); const lines=[]; lines.push(`Spökhotellet Korpen`);lines.push(`${dateStr}`);lines.push(``);lines.push(`Gäster: ${s.totalInslapp}`);lines.push(`|| ${s.adult} Vuxna || ${s.child} Barn || ${s.reEntryInslapp} Re-entry ||`);lines.push(``);lines.push(`Köp: ${s.buys}`);lines.push(`Re-entry köp: ${s.reEntryBuys}`);lines.push(`Intäkt vuxna: ${s.intakeAdult} kr`);lines.push(`Intäkt barn: ${s.intakeChild} kr`);lines.push(`Intäkt re-entry: ${s.intakeReEntry} kr`);lines.push(`Intäkt övrigt: ${s.intakeOther} kr`);lines.push(`INTÄKT TOTAL: ${s.intakeTotal} kr`); const costsForDay=getCostsForDate(dateStr); const netForDay=Number(s.intakeTotal||0)-Number(costsForDay||0); lines.push(`Utgifter: ${costsForDay} kr`);lines.push(`Resultat: ${netForDay} kr`);lines.push(``);lines.push(`Gäster/timme (från insläpp${hasAnyAdmission?'':',fallback köp'})`);lines.push(formatBarsLineTrimZeros(guestsPerHour,''));lines.push(``);lines.push(`Intäkt/timme`);lines.push(formatBarsLineTrimZeros(intakePerHour,' kr')); return lines.join('\n'); }
+  function buildDayExportText(dateStr){ const s=summaryForDate(dateStr); let guestsPerHour=(dateStr===todayStr())?guestBucketsByHour():guestBucketsByHourFromAdmissionsHistory(dateStr); const hasAnyAdmission=guestsPerHour.some(v=>Number(v||0)>0); if(!hasAnyAdmission) guestsPerHour=guestsByHourFromSales(dateStr); const intakePerHour=intakeBucketsByHour(dateStr); const lines=[]; lines.push(`Spökhotellet Korpen`);lines.push(`${dateStr}`);lines.push(``);lines.push(`Gäster: ${s.totalInslapp}`);lines.push(`|| ${s.adult} Vuxna || ${s.child} Barn || ${s.reEntryInslapp} Re-entry ||`);lines.push(``);lines.push(`Köp: ${s.buys}`);lines.push(`Re-entry köp: ${s.reEntryBuys}`);if(isAdmin){ lines.push(`Intäkt vuxna: ${s.intakeAdult} kr`);lines.push(`Intäkt barn: ${s.intakeChild} kr`);lines.push(`Intäkt re-entry: ${s.intakeReEntry} kr`);lines.push(`Intäkt övrigt: ${s.intakeOther} kr`);lines.push(`INTÄKT TOTAL: ${s.intakeTotal} kr`); const costsForDay=getCostsForDate(dateStr); const netForDay=Number(s.intakeTotal||0)-Number(costsForDay||0); lines.push(`Utgifter: ${costsForDay} kr`);lines.push(`Resultat: ${netForDay} kr`);}lines.push(``);lines.push(`Gäster/timme (från insläpp${hasAnyAdmission?'':',fallback köp'})`);lines.push(formatBarsLineTrimZeros(guestsPerHour,'')); if(isAdmin){ lines.push(``);lines.push(`Intäkt/timme`);lines.push(formatBarsLineTrimZeros(intakePerHour,' kr')); } return lines.join('\n'); }
   async function copyTextToClipboard(text){ try{await navigator.clipboard.writeText(text);notify('Export kopierad till urklipp!');return true;}catch(e){uiCopyDialog('Kopiera exporttexten (Ctrl+C):',text);return false;} }
   function downloadTextFile(filename,text){ const blob=new Blob([text],{type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},0); }
   function exportDay(dateStr,mode='copy'){ const txt=buildDayExportText(dateStr); if(mode==='download') downloadTextFile(`korpen-${dateStr}.txt`,txt); else copyTextToClipboard(txt); }
@@ -1009,38 +1045,14 @@
 
   function showDaySummaryModal(dateStr){
     window._daySummaryDate = dateStr;
+    // Innehållet ritas i statistik.js (sxSummaryHtml) så att det ser ut som resten av statistiken
     const sv = _getDaySummaryValues(dateStr);
-    const net = sv.intakeTotal - sv.costs;
-
-    const _hd0 = loadSalesHistory()[dateStr]||{};
-    let guestsPerHour = dateStr===todayStr()?guestBucketsByHour():guestBucketsByHourFromAdmissionsHistory(dateStr);
-    const hasAnyAdmission = guestsPerHour.some(v=>Number(v||0)>0);
-    let intakePerHour = Array.isArray(_hd0._ov_intakePerHour) ? _hd0._ov_intakePerHour.slice() : intakeBucketsByHour(dateStr);
-    const dayHoursStr = dateStr === todayStr() ? openingHours : (loadSalesHistory()[dateStr]||{}).hours;
-    const dayRange = getOpenHourRange(dayHoursStr);
-    let hourOffset = 0;
-    if(dayRange){ guestsPerHour=guestsPerHour.slice(dayRange.start,dayRange.end); intakePerHour=intakePerHour.slice(dayRange.start,dayRange.end); hourOffset=dayRange.start; }
-    const maxG = Math.max(...guestsPerHour, 1);
-    const maxI = Math.max(...intakePerHour, 1);
-
-    const pill = (label, val, cls='') =>
-      `<div class="day-summary-pill ${cls}"><span>${label}</span><strong>${val}</strong></div>`;
-
-    let html = '';
-    html += `<div class="day-summary-section"><div class="day-summary-section-title">Gäster</div><div class="day-summary-pills">${pill('Insläppta',sv.totalInslapp,'highlight')}${pill('Vuxna',sv.adult)}${pill('Barn',sv.child)}${pill('Re-entry',sv.reEntryInslapp)}</div></div>`;
-    html += `<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Köp</div><div class="day-summary-pills">${pill('Köptillfällen',sv.buys)}${pill('Vuxna+Barn',sv.adult+sv.child)}${pill('Re-entry köp',sv.reEntryBuys)}</div></div>`;
-    html += `<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Intäkter</div><div class="day-summary-pills">${pill('Totalt',sv.intakeTotal+' kr','highlight')}${pill('Vuxna',sv.intakeAdult+' kr')}${pill('Barn',sv.intakeChild+' kr')}${pill('Re-entry',sv.intakeReEntry+' kr')}${sv.intakeOther>0?pill('Övrigt',sv.intakeOther+' kr'):''}</div></div>`;
-    const payTots=paymentTotalsForDate(dateStr); const payMethods=['Swish','Kort','Kontant'].filter(m=>payTots[m]);
-    if(payMethods.length){ html+=`<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Betalningsmetoder</div><div class="day-summary-pills">${payMethods.map(m=>pill(m,payTots[m]+' kr')).join('')}</div></div>`; }
-    html += `<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Ekonomi</div><div class="day-summary-pills">${pill('Utgifter',sv.costs+' kr')}${pill('Resultat',net+' kr',net>=0?'positive':'negative')}</div></div>`;
-    html += `<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Gäster per timme (insläpp${!hasAnyAdmission?' — inga data':''})</div><div class="day-summary-chart-wrap">${hasAnyAdmission?svgBars24(guestsPerHour,maxG,70,{id:'dsMGChart',unit:'gäster',startHour:hourOffset}):'<div class="muted" style="font-style:italic;padding:8px 0;">Inga insläppsdata för dagen.</div>'}</div>${hasAnyAdmission?'<div id="dsMGChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div>':''}</div>`;
-    if(isAdmin){ html+=`<div class="day-summary-section" style="margin-top:14px;"><div class="day-summary-section-title">Intäkt per timme</div><div class="day-summary-chart-wrap" style="color:rgba(96,140,84,0.75);">${svgBars24(intakePerHour,maxI,70,{id:'dsMIChart',unit:'kr',startHour:hourOffset})}</div><div id="dsMIChart-info" class="tiny muted" style="text-align:center;margin-top:4px;min-height:16px;" aria-live="polite"></div></div>`; }
-
-    const title=document.getElementById('daySummaryTitle'); if(title) title.textContent=`Sammanfattning — ${dateStr}`;
-    const subtitle=document.getElementById('daySummarySubtitle'); if(subtitle) subtitle.textContent=sv.hours&&sv.hours!=='Stängt'?`Öppettider: ${sv.hours}`:'';
-    const content=document.getElementById('daySummaryContent'); if(content) content.innerHTML=html;
+    const hrs = sv.hours&&sv.hours!=='Stängt' ? sv.hours : '';
+    const title=document.getElementById('daySummaryTitle'); if(title) title.textContent=sxDayLong(dateStr);
+    const subtitle=document.getElementById('daySummarySubtitle'); if(subtitle) subtitle.textContent=`Sammanfattning${hrs?` · ${hrs}`:''}`;
+    const content=document.getElementById('daySummaryContent'); if(content) content.innerHTML=sxSummaryHtml(dateStr);
     const actions=document.querySelector('#daySummaryModal .actions');
-    if(actions) actions.innerHTML=`<button class="btn" onclick="exportDay(window._daySummaryDate,'copy')">Kopiera som text</button>${isAdmin?'<button class="btn" onclick="enterDaySummaryEditMode()">Redigera</button>':''}<button class="btn" onclick="closeDaySummaryModal()">Stäng</button>`;
+    if(actions) actions.innerHTML=`<button class="btn" onclick="exportDay(window._daySummaryDate,'copy')">Kopiera som text</button>${isAdmin?'<button class="btn" onclick="enterDaySummaryEditMode()">Redigera</button><button class="btn btn-danger" onclick="closeDaySummaryModal();deleteStatsDay(window._daySummaryDate)">Radera kvällen</button>':''}<button class="btn" onclick="closeDaySummaryModal()">Stäng</button>`;
     const modal=document.getElementById('daySummaryModal'); if(modal) modal.style.display='flex';
   }
 
@@ -1102,126 +1114,7 @@
   function guestBucketsByHour(){ const out=Array.from({length:24},()=>0); const a=loadAdmissions(); (a.entries||[]).forEach(e=>{const h=new Date(e.ts).getHours();out[h]+=Number(e.n||0);}); return out; }
 
   function svgBars24(dataArr,maxVal,height=80,opts={}){ const pad=4,wPer=18,gap=6,yAx=32;const id=opts.id||('chart_'+Math.random().toString(36).slice(2,9));const unit=opts.unit||'';const barAreaW=dataArr.length*(wPer+gap)+pad*2-gap;const width=yAx+barAreaW+yAx;const h=height+pad*2+12;const scale=maxVal>0?height/maxVal:0;const fmt=v=>v>=1000?Math.round(v/100)/10+'k':String(v);let bars='';dataArr.forEach((v,i)=>{const barH=Math.round(v*scale);const x=yAx+pad+i*(wPer+gap);const y=pad+(height-barH);const barHour=(opts.startHour||0)+i;const h0=String(barHour%24).padStart(2,'0');const h1=String((barHour+1)%24).padStart(2,'0');const tooltip=`${h0}:00–${h1}:00: ${v}${unit?' '+unit:''}`;bars+=`<rect x="${x}" y="${y}" width="${wPer}" height="${barH}" rx="2" ry="2" onclick="cockpitBarClick('${id}',${barHour},${v},'${unit}')" style="cursor:pointer" fill="currentColor" fill-opacity="0.85"><title>${tooltip}</title></rect>`;});let labels='';const startHour=opts.startHour||0;for(let i=0;i<dataArr.length;i++){const hour=(startHour+i)%24;const x=yAx+pad+i*(wPer+gap)+Math.floor(wPer/2);labels+=`<text x="${x}" y="${h-2}" font-size="10" text-anchor="middle" fill="currentColor" fill-opacity="0.75">${String(hour).padStart(2,'0')}</text>`;}const midVal=Math.round(maxVal/2);const rightX=yAx+barAreaW+3;const yAxisL=`<text x="${yAx-3}" y="${pad+6}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.55">${fmt(maxVal)}</text><text x="${yAx-3}" y="${pad+Math.round(height/2)+3}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.4">${fmt(midVal)}</text><text x="${yAx-3}" y="${pad+height}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.35">0</text>`;const yAxisR=`<text x="${rightX}" y="${pad+6}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.55">${fmt(maxVal)}</text><text x="${rightX}" y="${pad+Math.round(height/2)+3}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.4">${fmt(midVal)}</text><text x="${rightX}" y="${pad+height}" font-size="9" text-anchor="start" fill="currentColor" fill-opacity="0.35">0</text>`;const grid=`<line x1="${yAx}" y1="${pad}" x2="${yAx+barAreaW}" y2="${pad}" stroke="currentColor" stroke-opacity="0.07" stroke-width="1"/><line x1="${yAx}" y1="${pad+Math.round(height/2)}" x2="${yAx+barAreaW}" y2="${pad+Math.round(height/2)}" stroke="currentColor" stroke-opacity="0.05" stroke-width="1"/>`;return `<svg id="${id}" width="${width}" height="${h}" viewBox="0 0 ${width} ${h}" style="display:block;margin:0 auto;">${grid}${bars}${labels}${yAxisL}${yAxisR}</svg>`; }
-  function svgBars2(values,labels,title,colors){
-    const max=Math.max(...values,1);const h=80;const bW=64;const gap=20;const pad=16;
-    const totalW=pad*2+values.length*(bW+gap)-gap;
-    if(!colors) colors=['rgba(232,180,60,0.85)','rgba(100,160,220,0.85)'];
-    const top=20;const yAx=28;const fullW=yAx+totalW;
-    const gridLines=4;let grid='';
-    for(let i=0;i<=gridLines;i++){const val=Math.round(max/gridLines*i);const y=top+h-Math.round(val/max*h);grid+=`<line x1="${yAx}" y1="${y}" x2="${fullW}" y2="${y}" stroke="currentColor" stroke-opacity="${i===0?0.12:0.06}" stroke-width="1"/>`;grid+=`<text x="${yAx-4}" y="${y+4}" font-size="9" text-anchor="end" fill="currentColor" fill-opacity="0.4">${val}</text>`;}
-    let bars='';values.forEach((v,i)=>{const bH=Math.max(Math.round(v/max*h),v>0?2:0);const x=yAx+pad+i*(bW+gap);const y=top+h-bH;bars+=`<rect x="${x}" y="${y}" width="${bW}" height="${bH}" rx="3" fill="${colors[i]}"/>`;bars+=`<text x="${x+bW/2}" y="${y-6}" font-size="13" text-anchor="middle" fill="currentColor" font-weight="bold">${v}</text>`;bars+=`<text x="${x+bW/2}" y="${top+h+16}" font-size="11" text-anchor="middle" fill="currentColor" fill-opacity="0.6">${labels[i]}</text>`;});
-    const svg=`<svg width="100%" viewBox="0 0 ${fullW} ${top+h+22}" style="display:block;">${grid}${bars}</svg>`;
-    return `<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(221,227,220,0.1);border-radius:10px;padding:14px 12px 10px;text-align:center;flex:1 1 130px;min-width:0;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;opacity:0.45;margin-bottom:12px;">${title}</div>${svg}</div>`;
-  }
   function cockpitBarClick(chartId,hour,value,unit){ const info=document.getElementById(chartId+'-info'); if(!info) return; const start=String(hour).padStart(2,'0')+':00';const end=String((hour+1)%24).padStart(2,'0')+':00'; info.textContent=`${start}–${end}: ${value} ${unit}`.trim(); info.classList.remove('muted'); }
-
-  function renderCockpit(){
-    const statsRoot=document.getElementById('statsContent'); if(!statsRoot) return;
-    if(!loggedInUser){upsert(statsRoot,'cockpitWrap','<div class="muted">Logga in för att se cockpiten.</div>');return;}
-    const today=todayStr();const totals=cockpitTotals(today);const payTots=paymentTotalsForDate(today);const costs=getDailyCosts();const net=Number(totals.intake||0)-Number(costs||0);const admitted=admittedToday();const reEntryAdmitted=reEntryAdmittedToday();const range=getOpenHourRange();
-    let guestsPerHour=guestBucketsByHour();let intakePerHour=intakeBucketsByHour(today);let hourOffset=0;
-    if(range){guestsPerHour=guestsPerHour.slice(range.start,range.end);intakePerHour=intakePerHour.slice(range.start,range.end);hourOffset=range.start;}
-    const maxG=guestsPerHour.reduce((m,v)=>Math.max(m,v),0);const maxI=intakePerHour.reduce((m,v)=>Math.max(m,v),0);
-    const buyWasOpen=document.getElementById('buyPanel')?.style.display==='block';
-    const detWasOpen=document.getElementById('intakeDetails')?.style.display==='block';
-    const savedReconcile=document.getElementById('admitReconcilePanel')?.innerHTML||'';
-    const html=`<div class="section" style="margin-bottom:12px;"><div class="row" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;font-family:var(--f-label);letter-spacing:0.3px;">Idag</h3><div class="row">${isAdmin?`<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button><button class="btn pill" type="button" id="tabIntake" aria-selected="false">Intäkt</button><button class="btn pill" type="button" id="tabWebb" aria-selected="false">Webb</button>`:`<button class="btn pill" type="button" id="tabGuests" aria-selected="true">Gäster</button><button class="btn pill" type="button" id="tabWebb" aria-selected="false">Webb</button>`}</div></div><div id="cockpitPills" class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px;"></div><div id="admitReconcilePanel"></div><div style="margin-top:10px;"><div id="cockpitChartLabel" class="tiny muted" style="margin-bottom:4px;"></div><div id="cockpitChartWrap" style="overflow:auto;"></div><div id="cockpitChart-info" class="tiny muted" aria-live="polite"></div></div></div>`;
-    upsert(statsRoot,'cockpitWrap',html);
-    if(savedReconcile){const rp=document.getElementById('admitReconcilePanel');if(rp)rp.innerHTML=savedReconcile;}
-    const btnG=document.getElementById('tabGuests');const btnI=document.getElementById('tabIntake');
-    const pillsEl=document.getElementById('cockpitPills');const labelEl=document.getElementById('cockpitChartLabel');const wrapEl=document.getElementById('cockpitChartWrap');const infoEl=document.getElementById('cockpitChart-info');
-    function setCockpitMode(mode){
-      saveCockpitTab(mode);const isGuests=(mode==='guests');const isWebb=(mode==='webb');
-      const btnW=document.getElementById('tabWebb');
-      btnG?.setAttribute('aria-selected',isGuests?'true':'false');btnI?.setAttribute('aria-selected',(!isGuests&&!isWebb)?'true':'false');btnW?.setAttribute('aria-selected',isWebb?'true':'false');
-      if(infoEl){infoEl.textContent='';infoEl.classList.add('muted');}
-      if(isGuests){
-        const guestTarget=getForecastTarget();
-        const kpi=(l,v,cls='')=>`<div class="st-kpi${cls}"><span>${l}</span><strong>${v}</strong></div>`;
-        if(pillsEl) pillsEl.innerHTML=`<div class="st-kpis">${kpi('Insläppta',admitted,' is-main')}${kpi('Fegade ur',fledToday())}${kpi('Vuxna',totals.adult)}${kpi('Barn',totals.child)}${kpi('Re-entry',reEntryAdmitted)}${kpi('Köp',totals.receipts)}${kpi('Prognos',guestTarget)}</div>${isAdmin?`<button class="btn st-tool" type="button" onclick="showAdmissionReconcile()">Stäm av insläppen</button>`:''}`;
-        if(labelEl) labelEl.textContent='Gäster per timme';
-        if(wrapEl) wrapEl.innerHTML=svgBars24(guestsPerHour,Math.max(maxG,5),90,{id:'cockpitChart',unit:'gäster',startHour:hourOffset});
-      }else if(!isWebb){
-        const fc=computeForecastForToday(totals.intake,admitted);const fcNote=`${fc.label} • ${admitted} insläppta`;
-        if(pillsEl) pillsEl.innerHTML=`<div class="st-kpis"><div class="st-kpi is-main"><span>Dagens intäkt</span><strong>${totals.intake} kr</strong></div><div class="st-kpi ${net>=0?'is-up':'is-down'}"><span>Resultat</span><strong>${net} kr</strong></div><div class="st-kpi"><span>Beräknad intäkt</span><strong>~ ${fc.predicted} kr</strong></div></div><button class="btn pill" type="button" id="buyBtn" style="margin-left:auto;">Köp: <strong>${totals.receipts}</strong></button><button class="btn pill" type="button" id="intakeDetailsBtn">+</button><div id="buyPanel" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill">Köptillfällen: <strong>${totals.receipts}</strong></span><span class="pill">Biljetter sålda: <strong>${totals.adult+totals.child}</strong></span><span class="pill">Vuxen: <strong>${totals.adult}</strong></span><span class="pill">Barn: <strong>${totals.child}</strong></span><span class="pill">Övrigt: <strong>${totals.intakeOther||0} kr</strong></span><span class="pill">Re-entry köp: <strong>${reEntryPurchasesForDate(todayStr())}</strong></span></div><div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px;">${['Swish','Kort','Kontant'].map(m=>payTots[m]?`<span class="pill">${m}: <strong>${payTots[m]} kr</strong></span>`:'').join('')}</div></div><div id="intakeDetails" style="display:none;width:100%;margin-top:10px;"><div class="row" style="gap:8px;flex-wrap:wrap;"><span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setDailyCostsViaPrompt()':''}">Utgifter: <strong>${costs} kr</strong></span>${(()=>{if(costs<=0) return '';const be=fc.avgUsed>0?Math.ceil(costs/fc.avgUsed):null;if(!be) return '';const covered=totals.intake>=costs;return `<span class="pill" style="${covered?'border-color:rgba(96,140,84,0.5);':''}">Nollpunkt: <strong>~${be} besökare</strong>${covered?' ✓':''}</span>`;})()}<span class="pill ${isAdmin?'clickable':''}" onclick="${isAdmin?'setForecastTargetViaPrompt()':''}">Prognos insläppta: <strong>${fc.target}</strong></span><span class="pill tiny" style="opacity:.9;">${escapeHtml(fcNote)}</span>${isAdmin?`<span class="pill clickable" onclick="setForecastFallbackAvgViaPrompt()">Fallback-snitt: <strong>${Math.round(fc.fallbackAvg)} kr/p</strong></span>`:``}</div>${(()=>{ const hrs=loadOpeningHours(); const sim=getSimilarDays(hrs); if(!sim.length) return ''; const avg=Math.round(sim.reduce((s,d)=>s+d.admitted,0)/sim.length); const toggleBtn='<button class="btn pill" type="button" onclick="toggleSimilarDays()" style="font-size:12px;">'+(_showSimilarDays?'▲':'▼')+' Liknande dagar ('+sim.length+')</button>'; if(!_showSimilarDays) return '<div style="margin-top:8px;">'+toggleBtn+'</div>'; const rows=sim.map(d=>'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;"><span>'+d.date+'</span><span>'+d.admitted+' gäster</span></div>').join(''); const useBtn=isAdmin?'<button class="btn pill" type="button" onclick="useSimilarDaysAvg('+avg+')">Använd som prognos</button>':''; return '<div style="margin-top:8px;">'+toggleBtn+'<div style="margin-top:6px;background:rgba(0,0,0,.25);border-radius:8px;padding:8px 12px;">'+rows+'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><strong style="font-size:13px;">Snitt: '+avg+' gäster</strong>'+useBtn+'</div></div></div>'; })()}</div>`;
-        if(buyWasOpen){const p=document.getElementById('buyPanel');if(p) p.style.display='block';}
-        if(detWasOpen){const p=document.getElementById('intakeDetails');if(p) p.style.display='block';}
-        const buyBtn=document.getElementById('buyBtn');if(buyBtn&&!buyBtn._bound){buyBtn.addEventListener('click',()=>{const buy=document.getElementById('buyPanel');const det=document.getElementById('intakeDetails');const open=buy&&buy.style.display==='block';if(buy) buy.style.display=open?'none':'block';if(!open&&det) det.style.display='none';});buyBtn._bound=true;}
-        const detBtn=document.getElementById('intakeDetailsBtn');if(detBtn&&!detBtn._bound){detBtn.addEventListener('click',()=>{const buy=document.getElementById('buyPanel');const det=document.getElementById('intakeDetails');const open=det&&det.style.display==='block';if(det) det.style.display=open?'none':'block';if(!open&&buy) buy.style.display='none';});detBtn._bound=true;}
-        if(labelEl) labelEl.textContent='Intäkt per timme';
-        if(wrapEl) wrapEl.innerHTML=svgBars24(intakePerHour,Math.max(maxI,100),90,{id:'cockpitChart',unit:'kr',startHour:hourOffset});
-      } else if(isWebb){
-        if(pillsEl) pillsEl.innerHTML='';
-        if(labelEl) labelEl.textContent='';
-        if(wrapEl) wrapEl.innerHTML='';
-        function _renderWebbData(visits){
-          const td=visits[todayStr()]||{};
-          let wg=0,wp=0;Object.values(visits).forEach(d=>{wg+=Number(d.guest||0);wp+=Number(d.personal||0);});
-          const tg=Number(td.guest||0),tp=Number(td.personal||0);
-          if(pillsEl) pillsEl.innerHTML=`<span class="pill">Idag: <strong>${tg+tp}</strong></span><span class="pill">Veckan: <strong>${wg+wp}</strong></span><button id="webbRefreshBtn" title="Uppdatera" style="background:none;border:none;color:rgba(221,227,220,0.5);cursor:pointer;font-size:16px;padding:0 4px;line-height:1;margin-left:4px;">↻</button>`;
-          if(wrapEl) wrapEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;overflow:hidden;">${svgBars2([tg,tp],['Gäster','Personal'],'Idag',['rgba(232,180,60,0.9)','rgba(100,160,220,0.9)'])}${svgBars2([wg,wp],['Gäster','Personal'],'Senaste 7 dagarna',['rgba(232,180,60,0.5)','rgba(100,160,220,0.5)'])}</div>`;
-          const rb=document.getElementById('webbRefreshBtn');
-          if(rb) rb.addEventListener('click',()=>{
-            rb.style.transition='transform 0.4s';rb.style.transform='rotate(360deg)';
-            setTimeout(()=>{rb.style.transition='';rb.style.transform='';},400);
-            window._webbVisitsCache=null;
-            apiGet(WEB_VISITS_KEY).then(raw=>{let v={};try{v=JSON.parse(raw||'{}');}catch(_e){}window._webbVisitsCache=v;_renderWebbData(v);}).catch(()=>{});
-          });
-        }
-        if(window._webbVisitsCache) _renderWebbData(window._webbVisitsCache);
-        else{
-          if(pillsEl) pillsEl.innerHTML='<span class="muted" style="font-style:italic;font-size:13px;">Laddar...</span>';
-          apiGet(WEB_VISITS_KEY).then(raw=>{
-            let visits={};try{visits=JSON.parse(raw||'{}');}catch(_e){}
-            window._webbVisitsCache=visits;
-            _renderWebbData(visits);
-          }).catch(()=>{});
-        }
-      }
-    }
-    if(btnG&&!btnG._bound){btnG.addEventListener('click',()=>setCockpitMode('guests'));btnG._bound=true;}
-    if(btnI&&!btnI._bound){btnI.addEventListener('click',()=>setCockpitMode('intake'));btnI._bound=true;}
-    const btnWEnd=document.getElementById('tabWebb');if(btnWEnd&&!btnWEnd._bound){btnWEnd.addEventListener('click',()=>setCockpitMode('webb'));btnWEnd._bound=true;}
-    setCockpitMode(getSavedCockpitTab());
-  }
-
-  // "lör 26 sep 2026" (året bara om det inte är i år)
-  function svDayShort(d){ if(d===todayStr()) return 'Idag'; const x=new Date(d+'T12:00:00'); if(isNaN(x)) return d; const wd=['sön','mån','tis','ons','tor','fre','lör'][x.getDay()]; const mo=['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'][x.getMonth()]; return `${wd} ${x.getDate()} ${mo}${x.getFullYear()!==new Date().getFullYear()?' '+x.getFullYear():''}`; }
-  function renderStats(){
-    const root=document.getElementById('statsList');if(!root) return;
-    if(!loggedInUser){root.innerHTML='<div class="muted" style="font-style:italic;">Logga in för att se historik.</div>';return;}
-    const hist=loadSalesHistory();const dates=Object.keys(hist).filter(d=>!hist[d]?._deleted).sort().reverse();
-    root.innerHTML='';
-    const _addDiv=document.createElement('div');_addDiv.className='st-tools';
-    _addDiv.innerHTML=isAdmin?`<h4 class="st-h">Verktyg</h4><div class="st-tools-row"><div><button class="btn" type="button" onclick="toggleAddDayPanel()">Lägg till en dag för hand</button><p class="tiny muted">För dagar som inte gick genom kassan.</p></div></div><div id="addDayPanel" style="display:none;background:rgba(0,0,0,0.2);border-radius:8px;padding:12px;margin-top:8px;"><div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;"><label style="flex:1;min-width:110px;font-size:13px;">Datum<br><input type="date" id="addDayDate" style="width:100%;"></label><label style="flex:1;min-width:80px;font-size:13px;">Vuxna<br><input type="number" id="addDayAdult" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:80px;font-size:13px;">Barn<br><input type="number" id="addDayChild" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:100px;font-size:13px;">Intäkt (kr)<br><input type="number" id="addDayIncome" value="0" min="0" style="width:100%;"></label><label style="flex:1;min-width:110px;font-size:13px;">Öppettider<br><input type="text" id="addDayHours" placeholder="10:00–22:00" style="width:100%;"></label><label style="flex:1;min-width:100px;font-size:13px;">Utgifter (kr)<br><input type="number" id="addDayCosts" value="0" min="0" style="width:100%;"></label></div><div class="row" style="gap:8px;"><button class="btn" type="button" onclick="saveNewDay()">Spara dag</button><button class="btn" type="button" onclick="toggleAddDayPanel()">Avbryt</button></div></div>`:'';
-    const _hh=document.createElement('h4');_hh.className='st-h';_hh.textContent='Tidigare dagar';root.appendChild(_hh);
-    if(!dates.length){const _nd=document.createElement('div');_nd.className='muted';_nd.style.fontStyle='italic';_nd.textContent='Ingen historik än.';root.appendChild(_nd);root.appendChild(_addDiv);return;}
-    dates.forEach(date=>{
-      const s=hist[date]||{};const totalGuests=(s.adult||0)+(s.child||0);const detailId=`statsDetail-${date}`;const btnId=`statsBtn-${date}`;const hoursLabel=s.hours&&s.hours!=='Stängt'?` • ${s.hours}`:'';const _sEntries=Array.isArray(s.entries)?s.entries:[];const _sPay={};_sEntries.forEach(e=>{const p=e.payType||'—';_sPay[p]=(_sPay[p]||0)+Number(e.sum||0);});const payLabel=['Swish','Kort','Kontant'].filter(m=>_sPay[m]).map(m=>`${m}: ${_sPay[m]} kr`).join(' / ');
-      const wrap=document.createElement('div');wrap.className='section';
-      const _fl=fledForDate(date);
-      wrap.className='section st-day';
-      wrap.innerHTML=`<button id="${btnId}" class="disclosure st-row" type="button" aria-expanded="false" onclick="toggleStats('${date}',this)"><span class="st-date">${svDayShort(date)}${s.hours&&s.hours!=='Stängt'?`<small>${escapeHtml(s.hours)}</small>`:''}</span><span class="st-num"><strong>${totalGuests}</strong> gäster<small>${s.adult||0} vuxna · ${s.child||0} barn${_fl?` · ${_fl} fegade ur`:''}</small></span><span class="st-num"><strong>${s.income||0}</strong> kr<small>${s.count||0} köp</small></span></button><div id="${detailId}" class="content" style="display:none;"></div>`;
-      root.appendChild(wrap);
-    });
-    root.appendChild(_addDiv);
-    const openDays=loadOpenStatsDays();
-    setTimeout(()=>{ openDays.forEach(d=>{ const btn=document.getElementById(`statsBtn-${d}`);const el=document.getElementById(`statsDetail-${d}`);if(btn&&el&&el.style.display!=='block') toggleStats(d,btn); }); },0);
-  }
-
-  function toggleStats(date,btnEl){
-    const el=document.getElementById(`statsDetail-${date}`);if(!el) return;
-    const willOpen=el.style.display!=='block';el.style.display=willOpen?'block':'none';
-    rememberStatsDayOpen(date,willOpen);
-    if(willOpen){
-      const histAll=loadSalesHistory();const s=histAll[date];
-      const deleteBar=`<div class="row" style="justify-content:space-between;align-items:center;margin:6px 0 12px;gap:10px;flex-wrap:wrap;">${isAdmin?'<div class="tiny muted">Administratör: visa sammanfattning eller radera dagen.</div>':''}<div class="row" style="gap:8px;flex-wrap:wrap;"><button class="btn" onclick="showDaySummaryModal('${date}')">Visa sammanfattning</button>${isAdmin?`<button class="btn btn-danger" onclick="deleteStatsDay('${date}')">Radera dag</button>`:''}</div></div><hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:10px 0;">`;
-      const _tPay=paymentTotalsForDate(date);const _tPayPills=['Swish','Kort','Kontant'].map(m=>_tPay[m]?`<span class="pill">${m}: <strong>${_tPay[m]} kr</strong></span>`:'').join('');const payRow=_tPayPills?`<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px;">${_tPayPills}</div>`:'';
-      if(!s||!Array.isArray(s.entries)||!s.entries.length){el.innerHTML=deleteBar+payRow+'<div class="muted" style="font-style:italic;">Inga detaljposter för datumet.</div>';}
-      else{el.innerHTML=deleteBar+payRow+s.entries.map(e=>{ const isReEntryPurchase=Number(e?.reEntryCreated||0)>0||Number(e?.breakdown?.reEntry||0)>0;let usedBadge='';if(isReEntryPurchase){const day=histAll[date]||{};const passes=Array.isArray(day.reEntryPasses)?day.reEntryPasses:[];const countMap={};passes.forEach(p=>{countMap[p.id]=Number(p.count||0);});const ids=Array.isArray(e.reEntryIds)?e.reEntryIds:[];if(ids.length){usedBadge=ids.map(id=>{const p=passes.find(x=>x.id===id);const label=p?.label||'Re-entry';const n=(countMap[id]??0);return `<span class="pill" style="background:rgba(75,0,130,0.4);border-color:rgba(142,106,216,0.5);">${escapeHtml(label)}: ${n} gånger</span>`;}).join(' ');}else{usedBadge=`<span class="pill" style="background:rgba(75,0,130,0.4);">Re-entry</span>`;}}else if(typeof e.used==='boolean'){if(!window._reactivateTickets) window._reactivateTickets={}; const _rk='_re_'+(e.ticketUid||'').replace(/\W/g,'_')+'_'+date; window._reactivateTickets[_rk]={ticketUid:e.ticketUid,adult:e.adult,child:e.child,label:e.ticketLabel,sum:e.sum}; usedBadge=e.used?'<span class="pill" style="background:rgba(26,58,35,0.5);border-color:rgba(96,140,84,0.4);">Använd</span>':`<span class="pill" style="cursor:pointer;border-color:rgba(255,160,60,0.4);background:rgba(255,100,0,0.1);" onclick="reactivateTicketFromHistory('${_rk}')" title="Klicka för att återaktivera till aktiva biljetter">Ej använd ↩</span>`;}const labelPart=e.ticketLabel?` — <em>${escapeHtml(e.ticketLabel)}</em>`:'';return `<div class="log-entry"><strong>${escapeHtml(e.time)}<br></strong>${(e.items||[]).map(escapeHtml).join('<br>')}<br><em>Summa: ${e.sum} kr</em>${labelPart}${usedBadge?` ${usedBadge}`:``}<br><span class="tiny">Säljare: ${escapeHtml(e.seller||'—')} • Betalning: ${escapeHtml(e.payType||'—')}</span></div>`; }).join('');}
-    }
-    if(btnEl) btnEl.setAttribute('aria-expanded',willOpen?'true':'false');
-  }
 
   function saveStatsEdit(date){ if(!isAdmin||!date) return; const adult=Math.max(0,Number(document.getElementById('editAdult-'+date)?.value||0)); const child=Math.max(0,Number(document.getElementById('editChild-'+date)?.value||0)); const income=Math.max(0,Number(document.getElementById('editIncome-'+date)?.value||0)); const hours=(document.getElementById('editHours-'+date)?.value||'').trim(); const costs=Math.max(0,Number(document.getElementById('editCosts-'+date)?.value||0)); const hist=loadSalesHistory(); if(!hist[date]) hist[date]={adult:0,child:0,income:0,count:0,entries:[],reEntryPasses:[],admissionsEntries:[]}; hist[date].adult=adult; hist[date].child=child; hist[date].income=income; if(hours) hist[date].hours=hours; hist[date].costs=costs; hist[date]._editedAt=Date.now(); hist[date]._clientTs=Date.now(); saveSalesHistory(hist); _statsDirty=true; renderStats(); renderCockpit(); }
   function toggleAddDayPanel(){ const p=document.getElementById('addDayPanel'); if(p) p.style.display=p.style.display==='none'?'block':'none'; }
@@ -1296,14 +1189,62 @@
   // Adressen saknar snedstreck på slutet, så att sidans relativa länkar och bilder fortfarande pekar på roten.
   const GUEST_TITLE=document.title, STAFF_TITLE='Korpen – Personal';
   let _staffAddr=!PREVIEW&&(new URLSearchParams(location.search).has('personal')||/\/personal(\.html)?$/.test(location.pathname)), _hadStaff=false;
+  function _addrFor(staff){ const q=new URLSearchParams(location.search); q.delete('personal'); const qs=q.toString()?'?'+q.toString():''; return new URL((staff?'personal':'./')+qs+location.hash,location.href).href; }
   function _syncStaffAddress(){
     if(PREVIEW) return;
-    if(loggedInUser){ _staffAddr=true; _hadStaff=true; } else if(_hadStaff){ _staffAddr=false; _hadStaff=false; }
-    document.title=loggedInUser?STAFF_TITLE:GUEST_TITLE;
-    const q=new URLSearchParams(location.search); q.delete('personal'); const qs=q.toString()?'?'+q.toString():'';
-    const want=new URL((_staffAddr?'personal':'./')+qs+location.hash,location.href).href;
+    const staff=!!loggedInUser&&!_guestViewSince;
+    if(staff){ _staffAddr=true; _hadStaff=true; } else if(_hadStaff||_guestViewSince){ _staffAddr=false; _hadStaff=false; }
+    document.title=staff?STAFF_TITLE:GUEST_TITLE;
+    const want=_addrFor(_staffAddr);
     if(want!==location.href&&/^https?:/.test(location.protocol)){ try{ history.replaceState(history.state,'',want); }catch(_e){} }
   }
+
+  /* ---------- Gästsidan för inloggad personal ----------
+     Namnmenyn › Visa gästsidan visar gästsidan precis som gästerna ser den, utan att logga ut. Läget gäller bara fliken
+     (sessionStorage), så personalsidan kan vara öppen i en annan flik. Personalingång leder tillbaka: Fortsätt utan lösenord,
+     Byt person med namn och lösenord. Efter 10 minuter på gästsidan loggas man ut, så att en kvarglömd inloggning på en
+     delad dator inte står öppen. Bakåtknappen växlar mellan gästsidan och personalsidan. */
+  const GUEST_VIEW_SS='guestViewSinceV1', GUEST_VIEW_MS=10*60*1000;
+  let _guestViewSince=0;
+  function inGuestView(){ return !!loggedInUser&&!!_guestViewSince; }
+  function _guestViewSet(t){ _guestViewSince=t; try{ if(t) sessionStorage.setItem(GUEST_VIEW_SS,String(t)); else sessionStorage.removeItem(GUEST_VIEW_SS); }catch(_e){} }
+  function _guestViewLeft(){ return Math.max(0,GUEST_VIEW_MS-(Date.now()-_guestViewSince)); }
+  function _pushAddr(staff,state){ if(PREVIEW||!/^https?:/.test(location.protocol)) return; try{ history.pushState(state,'',_addrFor(staff)); }catch(_e){} }
+  function showGuestView(push){
+    hideDropdown();
+    if(!loggedInUser||PREVIEW||localStorage.getItem('kassaLockedV1')) return;
+    document.querySelector('.field-view')?._close?.();
+    if(!_guestViewSince) _guestViewSet(Date.now());
+    if(push) _pushAddr(false,{korpen:'guest'});
+    selectMenu('guest');
+    updateTopbar();
+    renderUpcomingDates();
+    window.scrollTo(0,0);
+  }
+  function leaveGuestView(push){
+    closeLoginModal();
+    if(!_guestViewSince) return;
+    _guestViewSet(0);
+    if(!loggedInUser) return;
+    if(push) _pushAddr(true,{korpen:'staff'});
+    selectMenu(isAdmin?'admin':'profile');
+    updateTopbar();
+    window.scrollTo(0,0);
+  }
+  function _guestViewCheck(){
+    if(!_guestViewSince||_guestViewLeft()>0) return;
+    _guestViewSet(0);
+    if(document.getElementById('loginModal')?.classList.contains('active')) closeLoginModal();
+    if(loggedInUser) logout();
+  }
+  setInterval(_guestViewCheck,15000);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) _guestViewCheck(); });
+  window.addEventListener('popstate',e=>{
+    if(PREVIEW||!loggedInUser||localStorage.getItem('kassaLockedV1')) return;
+    const k=e.state&&e.state.korpen;
+    if(k==='guest'&&!_guestViewSince) showGuestView(false);
+    else if(k!=='guest'&&_guestViewSince&&/\/personal(\.html)?$/.test(location.pathname)) leaveGuestView(false);
+  });
   function updateTopbar(){
     _syncStaffAddress();
     const oh=document.getElementById('openHoursText');const qt=document.getElementById('queueTimeText');
@@ -1384,51 +1325,75 @@
 
   function hideAll(){
     ['hoursMenu','queueMenu','adminSettings','profileContainer','kassaContainer','welcomeMessage','statsContainer'].forEach(id=>{const el=document.getElementById(id);if(el) el.style.display='none';});
-    document.body.classList.remove('welcome-bg-on');
+    document.body.classList.remove('welcome-bg-on','kassa-on');
     const tb=document.querySelector('.topbar');if(tb) tb.style.display='';
     // Hide ember canvas
     const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='none';
   }
   function hideDropdown(){ const dd=document.getElementById('userDropdown');if(dd) dd.style.display='none'; }
 
-  function logout(){ if(_authToken){ apiAction('logout',{ t:_authToken }).catch(()=>{}); _authToken=''; } _forgetPrivateData(); loggedInKey='';loggedInUser='';isAdmin=false;currentHasAccess=false;currentHasInslepp=false;_lastProfileWelcomeFor='';updateTopbar();hideAll();localStorage.removeItem(SESSION_KEY);localStorage.removeItem('kassaLockedV1');THEME_CLASSES.forEach(c=>document.body.classList.remove(c));
+  function logout(){ if(_authToken){ apiAction('logout',{ t:_authToken }).catch(()=>{}); _authToken=''; } _guestViewSet(0); _forgetPrivateData(); loggedInKey='';loggedInUser='';isAdmin=false;currentHasAccess=false;currentHasInslepp=false;_lastProfileWelcomeFor='';updateTopbar();hideAll();localStorage.removeItem(SESSION_KEY);localStorage.removeItem('kassaLockedV1');THEME_CLASSES.forEach(c=>document.body.classList.remove(c));
     document.getElementById('welcomeMessage').style.display='flex';
     document.body.classList.add('welcome-bg-on');
     const tb=document.querySelector('.topbar');if(tb) tb.style.display='none';
     const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';
   }
 
-  function saveDisplayTicker(){ const val=(document.getElementById('displayTickerInput')?.value||'').trim(); localStorage.setItem(DISPLAY_TICKER_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayTickerConfirm'); if(c){notify('Sparat.');} apiSet(DISPLAY_TICKER_KEY,val).catch(()=>{}); }
-  function saveDisplayImages(){ const val=(document.getElementById('displayImagesInput')?.value||'').trim(); localStorage.setItem(DISPLAY_IMAGES_KEY,val); const root=document.querySelector('.display-view'); if(root?._rebuildSlides) root._rebuildSlides(); const c=document.getElementById('displayImagesConfirm'); if(c){notify('Sparat.');} apiSet(DISPLAY_IMAGES_KEY,val).catch(()=>{}); }
-
   function computeDisplayTextAndState(){ const q=String(queueTime||'').trim();const qLower=q.toLowerCase();const isClosed=openingHours==='Stängt'||qLower.includes('stängt');let text='Ingen info';if(qLower==='stängt för kvällen') text='Stängt för idag';else if(qLower==='tillfälligt stängt') text='Tillfälligt stängt';else if(openingHours==='Stängt'||qLower==='stängt') text='Stängt';else if(q) text=q;return {text,isClosed}; }
 
-  function showDisplay(){
+  // Köskärmens bildspel. Samma funktioner ritar den riktiga skärmen och förhandsvisningen i Hantera (kod/skarmar.js),
+  // så att förhandsvisningen alltid ser ut som skärmen. cfg = {ticker:'text | text', images:'en adress per rad', settings}.
+  function displayCfgStored(){ return {ticker:localStorage.getItem(DISPLAY_TICKER_KEY)||'',images:localStorage.getItem(DISPLAY_IMAGES_KEY)||'',settings:loadDisplaySettings()}; }
+  function buildDisplaySlides(cfg){ const content=[]; const st=normDisplaySettings(cfg.settings); const prods=loadProducts().filter(p=>Number(p.price)>0&&!p.internal); if(st.prices&&prods.length) content.push({type:'prices',prods}); const custom=String(cfg.ticker||'').trim(); if(custom) custom.split('|').forEach(s=>{s=s.trim();if(s) content.push({type:'info',text:s});}); const imgs=String(cfg.images||'').trim(); if(imgs) imgs.split('\n').forEach(u=>{u=u.trim();if(u) content.push({type:'image',url:movedImageUrl(u)});}); if(!content.length) return [{type:'queue'}]; const result=[]; content.forEach(s=>{result.push({type:'queue'});result.push(s);}); return result; }
+  function displaySlideHtml(slide){
+    const {text}=computeDisplayTextAndState();
+    if(slide.type==='queue') return `<div class="ds-inner"><div id="displayLabel">Beräknad kötid</div><div id="displayQueue">${escapeHtml(text)}</div><div id="displayHours">${(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${escapeHtml(openingHours)}`:'Stängt idag'}</div></div>`;
+    if(slide.type==='prices') return `<div class="ds-inner"><img src="bilder/korpen.png" class="ds-logo" onerror="this.style.display='none'" alt=""><div class="ds-title">Priser</div><div class="ds-ornament">— ✦ —</div><div class="ds-prices">${slide.prods.map((p,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.1+0.15}s"><span class="ds-price-name">${escapeHtml(p.name)}</span><span class="ds-price-dots"></span><span class="ds-price-val">${p.price} kr</span></div>`).join('')}</div></div>`;
+    if(slide.type==='info') return `<div class="ds-inner"><img src="bilder/korpen.png" class="ds-logo" onerror="this.style.display='none'" alt=""><div class="ds-ornament">— ✦ —</div><div class="ds-info-text">${escapeHtml(slide.text)}</div></div>`;
+    if(slide.type==='image') return `<div class="ds-image-slide"><img src="${escapeHtml(slide.url)}" alt="" onerror="this.style.display='none'"></div>`;
+    return '';
+  }
+  // Hämtar texterna, bilderna och inställningarna från servern. Körs när skärmen startar och sedan med jämna mellanrum,
+  // så att ändringar i Hantera når en skärm som står på hela kvällen.
+  async function fetchDisplayCfg(){ try{ const v=await apiGetMany([DISPLAY_TICKER_KEY,DISPLAY_IMAGES_KEY,DISPLAY_SETTINGS_KEY]); if(v[DISPLAY_TICKER_KEY]!=null) localStorage.setItem(DISPLAY_TICKER_KEY,v[DISPLAY_TICKER_KEY]); if(v[DISPLAY_IMAGES_KEY]!=null) localStorage.setItem(DISPLAY_IMAGES_KEY,v[DISPLAY_IMAGES_KEY]); if(v[DISPLAY_SETTINGS_KEY]) localStorage.setItem(DISPLAY_SETTINGS_KEY,v[DISPLAY_SETTINGS_KEY]); return true; }catch(_e){ return false; } }
+
+  // preview: i Hanteras förhandsvisning styrs bildspelet av föräldern (skarmPreviewMessage) och inget hämtas eller sparas.
+  function showDisplay({preview=false}={}){
     const o=document.createElement('div'); o.className='display-view'; document.body.appendChild(o);
     const scan=document.createElement('div'); scan.className='scanlines'; o.appendChild(scan);
     const panel=document.createElement('div'); panel.className='ds-panel'; o.appendChild(panel);
-    (async()=>{ try{ const [t,i]=await Promise.all([apiGet(DISPLAY_TICKER_KEY),apiGet(DISPLAY_IMAGES_KEY)]); if(t!=null) localStorage.setItem(DISPLAY_TICKER_KEY,t); if(i!=null) localStorage.setItem(DISPLAY_IMAGES_KEY,i); if(o._rebuildSlides) o._rebuildSlides(); }catch(_e){} })();
-
-    function buildSlides(){ const content=[]; const prods=loadProducts().filter(p=>Number(p.price)>0&&!p.internal); if(prods.length) content.push({type:'prices',prods}); const custom=(localStorage.getItem(DISPLAY_TICKER_KEY)||'').trim(); if(custom) custom.split('|').forEach(s=>{s=s.trim();if(s) content.push({type:'info',text:s});}); const imgs=(localStorage.getItem(DISPLAY_IMAGES_KEY)||'').trim(); if(imgs) imgs.split('\n').forEach(u=>{u=u.trim();if(u) content.push({type:'image',url:movedImageUrl(u)});}); if(!content.length) return [{type:'queue'}]; const result=[]; content.forEach(s=>{result.push({type:'queue'});result.push(s);}); return result; }
-
-    function renderSlide(slide){ const {text,isClosed}=computeDisplayTextAndState(); o.className='display-view '+(isClosed?'state-closed':'state-open');
-      if(slide.type==='queue') return `<div class="ds-inner"><div id="displayLabel">Beräknad kötid</div><div id="displayQueue">${escapeHtml(text)}</div><div id="displayHours">${(openingHours&&openingHours!=='Stängt')?`Öppet idag: ${escapeHtml(openingHours)}`:'Stängt idag'}</div></div>`;
-      if(slide.type==='prices') return `<div class="ds-inner"><img src="bilder/korpen.png" class="ds-logo" onerror="this.style.display='none'" alt=""><div class="ds-title">Priser</div><div class="ds-ornament">— ✦ —</div><div class="ds-prices">${slide.prods.map((p,i)=>`<div class="ds-price-row" style="animation-delay:${i*0.1+0.15}s"><span class="ds-price-name">${escapeHtml(p.name)}</span><span class="ds-price-dots"></span><span class="ds-price-val">${p.price} kr</span></div>`).join('')}</div></div>`;
-      if(slide.type==='info') return `<div class="ds-inner"><img src="bilder/korpen.png" class="ds-logo" onerror="this.style.display='none'" alt=""><div class="ds-ornament">— ✦ —</div><div class="ds-info-text">${escapeHtml(slide.text)}</div></div>`;
-      if(slide.type==='image') return `<div class="ds-image-slide"><img src="${escapeHtml(slide.url)}" alt="" onerror="this.style.display='none'"></div>`;
-      return ''; }
-
-    let slides=buildSlides(); let idx=0;
-    o._rebuildSlides=()=>{ slides=buildSlides(); };
+    let cfg=displayCfgStored();
+    let slides=buildDisplaySlides(cfg); let idx=0; let timer=null; let fetchTimer=null;
 
     function showSlide(i,immediate=false){
       if(!immediate) panel.classList.add('ds-out');
-      setTimeout(()=>{ panel.innerHTML=renderSlide(slides[i]); void panel.offsetWidth; panel.classList.remove('ds-out'); },immediate?0:700);
+      const draw=()=>{ const sl=slides[i%slides.length]||{type:'queue'}; o.className='display-view '+(computeDisplayTextAndState().isClosed?'state-closed':'state-open'); panel.innerHTML=displaySlideHtml(sl); void panel.offsetWidth; panel.classList.remove('ds-out'); };
+      if(immediate) draw(); else setTimeout(draw,700);
     }
+    function play(){ clearInterval(timer); timer=setInterval(()=>{ idx=(idx+1)%slides.length; showSlide(idx); onSlide(); },normDisplaySettings(cfg.settings).slideSec*1000); }
+    let onSlide=()=>{};
+    o._rebuildSlides=()=>{ const sec=normDisplaySettings(cfg.settings).slideSec; cfg=preview?cfg:displayCfgStored(); slides=buildDisplaySlides(cfg); idx=idx%slides.length; if(!preview&&normDisplaySettings(cfg.settings).slideSec!==sec) play(); };
     showSlide(0,true);
-    const timer=setInterval(()=>{ idx=(idx+1)%slides.length; showSlide(idx); },8000);
 
-    const close=()=>{ clearInterval(timer); localStorage.removeItem('overlayModeV1'); o.remove(); };
+    if(preview){
+      // Föräldern skickar utkastet och vilken bild som ska visas; svaret talar om hur många bilder det blir
+      const report=()=>window.parent.postMessage({korpenSkarm:1,kind:'ko',i:idx,count:slides.length,types:slides.map(s=>s.type)},SKARM_MSG_ORIGIN);
+      onSlide=report;
+      window._skarmPreview=msg=>{
+        if(msg.cfg){ cfg=msg.cfg; slides=buildDisplaySlides(cfg); }
+        if(typeof msg.slide==='number') idx=((msg.slide%slides.length)+slides.length)%slides.length; else idx=idx%slides.length;
+        showSlide(idx,true);
+        if(msg.play) play(); else clearInterval(timer);
+        report();
+      };
+      return;
+    }
+
+    (async()=>{ if(await fetchDisplayCfg()) o._rebuildSlides(); })();
+    fetchTimer=setInterval(async()=>{ if(!document.hidden&&await fetchDisplayCfg()) o._rebuildSlides(); },120000);
+    play();
+
+    const close=()=>{ clearInterval(timer); clearInterval(fetchTimer); localStorage.removeItem('overlayModeV1'); o.remove(); };
     document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',esc);}});
     let taps=0,tapTimer=null; o.addEventListener('pointerdown',(e)=>{if(e.pointerType!=='touch') return;taps+=1;clearTimeout(tapTimer);tapTimer=setTimeout(()=>{taps=0;},1500);if(taps>=3) close();},{passive:true});
   }
@@ -1967,13 +1932,20 @@
     });
   }
 
+  // Kassan på liggande skärm fyller fönstret under topbaren och scrollar inte (app.css, KASSA PÅ IPAD)
+  function kassaFit(){
+    const tb=document.querySelector('.topbar');
+    const top=tb&&getComputedStyle(tb).display!=='none'?tb.getBoundingClientRect().bottom:(parseFloat(getComputedStyle(document.body).paddingTop)||0);
+    document.documentElement.style.setProperty('--kassa-top',Math.max(0,Math.round(top))+'px');
+  }
+  window.addEventListener('resize',()=>{ if(document.body.classList.contains('kassa-on')) kassaFit(); });
   function selectMenu(menu){
     hideDropdown();hideAll();
     switch(menu){
-      case 'kassa':{ if(!loggedInUser){notify('Logga in först.');return selectMenu('profile');}if(!currentHasAccess&&!isAdmin){notify('Du har inte access till kassan.');return selectMenu('profile');}const tbK=document.querySelector('.topbar');if(tbK)tbK.style.display='';document.getElementById('kassaContainer').style.display='block';renderProductButtons();syncDisplayOwnership();const deviceOk=isAdmin||PRACTICE||isDeviceRegisteredAsKassa();const closed=(openingHours==='Stängt'&&!isAdmin);const notRegistered=!deviceOk;document.getElementById('closedMessage').style.display=(closed&&!notRegistered)?'block':'none';document.getElementById('deviceNotRegisteredMessage').style.display=notRegistered?'block':'none';['displayBtn','kassaLockBtn','kbHelpBtn'].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display=notRegistered?'none':'';});const showFull=!closed&&!notRegistered;document.querySelector('.products').style.display=showFull?'flex':'none';document.querySelector('.cart-table').style.display=showFull?'table':'none';document.getElementById('checkout').style.display=showFull?'block':'none';document.getElementById('discountBtn').style.display=showFull?'block':'none';document.getElementById('total').style.display=showFull?'block':'none';break;}
+      case 'kassa':{ if(!loggedInUser){notify('Logga in först.');return selectMenu('profile');}if(!currentHasAccess&&!isAdmin){notify('Du har inte access till kassan.');return selectMenu('profile');}const tbK=document.querySelector('.topbar');if(tbK)tbK.style.display='';document.getElementById('kassaContainer').style.display='block';document.body.classList.add('kassa-on');requestAnimationFrame(kassaFit);renderProductButtons();syncDisplayOwnership();const deviceOk=isAdmin||PRACTICE||isDeviceRegisteredAsKassa();const closed=(openingHours==='Stängt'&&!isAdmin);const notRegistered=!deviceOk;document.getElementById('closedMessage').style.display=(closed&&!notRegistered)?'block':'none';document.getElementById('deviceNotRegisteredMessage').style.display=notRegistered?'block':'none';['displayBtn','kbHelpBtn','kassaSoundBtn'].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display=notRegistered?'none':'';});const showFull=!closed&&!notRegistered;document.getElementById('kassaContainer').classList.toggle('kassa-blocked',!showFull);document.querySelector('.products').style.display=showFull?'flex':'none';document.querySelector('.cart-table').style.display=showFull?'table':'none';document.getElementById('checkout').style.display=showFull?'block':'none';document.getElementById('discountBtn').style.display=showFull?'block':'none';document.getElementById('total').style.display=showFull?'block':'none';break;}
       case 'profile':{ if(!loggedInUser){document.getElementById('welcomeMessage').style.display='flex';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');const tb=document.querySelector('.topbar');if(tb)tb.style.display='none';const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';return;}const tb2=document.querySelector('.topbar');if(tb2)tb2.style.display='';document.getElementById('profileContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadProfile();markMsgSeen();break;}
       case 'admin':{ if(!isAdmin){notify('Endast admin.');return selectMenu('profile');}const tbA=document.querySelector('.topbar');if(tbA)tbA.style.display='';document.getElementById('adminSettings').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');break;}
-      case 'stats':{ if(!loggedInUser){notify('Logga in först.');return selectMenu('profile');}const tbS=document.querySelector('.topbar');if(tbS)tbS.style.display='';document.getElementById('statsContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadDailyStats();openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();loadDailyCosts();loadDailyForecast();saveCockpitTab('guests');renderCockpit();renderStats();break;}
+      case 'stats':{ if(!loggedInUser){notify('Logga in först.');return selectMenu('profile');}const tbS=document.querySelector('.topbar');if(tbS)tbS.style.display='';document.getElementById('statsContainer').style.display='block';if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');loadDailyStats();openingHours=loadOpeningHours();queueTime=getEffectiveQueueTime();loadDailyCosts();loadDailyForecast();renderCockpit();renderStats();break;}
       case 'logout': logout(); return;
       default:{ document.getElementById('welcomeMessage').style.display='flex';document.body.classList.add('welcome-bg-on');const tb=document.querySelector('.topbar');if(tb)tb.style.display='none';const ec=document.getElementById('emberCanvas');if(ec) ec.style.display='block';}
     }
@@ -1988,18 +1960,6 @@
     if(hm&&hm.style.display==='block'&&!hm.contains(e.target)&&!(openHours&&openHours.contains(e.target))) hm.style.display='none';
     const qm=document.getElementById('queueMenu');const queueTop=document.getElementById('queueTopbar');
     if(qm&&qm.style.display==='block'&&!qm.contains(e.target)&&!(queueTop&&queueTop.contains(e.target))) qm.style.display='none';
-    // Stäng öppna dagsdetaljer i statistik om man klickar utanför
-    const statsEl=document.getElementById('statsList');
-    if(statsEl){
-      [...statsEl.querySelectorAll('.content')].filter(c=>c.style.display==='block').forEach(openContent=>{
-        const wrap=openContent.closest('.section');if(wrap&&!wrap.contains(e.target)){
-          const dateMatch=openContent.id.match(/statsDetail-(.+)/);
-          if(dateMatch) rememberStatsDayOpen(dateMatch[1],false);
-          openContent.style.display='none';
-          const btn=wrap.querySelector('.disclosure');if(btn) btn.setAttribute('aria-expanded','false');
-        }
-      });
-    }
   });
 
   (function bindCheckout(){
@@ -2140,7 +2100,7 @@
     // Recensionsvy om URL innehåller ?review
     if(new URLSearchParams(window.location.search).has('review')){ showReviewView(); return; }
     // Kundskärmsläge om URL innehåller ?display
-    if(new URLSearchParams(window.location.search).has('display')){ startCustomerDisplayMode(); return; }
+    if(new URLSearchParams(window.location.search).has('display')){ whenDomReady(()=>startCustomerDisplayMode()); return; }
 
     const lo=document.getElementById('logoutBtn');const li=document.getElementById('loginBtn');
     if(lo) lo.style.display='none';if(li) li.style.display='inline-block';
@@ -2164,6 +2124,9 @@
     loadDailyStats();loadDailyCosts();loadDailyForecast();
     userData=dbGet(STORAGE_KEY,{})||{};
     users=dbGet(USERS_KEY,defaultUsers())||defaultUsers();
+    // Förhandsvisning av kö- eller kundskärmen i Hantera
+    const _skarm=PREVIEW&&new URLSearchParams(location.search).get('skarm');
+    if(_skarm){ startScreenPreview(_skarm); return; }
 
     try{
       const s=PREVIEW?null:JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
@@ -2172,6 +2135,8 @@
         if(s.role==='staff'&&s.id){ loggedInKey=s.id; const u=users[s.id]||(s.user&&s.user.name?s.user:null); if(u) _applyMe(u); else { loggedInKey=''; } }
       }
     }catch(_e){}
+    // Tittade fliken på gästsidan som inloggad (showGuestView) fortsätter den med det; har tio minuter gått loggas man ut nedan
+    try{ const gv=Number(sessionStorage.getItem(GUEST_VIEW_SS)||0); if(gv&&loggedInUser&&!PREVIEW&&!localStorage.getItem('kassaLockedV1')) _guestViewSince=gv; else if(gv) sessionStorage.removeItem(GUEST_VIEW_SS); }catch(_e){}
     (()=>{
       const PING_KEY='webVisitLastPing';const THROTTLE=30*60*1000;
       const last=Number(localStorage.getItem(PING_KEY)||0);
@@ -2189,7 +2154,7 @@
       try{const _t=localStorage.getItem('userTheme_'+loggedInUser);if(_t) applyProfileTheme(_t);}catch(_e){}
       try{ selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership(); }catch(e){ console.error('Personalens sida kunde inte visas:',e); }
       lockKassa();
-    } else if(loggedInUser){ try{const _t=localStorage.getItem('userTheme_'+loggedInUser);if(_t) applyProfileTheme(_t);}catch(_e){} try{ selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership(); }catch(e){ console.error('Personalens sida kunde inte visas:',e); } }
+    } else if(loggedInUser&&!_guestViewSince){ try{const _t=localStorage.getItem('userTheme_'+loggedInUser);if(_t) applyProfileTheme(_t);}catch(_e){} try{ selectMenu(isAdmin?'admin':'profile'); syncDisplayOwnership(); }catch(e){ console.error('Personalens sida kunde inte visas:',e); } }
     else{
       document.getElementById('welcomeMessage').style.display='flex';
       if(localStorage.getItem(WELCOME_BG_KEY)) document.body.classList.add('welcome-bg-on');
@@ -2198,9 +2163,10 @@
     }
 
     updateTopbar();renderCart();syncKassaSoundBtn();
+    _guestViewCheck();
     if(_staffAddr&&!loggedInUser&&!localStorage.getItem('overlayModeV1')) setTimeout(openLoginModal,300);
     if(localStorage.getItem('overlayModeV1')==='ko') showDisplay();
-    if(localStorage.getItem('overlayModeV1')==='pos') setTimeout(startCustomerDisplayMode, 0);
+    if(localStorage.getItem('overlayModeV1')==='pos') whenDomReady(()=>startCustomerDisplayMode());
     setupLiveStatus();
     initGuestPage();
     (function tickClock(){
@@ -2297,23 +2263,29 @@
   }, 30000);
 
   /* ============================== KUNDSKÄRM ============================== */
-  function saveSwishNumber(){
-    const val=(document.getElementById('swishNumberInput')?.value||'').trim();
-    localStorage.setItem(SWISH_NUMBER_KEY, val);
-    const c=document.getElementById('swishNumberConfirm');if(c){notify('Sparat.');}
-  }
+  // Inställningar för kö- och kundskärmen (displaySettingsV1, sparas i Hantera → Skärmar & enheter). Tomma texter betyder
+  // standardtexten. Saknas posten, eller får skärmen inte läsa den, gäller standardvärdena.
+  const DISPLAY_DEFAULTS={slideSec:8,prices:true,cdWelcome:'Välkommen till Spökhotellet Korpen',cdThanks:'Tack för besöket!',cdThanksSub:'Ha en rysligt kul upplevelse'};
+  function normDisplaySettings(o){ o=(o&&typeof o==='object')?o:{}; const sec=Math.round(Number(o.slideSec)); const t=k=>String(o[k]||'').trim().slice(0,140); return {slideSec:sec>=3&&sec<=60?sec:DISPLAY_DEFAULTS.slideSec,prices:o.prices!==false,cdWelcome:t('cdWelcome'),cdThanks:t('cdThanks'),cdThanksSub:t('cdThanksSub')}; }
+  function loadDisplaySettings(){ try{ return normDisplaySettings(JSON.parse(localStorage.getItem(DISPLAY_SETTINGS_KEY)||'null')); }catch(_e){ return normDisplaySettings(null); } }
+  const displayText=(st,k)=>st[k]||DISPLAY_DEFAULTS[k];
 
-  function getSwishNumber(){ return localStorage.getItem(SWISH_NUMBER_KEY)||''; }
+  // Swish-numret sparas på servern så att alla kassor får samma nummer. Kassan läser det från den egna webbläsaren och
+  // hämtar det på nytt när den startar och när kundskärmen kopplas. Bara siffror, t.ex. 1231234567.
+  const normSwishNumber=v=>String(v||'').replace(/[^0-9]/g,'');
+  function getSwishNumber(){ return normSwishNumber(localStorage.getItem(SWISH_NUMBER_KEY)); }
+  async function refreshSwishNumber(){ try{ const v=normSwishNumber(await apiGet(SWISH_NUMBER_KEY)); if(v) localStorage.setItem(SWISH_NUMBER_KEY,v); }catch(_e){} return getSwishNumber(); }
 
   function buildSwishQrUrl(number, amount){
     const qrData=`C${number};${Math.round(Number(amount))};Spökhotellet Korpen;0`;
     return 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&margin=16&data='+encodeURIComponent(qrData);
   }
 
+  let _swishMissingAt=0;
   function pushSwishDisplay(amount){
     if(!_displayActive) return;
     const number=getSwishNumber();
-    if(!number){ console.warn('Swish-nummer saknas — sätt det i Admin → Kundskärm'); return; }
+    if(!number){ if(Date.now()-_swishMissingAt>60000){ _swishMissingAt=Date.now(); notify('Kundskärmen kan inte visa Swish-koden: Swish-numret saknas. Lägg in det under Hantera → Skärmar & enheter → Kundskärm.','error'); } refreshSwishNumber(); return; }
     const qrUrl=buildSwishQrUrl(number, amount);
     const data={state:'swish',total:amount,qrUrl,ts:Date.now()};
     apiSet(CUSTOMER_DISPLAY_CART_KEY,JSON.stringify(data)).catch(()=>{});
@@ -2332,7 +2304,7 @@
   }
   async function syncDisplayOwnership(){
     if(!loggedInUser) return;
-    try{ const owner=await apiGet(CUSTOMER_DISPLAY_OWNER_KEY); _displayActive=(owner===loggedInUser); updateDisplayBtn(); }catch(_e){}
+    try{ const owner=await apiGet(CUSTOMER_DISPLAY_OWNER_KEY); _displayActive=(owner===loggedInUser); updateDisplayBtn(); if(_displayActive||currentHasAccess) refreshSwishNumber(); }catch(_e){}
   }
 
   function pushDisplayCart(){
@@ -2384,6 +2356,7 @@
         return;
       }
       await apiSet(CUSTOMER_DISPLAY_OWNER_KEY,loggedInUser);
+      refreshSwishNumber();
       await apiSet(CUSTOMER_DISPLAY_CART_KEY,JSON.stringify({items:[],discount:false,total:0,ts:Date.now(),state:'idle'}));
       _displayActive=true;
       updateDisplayBtn();
@@ -2401,53 +2374,6 @@
     }catch(_e){}
   }
 
-  async function loadDisplayAdminStatus(){
-    const inp=document.getElementById('swishNumberInput');
-    if(inp) inp.value=getSwishNumber();
-    const tickerInp=document.getElementById('displayTickerInput');
-    const imagesInp=document.getElementById('displayImagesInput');
-    try{
-      const [serverTicker,serverImages]=await Promise.all([apiGet(DISPLAY_TICKER_KEY),apiGet(DISPLAY_IMAGES_KEY)]);
-      if(serverTicker!=null){ localStorage.setItem(DISPLAY_TICKER_KEY,serverTicker); }
-      if(serverImages!=null){ localStorage.setItem(DISPLAY_IMAGES_KEY,serverImages); }
-    }catch(_e){}
-    if(tickerInp) tickerInp.value=localStorage.getItem(DISPLAY_TICKER_KEY)||'';
-    if(imagesInp) imagesInp.value=localStorage.getItem(DISPLAY_IMAGES_KEY)||'';
-    const statusEl=document.getElementById('displayAdminStatus');
-    const btn=document.getElementById('displayAdminDisconnectBtn');
-    if(!statusEl) return;
-    statusEl.textContent='Kollar...';
-    try{
-      const owner=await apiGet(CUSTOMER_DISPLAY_OWNER_KEY);
-      if(!owner){
-        statusEl.textContent='Ingen kundskärm kopplad.';
-        if(btn) btn.style.display='none';
-      } else {
-        statusEl.textContent=`Kopplad av: ${owner}`;
-        if(btn) btn.style.display='';
-      }
-    }catch(_e){ statusEl.textContent='Kunde inte hämta status.'; }
-  }
-
-  async function adminDisconnectDisplay(){
-    const btn=document.getElementById('displayAdminDisconnectBtn');
-    const statusEl=document.getElementById('displayAdminStatus');
-    if(btn){ btn.disabled=true; btn.textContent='Kopplar från…'; }
-    if(statusEl){ statusEl.textContent='Kopplar från…'; }
-    try{
-      await apiSet(CUSTOMER_DISPLAY_OWNER_KEY,'');
-      await apiSet(CUSTOMER_DISPLAY_CART_KEY,'');
-      _displayActive=false;
-      updateDisplayBtn();
-      if(statusEl){ statusEl.textContent='Frånkopplad ✓'; }
-      if(btn){ btn.style.display='none'; btn.disabled=false; btn.textContent='Koppla från'; }
-      setTimeout(()=>loadDisplayAdminStatus(),1200);
-    }catch(_e){
-      if(statusEl){ statusEl.textContent='Något gick fel – försök igen.'; }
-      if(btn){ btn.disabled=false; btn.textContent='Koppla från'; }
-    }
-  }
-
   function startPosMode(){
     // Sätt en virtuell kassörsidentitet
     loggedInUser='Kassan'; loggedInKey=''; isAdmin=false; currentHasAccess=true; currentHasInslepp=false;
@@ -2458,6 +2384,8 @@
     const tb=document.querySelector('.topbar'); if(tb) tb.style.display='none';
     const ec=document.getElementById('emberCanvas'); if(ec) ec.style.display='none';
     document.getElementById('kassaContainer').style.display='block';
+    document.getElementById('kassaContainer').classList.remove('kassa-blocked');
+    document.body.classList.add('kassa-on'); requestAnimationFrame(kassaFit);
     renderProductButtons();
     document.getElementById('closedMessage').style.display='none';
     document.querySelector('.products').style.display='flex';
@@ -2469,20 +2397,79 @@
     syncDisplayOwnership();
   }
 
-  function startCustomerDisplayMode(){
+  // Kundskärmen visar det kassan skickar i customerDisplayCartV1. preview: i Hanteras förhandsvisning kommer läget och
+  // inställningarna från föräldern (startScreenPreview) i stället, och inget hämtas eller sparas.
+  function startCustomerDisplayMode({preview=false}={}){
     // Dölj allt, visa kundskärmen
     document.querySelectorAll('body > *').forEach(el=>{ el.style.display='none'; });
     const view=document.getElementById('customerDisplayView');
     if(view) view.style.display='flex';
+    const $=id=>document.getElementById(id);
     // Logga
     const logoData=localStorage.getItem('welcomeLogo');
-    const logoEl=document.getElementById('cdLogo');
+    const logoEl=$('cdLogo');
     if(logoEl){ logoEl.src=logoData||'bilder/korpen.png'; logoEl.style.display='block'; }
 
     // Klocka
-    const clockEl=document.getElementById('cdClock');
+    const clockEl=$('cdClock');
     function updateClock(){ if(clockEl){ const n=new Date(); clockEl.textContent=n.toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'}); } }
     updateClock(); const clockInterval=setInterval(updateClock,1000);
+
+    let settings=loadDisplaySettings();
+    function applySettings(){ const w=$('cdIdleHotelName'); if(w) w.textContent=displayText(settings,'cdWelcome'); const sub=$('cdTackSub'); if(sub) sub.textContent=displayText(settings,'cdThanksSub'); }
+    applySettings();
+
+    let tackTimer=null, inTack=false;
+    function cdHideAll(){ ['cdIdle','cdCart','cdTack','cdSwish','cdKontant'].forEach(id=>{ const el=$(id); if(el) el.style.display='none'; }); }
+    function showIdle(){ inTack=false; cdHideAll(); $('cdIdle').style.display='flex'; }
+    function showCart(data){
+      cdHideAll(); $('cdCart').style.display='flex';
+      const itemsEl=$('cdItems');
+      if(itemsEl) itemsEl.innerHTML=data.items.map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(221,227,220,0.1);font-size:1.15rem;"><span>${escapeHtml(it.name)}<span style="color:rgba(221,227,220,0.45);margin-left:8px;">x${it.qty}</span></span><span>${it.qty*it.price} kr</span></div>`).join('');
+      const totalEl=$('cdTotal');
+      if(totalEl) totalEl.textContent=`${data.total} kr${data.discount?' (50% rabatt)':''}`;
+    }
+    function showTack(data){
+      if(inTack) return;
+      inTack=true;
+      cdHideAll(); $('cdTack').style.display='flex';
+      const nameEl=$('cdTackName');
+      if(nameEl) nameEl.textContent=data?.guestName ? `Tack ${data.guestName} för ditt köp!` : displayText(settings,'cdThanks');
+      if(!preview) tackTimer=setTimeout(()=>{ apiSet(CUSTOMER_DISPLAY_CART_KEY, JSON.stringify({items:[],state:'idle',ts:Date.now()})).catch(()=>{}); showIdle(); }, 5000);
+    }
+    function showSwish(data){
+      cdHideAll(); $('cdSwish').style.display='flex';
+      const qrEl=$('cdSwishQr'); if(qrEl) qrEl.src=data.qrUrl;
+      const amtEl=$('cdSwishAmount'); if(amtEl) amtEl.textContent=`${data.total} kr`;
+    }
+    function showKontant(data){
+      cdHideAll(); $('cdKontant').style.display='flex';
+      const itemsEl=$('cdKontantItems');
+      if(itemsEl&&data.items) itemsEl.innerHTML=data.items.map(it=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(221,227,220,0.1);font-size:1.05rem;"><span>${escapeHtml(it.name)}<span style="opacity:0.4;margin-left:8px;">x${it.qty}</span></span><span>${it.qty*it.price} kr</span></div>`).join('');
+      const totalEl=$('cdKontantTotal'); if(totalEl) totalEl.textContent=`${data.total||0} kr${data.discount?' (50% rabatt)':''}`;
+      const el=$('cdChange'); if(el){ el.textContent=data.change>=0?`${data.change} kr`:`Saknas ${Math.abs(data.change)} kr`; el.style.color=data.change>=0?'#dde3dc':'rgba(220,100,100,0.9)'; }
+    }
+    function render(data){
+      if(!data){ showIdle(); return; }
+      if(data.state==='tack'){ showTack(data); }
+      else if(data.state==='swish'&&data.qrUrl){ showSwish(data); }
+      else if(data.state==='kontant'){ showKontant(data); }
+      else if(data.state==='cart'&&data.items&&data.items.length){ showCart(data); }
+      else{ showIdle(); }
+    }
+    function setConn(owner){
+      const dot=$('cdConnDot'), lbl=$('cdConnLabel'), wrap=$('cdConnStatus'); const connected=!!owner;
+      if(dot) dot.style.background=connected?'#6f6':'rgba(221,227,220,0.2)';
+      if(lbl) lbl.textContent=connected?owner:'ej kopplad';
+      if(wrap) wrap.style.opacity=connected?'0.35':'0.2';
+    }
+
+    if(preview){
+      window._skarmPreview=msg=>{ if(msg.settings){ settings=normDisplaySettings(msg.settings); applySettings(); } inTack=false; setConn(msg.owner||''); render(msg.data||null); };
+      showIdle();
+      window.parent.postMessage({korpenSkarm:1,kind:'kund',ready:true},SKARM_MSG_ORIGIN);
+      return;
+    }
 
     // Stäng med Escape eller 3 snabba tryck
     const exitDisplay=()=>{ clearInterval(pollInterval); clearInterval(clockInterval); localStorage.removeItem('overlayModeV1'); location.href=location.href.split('?')[0]; };
@@ -2490,47 +2477,15 @@
     let taps=0,tapTimer=null;
     view.addEventListener('pointerdown',(e)=>{ if(e.pointerType!=='touch') return; taps+=1; clearTimeout(tapTimer); tapTimer=setTimeout(()=>{taps=0;},1500); if(taps>=3) exitDisplay(); },{passive:true});
 
-    let tackTimer=null, inTack=false;
-    function cdHideAll(){ ['cdIdle','cdCart','cdTack','cdSwish','cdKontant'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; }); }
-    function showIdle(){ inTack=false; cdHideAll(); document.getElementById('cdIdle').style.display='flex'; }
-    function showCart(data){
-      cdHideAll(); document.getElementById('cdCart').style.display='flex';
-      const itemsEl=document.getElementById('cdItems');
-      if(itemsEl) itemsEl.innerHTML=data.items.map(it=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(221,227,220,0.1);font-size:1.15rem;"><span>${escapeHtml(it.name)}<span style="color:rgba(221,227,220,0.45);margin-left:8px;">x${it.qty}</span></span><span>${it.qty*it.price} kr</span></div>`).join('');
-      const totalEl=document.getElementById('cdTotal');
-      if(totalEl) totalEl.textContent=`${data.total} kr${data.discount?' (50% rabatt)':''}`;
-    }
-    function showTack(data){
-      if(inTack) return;
-      inTack=true;
-      cdHideAll(); document.getElementById('cdTack').style.display='flex';
-      const nameEl=document.getElementById('cdTackName');
-      if(nameEl) nameEl.textContent=data?.guestName ? `Tack ${data.guestName} för ditt köp!` : 'Tack för besöket!';
-      tackTimer=setTimeout(()=>{ apiSet(CUSTOMER_DISPLAY_CART_KEY, JSON.stringify({items:[],state:'idle',ts:Date.now()})).catch(()=>{}); showIdle(); }, 5000);
-    }
-    function showSwish(data){
-      cdHideAll(); document.getElementById('cdSwish').style.display='flex';
-      const qrEl=document.getElementById('cdSwishQr'); if(qrEl) qrEl.src=data.qrUrl;
-      const amtEl=document.getElementById('cdSwishAmount'); if(amtEl) amtEl.textContent=`${data.total} kr`;
-    }
-
-    let _lastPollTs=0, _lastOwnerCheck=0;
-    async function updateConnStatus(){
-      try{
-        const owner=await apiGet(CUSTOMER_DISPLAY_OWNER_KEY);
-        const dot=document.getElementById('cdConnDot');
-        const lbl=document.getElementById('cdConnLabel');
-        const wrap=document.getElementById('cdConnStatus');
-        const connected=!!owner;
-        if(dot) dot.style.background=connected?'#6f6':'rgba(221,227,220,0.2)';
-        if(lbl) lbl.textContent=connected?owner:'ej kopplad';
-        if(wrap) wrap.style.opacity=connected?'0.35':'0.2';
-      }catch(_e){}
-    }
-    updateConnStatus();
+    let _lastPollTs=0, _lastOwnerCheck=0, _lastCfgCheck=Date.now();
+    async function updateConnStatus(){ try{ setConn(await apiGet(CUSTOMER_DISPLAY_OWNER_KEY)); }catch(_e){} }
+    // Texterna kan ändras i Hantera medan skärmen står på; de hämtas på nytt varannan minut
+    async function updateSettings(){ if(await fetchDisplayCfg()){ settings=loadDisplaySettings(); applySettings(); } }
+    updateConnStatus(); updateSettings();
     async function pollDisplay(){
       const now=Date.now();
       if(now-_lastOwnerCheck>6000){ _lastOwnerCheck=now; updateConnStatus(); }
+      if(now-_lastCfgCheck>120000){ _lastCfgCheck=now; updateSettings(); }
       try{
         const raw=await apiGet(CUSTOMER_DISPLAY_CART_KEY);
         if(!raw){ showIdle(); return; }
@@ -2538,19 +2493,26 @@
         // Skip re-render if nothing changed (same timestamp), except tack which has its own guard
         if(data.ts&&data.ts===_lastPollTs&&data.state!=='tack') return;
         _lastPollTs=data.ts||0;
-        if(data.state==='tack'){ showTack(data); }
-        else if(data.state==='swish'&&data.qrUrl){ showSwish(data); }
-        else if(data.state==='kontant'){ cdHideAll(); document.getElementById('cdKontant').style.display='flex';
-          const itemsEl=document.getElementById('cdKontantItems');
-          if(itemsEl&&data.items) itemsEl.innerHTML=data.items.map(it=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(221,227,220,0.1);font-size:1.05rem;"><span>${escapeHtml(it.name)}<span style="opacity:0.4;margin-left:8px;">x${it.qty}</span></span><span>${it.qty*it.price} kr</span></div>`).join('');
-          const totalEl=document.getElementById('cdKontantTotal'); if(totalEl) totalEl.textContent=`${data.total||0} kr${data.discount?' (50% rabatt)':''}`;
-          const el=document.getElementById('cdChange'); if(el){ el.textContent=data.change>=0?`${data.change} kr`:`Saknas ${Math.abs(data.change)} kr`; el.style.color=data.change>=0?'#dde3dc':'rgba(220,100,100,0.9)'; } }
-        else if(data.state==='cart'&&data.items&&data.items.length){ showCart(data); }
-        else{ showIdle(); }
+        render(data);
       }catch(_e){}
     }
     pollDisplay();
     const pollInterval=setInterval(pollDisplay,2000);
+  }
+
+  // Meddelanden mellan Hantera och förhandsvisningen. Öppnas sidan som fil (file://) går ursprunget inte att ange;
+  // då skickas till "*" och mottagaren kontrollerar i stället vilket fönster meddelandet kom från.
+  const SKARM_MSG_ORIGIN=location.protocol==='file:'||!location.origin||location.origin==='null'?'*':location.origin;
+  // Kundskärmen (#customerDisplayView) ligger efter skripten i index.html och finns först när sidan är inläst
+  function whenDomReady(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn,{once:true}); else fn(); }
+
+  // Förhandsvisningen i Hantera: index.html?preview&skarm=ko eller skarm=kund i en iframe (kod/skarmar.js).
+  // Föräldern skickar utkastet med postMessage; skärmen svarar med vad den visar.
+  function startScreenPreview(kind){
+    document.documentElement.classList.add('skarm-preview');
+    window.addEventListener('message',e=>{ if(e.source!==window.parent||!e.data||e.data.korpenSkarm!==1||!e.data.toPreview) return; try{ window._skarmPreview?.(e.data); }catch(err){ console.error(err); } });
+    if(kind==='kund') whenDomReady(()=>startCustomerDisplayMode({preview:true}));
+    else{ document.querySelectorAll('body > *').forEach(el=>{ el.style.display='none'; }); showDisplay({preview:true}); window.parent.postMessage({korpenSkarm:1,kind:'ko',ready:true},SKARM_MSG_ORIGIN); }
   }
 
   boot();

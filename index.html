@@ -62,6 +62,15 @@
         <img src="bilder/korpen.png" alt="Spökhotellet Korpen" class="login-logo-img" width="974" height="573" loading="lazy" decoding="async" onerror="this.style.display='none'">
       </div>
       <h2 class="login-title" id="loginTitle">Spökhotellet Korpen</h2>
+      <!-- Visas när personalen tittar på gästsidan men redan är inloggad (app.js, showGuestView) -->
+      <div id="loginBack" hidden>
+        <p class="login-subtitle">Personalingång. Du är redan inloggad.</p>
+        <p class="login-back-who">Inloggad som <strong id="loginBackName">Namn</strong></p>
+        <button class="login-submit" id="loginBackGo" onclick="leaveGuestView(true)">Fortsätt</button>
+        <div class="login-back-alt"><button type="button" onclick="loginSwitchPerson()">Byt person</button><button type="button" onclick="guestViewLogout()">Logga ut</button></div>
+        <p class="login-hint" id="loginBackLeft"></p>
+      </div>
+      <div id="loginFormPart">
       <p class="login-subtitle">Personalingång. Ange namn och lösenord.</p>
       <div class="login-field">
         <label class="login-label" for="loginNameInput">Namn</label>
@@ -74,6 +83,7 @@
       <div class="login-error" id="loginError" role="alert"></div>
       <button class="login-submit" onclick="submitLogin()">Träd in</button>
       <p class="login-hint">Gäster behöva ej logga in.</p>
+      </div>
     </div>
   </div>
 
@@ -95,6 +105,7 @@
       <button id="loginBtn" onclick="openLoginModal()" style="display:inline-block;">Logga in</button>
       <button id="logoutBtn" style="display:none;" aria-haspopup="true"><span id="logoutName">Namn</span><svg width="10" height="7" viewBox="0 0 10 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg><span id="msgBadgeDot" hidden></span></button>
       <div id="userDropdown" class="dropdown">
+        <a href="#" onclick="showGuestView(true);return false;">Visa gästsidan</a>
         <a href="#" onclick="selectMenu('logout');return false;">Logga ut</a>
       </div>
     </div>
@@ -440,21 +451,22 @@
   </div>
 
   <!-- ===== KÖTID ===== -->
-  <div id="queueMenu">
-    <label class="u-f--label">Kötid:</label>
-    <select id="queuePreset" onchange="applyQueuePreset(this.value)">
-      <option value="">-- Välj --</option>
-      <option>Stängt</option>
-      <option value="Tillfälligt Stängt">Tillfälligt stängt</option>
-      <option>0–5 min</option>
-      <option>5–10 min</option>
-      <option>10–15 min</option>
-      <option>15–20 min</option>
-      <option>20–25 min</option>
-      <option>25–30 min</option>
-      <option value="Stängt för kvällen">Stängt för idag</option>
-    </select>
-    <div class="u-fs-12 u-mt-6 u-italic" id="queueStatusRow" style="opacity:0.55;">↺ Auto</div>
+  <!-- Fälls ned under kötiden i topbaren (app.js, maybeEditQueueTime) -->
+  <div id="queueMenu" role="dialog" aria-label="Ändra kötid">
+    <div class="qm-head"><span class="qm-title">Kötid</span><span class="qm-status" id="queueStatusRow">↺ Auto</span></div>
+    <div class="qm-grid">
+      <button type="button" class="qm-auto" data-q="__auto__">↺ Auto <small>räknas från kön</small></button>
+      <button type="button" data-q="0–5 min">0–5 min</button>
+      <button type="button" data-q="5–10 min">5–10 min</button>
+      <button type="button" data-q="10–15 min">10–15 min</button>
+      <button type="button" data-q="15–20 min">15–20 min</button>
+      <button type="button" data-q="20–25 min">20–25 min</button>
+      <button type="button" data-q="25–30 min">25–30 min</button>
+      <button type="button" class="qm-closed" data-q="Tillfälligt Stängt">Tillfälligt stängt</button>
+      <button type="button" class="qm-closed" data-q="Stängt för kvällen">Stängt för idag</button>
+      <button type="button" class="qm-closed" data-q="Stängt">Stängt</button>
+    </div>
+    <p class="qm-note">En vald tid gäller i 5 minuter, sedan räknas kön automatiskt igen. Stängt gäller tills någon väljer något annat.</p>
   </div>
 
   <!-- ===== ADMIN ===== -->
@@ -480,6 +492,7 @@
       <div class="adm-nav-group"><span class="adm-nav-label">Uppföljning</span>
         <button type="button" data-adm="recensioner">Recensioner <span class="adm-badge" id="admReviewBadge" hidden></span></button>
         <button type="button" data-adm="loner">Löner</button>
+        <button type="button" data-adm="ekonomi">Ekonomi</button>
       </div>
       <div class="adm-nav-group"><span class="adm-nav-label">Inställningar</span>
         <button type="button" data-adm="personal">Personal</button>
@@ -509,53 +522,8 @@
       <div id="admProdukter"></div>
     </div>
 
-    <div class="section adm-panel" data-panel="skarmar" hidden>
-      <h4 class="adm-panel-title">Skärmar &amp; enheter</h4>
-      <div id="displayAdminContent" class="content">
-        <div class="ui-tabs u-mb-16">
-          <button class="ui-tab is-active" id="displayTab_enheter" onclick="selectDisplayTab('enheter')">Kassaenheter</button>
-          <button class="ui-tab" id="displayTab_kundskarm" onclick="selectDisplayTab('kundskarm')">Kö- och kundskärm</button>
-        </div>
-
-        <div id="displayPanel_enheter">
-          <div class="tiny muted u-mb-10">Endast registrerade enheter kan använda kassan. Logga in som admin på en enhet och registrera den här.</div>
-          <div id="devicesAdminList"></div>
-          <h4 class="u-mt-16">Senast hörda enheter</h4>
-          <div id="admDeviceSeen" class="rx-seen"></div>
-          <button id="registerThisDeviceBtn" class="btn btn-green" onclick="registerThisDevice()" style="display:none;">Registrera denna enhet som kassaenhet</button>
-          <div id="deviceRegisteredNote" class="tiny u-mt-6" style="display:none;color:rgba(100,200,100,0.8);">✓ Denna enhet är registrerad som kassaenhet</div>
-        </div>
-
-        <div id="displayPanel_kundskarm" style="display:none;">
-          <div id="displayAdminStatus" class="muted u-mb-10">–</div>
-          <button id="displayAdminDisconnectBtn" class="btn btn-danger" onclick="adminDisconnectDisplay()" style="display:none;">Koppla från</button>
-          <h4>Swish-nummer</h4>
-          <div class="row u-gap-8">
-            <input id="swishNumberInput" class="input u-flex1" placeholder="t.ex. 1234567890">
-            <button class="btn btn-green" onclick="saveSwishNumber()">Spara</button>
-          </div>
-          <div class="ui-hint-ok" id="swishNumberConfirm" style="display:none;">Sparat!</div>
-          <h4 class="u-mt-16">Info-slides (kötidsdisplay)</h4>
-          <div class="tiny muted u-mb-6">Varje del visas som en egen informationssida i displayen. Separera med <strong>|</strong></div>
-          <div class="row u-gap-8">
-            <input id="displayTickerInput" class="input u-flex1" placeholder="t.ex. Välkommen! | Kort film ca 30 min">
-            <button class="btn btn-green" onclick="saveDisplayTicker()">Spara</button>
-          </div>
-          <div class="ui-hint-ok" id="displayTickerConfirm" style="display:none;">Sparat!</div>
-          <h4 class="u-mt-16">Bildslides (kötidsdisplay)</h4>
-          <div class="tiny muted u-mb-6">En bild-URL per rad. Bilderna visas som helskärmsslides i displayen.</div>
-          <div class="u-col u-gap-8" style="display:flex;">
-            <textarea id="displayImagesInput" class="admin-textarea" rows="4" placeholder="https://example.com/bild1.jpg&#10;https://example.com/bild2.png"></textarea>
-            <div class="u-jc-end" style="display:flex;">
-              <button class="btn btn-green" onclick="saveDisplayImages()">Spara</button>
-            </div>
-          </div>
-          <div class="tiny muted u-mt-10 u-mb-6">Eller välj bland hotellets bilder:</div>
-          <div class="adm-image-picker" id="admImagePicker"></div>
-          <div class="ui-hint-ok" id="displayImagesConfirm" style="display:none;">Sparat!</div>
-        </div>
-      </div>
-    </div>
+    <!-- Översikt (enheter och webbesök), kassaenheter, köskärmen och kundskärmen. Ritas av kod/skarmar.js. -->
+    <section class="adm-panel" data-panel="skarmar" id="admSkarmar" aria-label="Skärmar och enheter" hidden></section>
 
     <div class="section adm-panel" data-panel="recensioner" hidden>
       <h4 class="adm-panel-title">Recensioner</h4>
@@ -569,6 +537,7 @@
     <section class="adm-panel" data-panel="sidan" id="admSidan" aria-label="Redigera sidan" hidden></section>
     <section class="adm-panel" data-panel="listor" id="admListor" aria-label="Listor" hidden></section>
     <section class="adm-panel" data-panel="logg" id="admLogg" aria-label="Ändringslogg" hidden></section>
+    <section class="adm-panel" data-panel="ekonomi" id="admEkonomi" aria-label="Ekonomi" hidden></section>
     <section class="adm-panel" data-panel="kopia" id="admKopia" aria-label="Säkerhetskopia" hidden></section>
     </div>
   </div>
@@ -641,9 +610,10 @@
     <div class="u-text-center" style="margin:-10px 0 12px;"><span class="u-f-mono u-fs-13 u-ls-0_5" id="kassaClock" style="opacity:0.35;"></span></div>
     <div id="closedMessage">Kassan är stängd</div>
     <div id="deviceNotRegisteredMessage">Denna enhet är inte registrerad som kassaenhet</div>
-    <!-- Produkter och varukorg; på iPad i liggande läge två kolumner (app.css, KASSA PÅ IPAD) -->
+    <!-- Produkter och varukorg; på liggande skärm två kolumner utan scroll, och bokningarna i en egen flik (app.css, KASSA PÅ IPAD) -->
     <div class="kassa-body">
-    <div class="kassa-pick">
+    <div class="kassa-pick" data-tab="pick">
+    <div class="kassa-tabs" id="kassaTabs" role="tablist" aria-label="Kassan" hidden><button type="button" role="tab" data-kassa-tab="pick" aria-selected="true">Biljetter</button><button type="button" role="tab" data-kassa-tab="book" aria-selected="false">Bokningar <span class="kassa-tab-count" id="kassaTabCount"></span></button></div>
     <div class="bk-kassa" id="kassaBookings" hidden></div>
     <div class="products"></div>
     <button id="discountBtn" title="Använd 50% rabatt en gång på denna kund">50% rabatt (1 gång)</button>
@@ -666,7 +636,12 @@
   <!-- ===== KASSA LOCK SCREEN ===== -->
   <div id="kassaLockModal" role="dialog" aria-modal="true" aria-label="Kassan är låst">
     <div class="kassa-lock-box">
-      <div class="kassa-lock-icon"><svg width="28" height="32" viewBox="0 0 22 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="16" height="13" rx="2"/><path d="M7 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      <!-- Låset med nyckel; animeras medan inloggningen kontrolleras (app.css, KASSALÅSETS NYCKEL) -->
+      <div class="kassa-lock-icon"><svg class="kl-lock" width="44" height="52" viewBox="0 0 44 52" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="kl-shackle" d="M13 23V15a9 9 0 0 1 18 0v8"/><rect class="kl-body" x="6" y="23" width="32" height="25" rx="2"/><path class="kl-hole" d="M22 32.5v6"/><circle class="kl-hole" cx="22" cy="32" r="2.4"/><g class="kl-key"><circle cx="38" cy="32" r="4.6"/><circle cx="38" cy="32" r="1.4"/><path d="M22 32h11.4M25.5 32v3.5M28.5 32v2.5"/></g></svg></div>
+      <!-- Nyckelbrickan som svänger in när upplåsningen gått igenom -->
+      <div class="kl-welcome" aria-live="polite">
+        <div class="kl-tag"><span class="kl-tag-room" id="klWelcomeRoom"></span><span class="kl-tag-hi" id="klWelcomeHi"></span><strong id="klWelcomeName"></strong><small id="klWelcomeSub"></small></div>
+      </div>
       <p class="kassa-lock-label">Kassan är låst</p>
       <div class="kassa-lock-user-row">
         <button class="kassa-lock-user-btn" id="kassaLockUserName" onclick="toggleLockUserSwitch()" title="Byt personal">Namn <svg width="10" height="7" viewBox="0 0 10 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M1 1l4 4 4-4"/></svg></button>
@@ -757,9 +732,8 @@
 
   <!-- ===== DAG-SAMMANFATTNING MODAL ===== -->
   <div id="daySummaryModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="daySummaryTitle" onclick="if(event.target===this)closeDaySummaryModal()">
-    <div class="modal" style="width:min(620px,96vw);max-height:90vh;overflow-y:auto;padding:24px 22px 18px;">
-      <h3 class="u-m-0-0-4 u-fs-20 u-ls-0_5 u-text-center" id="daySummaryTitle"></h3>
-      <div class="u-text-center u-f--body u-italic u-fs-13 u-mb-18" id="daySummarySubtitle" style="color:var(--faint);"></div>
+    <div class="modal sx-modal">
+      <header class="sx-sum-head"><h3 id="daySummaryTitle"></h3><span id="daySummarySubtitle"></span></header>
       <div id="daySummaryContent"></div>
       <div class="actions u-mt-18">
         <button class="btn" onclick="exportDay(window._daySummaryDate,'copy')">Kopiera som text</button>
@@ -800,7 +774,7 @@
   <!-- ===== STATISTIK ===== -->
   <div id="statsContainer" style="display:none;max-width:820px;margin:40px auto;">
     <div class="section">
-      <header class="rx-head"><p class="rx-kicker">Receptionens räkenskaper</p><h3>Statistik</h3></header>
+      <header class="rx-head"><h3>Statistik</h3></header>
       <div id="statsContent">
         <div id="cockpitWrap"></div>
         <div id="statsList"></div>
@@ -810,8 +784,10 @@
 
   <script src="kod/sidtext.js"></script>
   <script src="kod/ui.js"></script>
+  <script src="kod/statistik.js"></script>
   <script src="kod/app.js"></script>
   <script src="kod/lon.js"></script>
+  <script src="kod/skarmar.js"></script>
   <script src="kod/admin.js"></script>
   <script src="kod/bokning.js"></script>
   <script src="kod/guest.js"></script>
@@ -834,7 +810,7 @@
       </div>
       <div class="u-col" id="cdTack" style="display:none;">
         <div class="u-fs-2_5r u-ls-1" id="cdTackName">Tack för besöket!</div>
-        <div class="u-fs-1r u-mt-14 u-ls-1" style="color:rgba(221,227,220,0.4);">Ha en rysligt kul upplevelse</div>
+        <div class="u-fs-1r u-mt-14 u-ls-1" id="cdTackSub" style="color:rgba(221,227,220,0.4);">Ha en rysligt kul upplevelse</div>
       </div>
       <div class="u-col u-w100" id="cdKontant" style="display:none;">
         <div class="u-mb-12" id="cdKontantItems"></div>

@@ -347,7 +347,7 @@
   }
   // Nådde inget svar fram alls provar gästsidan igen var 20:e sekund, så att knapparna inte försvinner för hela besöket
   function bkRetrySettings(){
-    if(loggedInUser||document.hidden||_db.serverLoaded.has(BK_SET_KEY)||Date.now()-(BK.setTry||0)<20000) return;
+    if((loggedInUser&&!inGuestView())||document.hidden||_db.serverLoaded.has(BK_SET_KEY)||Date.now()-(BK.setTry||0)<20000) return;
     BK.setTry=Date.now();
     Promise.all([dbFetch(BK_SET_KEY,null),bkFetch()]).then(()=>bkRenderGuest()).catch(()=>{});
   }
@@ -358,13 +358,22 @@
   // senare och sist de som är sena (mer än en kvart efter sin halvtimme). Med många bokningar visas ett sökfält.
   const BK_SEARCH_FROM=6;
   function bkKassaWhen(b,nowMin){ const s=bkMin(b.slot); if(s+30+15<nowMin) return 'late'; if(s<=nowMin+30) return 'now'; return 'later'; }
+  // På liggande skärm ligger bokningarna i en egen flik bredvid biljetterna (app.css, KASSA PÅ IPAD).
+  // Fliken syns bara när det finns bokningar; på stående skärm ligger listan som förut över knapparna.
+  function bkKassaTab(tab){
+    const pick=document.querySelector('.kassa-pick'); if(!pick) return;
+    pick.dataset.tab=tab;
+    document.querySelectorAll('#kassaTabs [data-kassa-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.kassaTab===tab)));
+  }
   function bkRenderKassa(){
     const el=document.getElementById('kassaBookings'); if(!el) return;
+    const tabs=document.getElementById('kassaTabs');
     const list=bkDay(todayStr()).slice().sort((a,b)=>a.slot.localeCompare(b.slot)||String(a.ts).localeCompare(String(b.ts)));
-    if(!list.length||!loggedInUser){ el.hidden=true; el.innerHTML=''; return; }
+    if(!list.length||!loggedInUser){ el.hidden=true; el.innerHTML=''; if(tabs) tabs.hidden=true; bkKassaTab('pick'); return; }
     const n=new Date(); const nowMin=n.getHours()*60+n.getMinutes();
     const waiting=list.filter(b=>!b.arrived), came=list.filter(b=>b.arrived);
     const groups={now:[],later:[],late:[]}; waiting.forEach(b=>groups[bkKassaWhen(b,nowMin)].push(b));
+    if(tabs){ tabs.hidden=false; const c=document.getElementById('kassaTabCount'); if(c){ c.textContent=groups.now.length?`${groups.now.length} nu`:(waiting.length?String(waiting.length):''); c.classList.toggle('is-now',groups.now.length>0); } }
     const q=(BK.kassaQ||'').trim().toLowerCase(); const search=waiting.length>=BK_SEARCH_FROM;
     const match=b=>!q||String(b.name||'').toLowerCase().includes(q)||String(b.code||'')===q.replace(/\D/g,'');
     const soonPeople=groups.now.reduce((s,b)=>s+bkPeople(b),0);
@@ -391,8 +400,9 @@
     cart={}; cartHistory=[];
     if(b.adult) cart[ad.name]={qty:Number(b.adult),price:Number(ad.price)};
     if(b.child) cart[ch.name]={qty:Number(b.child),price:Number(ch.price)};
-    BK.kassaId=id; renderCart(); bkRenderKassa();
+    BK.kassaId=id; renderCart(); bkRenderKassa(); bkKassaTab('pick');
   }
+  document.getElementById('kassaTabs')?.addEventListener('click',e=>{ const t=e.target.closest('[data-kassa-tab]'); if(t) bkKassaTab(t.dataset.kassaTab); });
   async function bkStaffOp(op,date,id){
     if(PREVIEW) return {ok:true};
     if(PRACTICE){ if(op!=='tidy') bkPracticeOp(op,date,id); return {ok:true}; }
@@ -579,7 +589,7 @@
 
   /* ---------- Uppdatering ---------- */
   const _bkUpcoming0=renderUpcomingDates;
-  renderUpcomingDates=function(){ const r=_bkUpcoming0.apply(this,arguments); if(!loggedInUser) bkRenderGuest(); return r; };
+  renderUpcomingDates=function(){ const r=_bkUpcoming0.apply(this,arguments); if(!loggedInUser||inGuestView()) bkRenderGuest(); return r; };
   // Gästernas bokningar ändrar inte driftstämpeln, så personalens vyer hämtar bokningarna själva
   setInterval(()=>{
     bkRetrySettings();

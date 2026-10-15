@@ -48,15 +48,8 @@
     }
     return {on,warn};
   }
-  function admDayGuests(d){ const a=Array.isArray(d.admissionsEntries)?d.admissionsEntries.reduce((s,e)=>s+Number(e.n||0),0):0; return a||(Number(d.adult||0)+Number(d.child||0)); }
-  // Prognos: snittet av upp till sex tidigare dagar, i första hand med samma veckodag och öppettid
-  function admForecast(date,hours){
-    const hist=loadSalesHistory(); const today=todayStr(); const wd=admDate(date).getDay();
-    const past=Object.entries(hist).filter(([k,d])=>k<today&&d&&!d._deleted&&admDayGuests(d)>0);
-    const tries=[[([k,d])=>hours&&d.hours===hours&&admDate(k).getDay()===wd,`${ADM_WDL[wd]}ar med samma öppettid`],[([,d])=>hours&&d.hours===hours,'dagar med samma öppettid'],[([k])=>admDate(k).getDay()===wd,`${ADM_WDL[wd]}ar`],[()=>true,'alla tidigare dagar']];
-    for(const [f,how] of tries){ const base=past.filter(f); if(base.length>=2||(how==='alla tidigare dagar'&&base.length)){ const b=base.sort((a,c)=>c[0].localeCompare(a[0])).slice(0,6); return {guests:Math.round(b.reduce((s,[,d])=>s+admDayGuests(d),0)/b.length),income:Math.round(b.reduce((s,[,d])=>s+Number(d.income||0),0)/b.length),n:b.length,how}; } }
-    return null;
-  }
+  // Prognos: snittet av upp till sex tidigare kvällar, i första hand med samma veckodag och öppettid (sxForecast i statistik.js)
+  const admForecast=(date,hours)=>sxForecast(date,hours);
   function admQueued(){ const items=(loadOpenTickets().items||[]).filter(t=>!t.used&&(Number(t.adult||0)+Number(t.child||0))>0); return {tickets:items.length,people:items.reduce((s,t)=>s+Number(t.adult||0)+Number(t.child||0),0),items}; }
   function admHoursOptions(current,extra=[]){
     const opts=[...new Set([current,...extra,...HOUR_PRESETS,...loadOpenDates().map(e=>e&&e.hours).filter(Boolean)].filter(v=>v&&v!=='Stängt'))];
@@ -110,10 +103,8 @@
   });
   const _admOpenInslapp0=openRecentTicketsFull;
   openRecentTicketsFull=function(){ document.querySelector('.field-view')?._close?.(); hideDropdown(); _admOpenInslapp0.apply(this,arguments); rxNavUpdate(); };
-  // Statusknapparna i topraden: admin går till Översikt, övrig personal får kötidsmenyn som förut
+  // Statusknapparna i topraden: öppettiden tar admin till Översikt; kötiden fäller ned kötidsmenyn för alla (app.js)
   function maybeEditHours(ev){ if(ev){ ev.stopPropagation(); ev.preventDefault(); } if(!isAdmin) return; document.querySelector('.field-view')?._close?.(); selectMenu('admin'); admOpen('lage'); }
-  const _admEditQueue0=maybeEditQueueTime;
-  maybeEditQueueTime=function(ev){ if(isAdmin){ maybeEditHours(ev); return; } _admEditQueue0(ev); };
   function rxStatusUpdate(){
     const dot=admById('tbOpenDot'); if(!dot) return;
     const st=admTodayState(); dot.className='status-dot '+(st.open?'live':'dead');
@@ -149,16 +140,20 @@
     produkter:()=>admRenderProducts(),
     recensioner:()=>renderReviewsAdmin(),
     loner:()=>initLonPanel(),
+    ekonomi:()=>admRenderEkonomi(),
     personal:()=>admRenderStaff(),
     listor:()=>admRenderLists(),
-    skarmar:()=>{ selectDisplayTab('enheter'); loadDisplayAdminStatus(); admRenderImagePicker(); admRefreshDevices(); },
+    skarmar:()=>admRenderSkarmar(),
     logg:()=>admRenderLog(),
     kopia:()=>renderLocalBackup(),
     sidan:()=>window.siteText?.openPanel()
   };
   const ADM_ALIAS={dagar:'schema',katalog:'listor',checklistor:'listor'};
+  // Gamla och direkta vägar till en flik på Skärmar & enheter (kod/skarmar.js). Webbesök ligger nu under Översikt där.
+  const ADM_SK_TAB={webb:'oversikt',kassaenheter:'kassa',koskarm:'ko',kundskarm:'kund'};
   function admOpen(name,{keepScroll=false}={}){
     name=ADM_ALIAS[name]||name;
+    if(ADM_SK_TAB[name]){ skSetTab(ADM_SK_TAB[name]); name='skarmar'; }
     if(!ADM_RENDER[name]) name='lage';
     ADM.panel=name; localStorage.setItem('admPanelV1',name);
     document.querySelectorAll('#adminSettings .adm-panel').forEach(p=>{ p.hidden=p.dataset.panel!==name; });
@@ -272,7 +267,7 @@
     if(st.open){ const w=admCoverage(todayStr()).warn.filter(x=>x!=='Ingen i schemat'); if(w.length) items.push({lvl:'info',text:`Idag: ${w.join(', ').toLowerCase()}`,btn:'Schema',go:'schema'}); }
     const bk=localBackupIssues(); if(bk) items.push({lvl:'warn',text:`Statistiken på servern saknar ${bk} ${bk>1?'dagar':'dag'} som finns i kopian på den här enheten`,btn:'Återställ',go:'kopia'});
     if(admById('msgBadgeDot')?.style.display==='inline-block') items.push({lvl:'info',text:'Nytt meddelande från personalen',btn:'Läs',go:'meddelanden'});
-    if(st.open){ const reg=loadRegisteredDevices(); ADM.devices.filter(d=>reg[d.id]&&Date.now()-d.ts>3*60000&&Date.now()-d.ts<12*3600000).forEach(d=>items.push({lvl:'warn',text:`Kassaenheten ${d.name} hördes senast av ${admAgo(d.ts)}`,btn:'Enheter',go:'skarmar'})); }
+    if(st.open){ const reg=loadRegisteredDevices(); ADM.devices.filter(d=>reg[d.id]&&Date.now()-d.ts>3*60000&&Date.now()-d.ts<12*3600000).forEach(d=>items.push({lvl:'warn',text:`Kassaenheten ${d.name} hördes senast av ${admAgo(d.ts)}`,btn:'Enheter',go:'webb'})); ADM.devices.filter(d=>!reg[d.id]&&(d.view==='Kötidsskärm'||d.view==='Kundskärm')&&Date.now()-d.ts>3*60000&&Date.now()-d.ts<12*3600000).forEach(d=>items.push({lvl:'warn',text:`${d.view==='Kundskärm'?'Kundskärmen':'Köskärmen'} (${d.name}) hördes senast av ${admAgo(d.ts)}`,btn:'Skärmar',go:'webb'})); }
     if(PRACTICE) items.push({lvl:'info',text:'Övningsläget är på i den här enheten',btn:'Avsluta',act:'practice'});
     const next=admUpcoming(3).find(d=>d.date>todayStr());
     if(next){ const w=admCoverage(next.date).warn; if(w.length) items.push({lvl:'info',text:`${admDayShort(next.date)}: ${w.join(', ').toLowerCase()}`,btn:'Schema',go:'schema'}); }
@@ -304,7 +299,7 @@
     const fc=admForecast(next.date,next.hours); const cov=admCoverage(next.date);
     el.innerHTML=`<p class="rx-card-kicker">Nästa öppetdag</p>
       <p class="rx-card-title">${admDayLong(next.date)}</p><p class="rx-sub">${admEsc(next.hours||'Ingen tid inlagd')}</p>
-      ${fc?`<p class="rx-forecast"><strong>ca ${fc.guests} gäster</strong> · ${admKr(fc.income)}<span>Snitt av ${fc.n} ${admEsc(fc.how)}</span></p>`:'<p class="rx-sub">För lite historik för en prognos ännu.</p>'}
+      ${fc?`<p class="rx-forecast"><strong>ca ${fc.guests} gäster</strong> · ${admKr(fc.income)}<span>${admEsc(fc.text)}</span></p>`:'<p class="rx-sub">För lite historik för en prognos ännu.</p>'}
       <div class="rx-chips"><span class="rx-chip">${cov.on.length} i schemat</span>${cov.warn.filter(w=>w!=='Ingen i schemat').map(w=>`<span class="rx-chip rx-chip--warn">${admEsc(w)}</span>`).join('')}</div>
       <button type="button" class="adm-linkbtn" data-adm-open="schema">Schemat ›</button>`;
   }
@@ -344,7 +339,7 @@
   };
   function rxBroadcastCheck(){
     const bc=dbGet(STAFF_BROADCAST_KEY,null);
-    const staffish=(loggedInUser&&!PREVIEW)||document.querySelector('.field-view');
+    const staffish=(loggedInUser&&!PREVIEW&&!inGuestView())||document.querySelector('.field-view');
     let el=admById('rxBroadcast');
     if(!staffish||!bc||!bc.id||!bc.text||Date.now()-Number(bc.ts||0)>12*3600000||localStorage.getItem('rxBcSeenV1')===bc.id){ el?.remove(); return; }
     if(el&&el.dataset.id===bc.id) return;
@@ -388,6 +383,7 @@
     const reg=loadRegisteredDevices();
     const list=ADM.devices.filter(d=>Date.now()-d.ts<12*3600000);
     el.innerHTML=`${list.length?`<ul class="rx-list rx-list--plain">${list.map(d=>{ const age=Date.now()-d.ts; const cls=age<150000?'live':age<600000?'warn':'dead'; return `<li class="rx-device"><span class="status-dot ${cls}"></span><div><strong>${admEsc(d.name)}${reg[d.id]?' <span class="rx-chip">Kassa</span>':''}${d.id===getDeviceId()?' <span class="rx-chip">Den här</span>':''}</strong><span>${admEsc([d.user,d.view].filter(Boolean).join(' · '))} · ${admAgo(d.ts)}</span></div></li>`; }).join('')}</ul>`:'<p class="rx-empty">Ingen enhet har hörts av de senaste timmarna.</p>'}<p class="tiny muted">Enheter med personal inloggad, kötidsskärmar och kundskärmar hör av sig ungefär en gång i minuten.</p>`;
+    if(typeof skDevicesUpdated==='function') skDevicesUpdated();
   }
 
   /* ============================== ÖPPNA OCH STÄNG DAGEN ============================== */
@@ -507,11 +503,14 @@
     if(op) rows+=row('Öppnad',`kl ${admTime(op.ts)} av ${admEsc(op.by)}${op.checklist?` · checklista ${op.checklist.done} av ${op.checklist.total}`:''}`);
     if(cl){
       rows+=row('Stängd',`kl ${admTime(cl.ts)} av ${admEsc(cl.by)}${cl.checklist?` · checklista ${cl.checklist.done} av ${cl.checklist.total}`:''}`);
+    }
+    // Kassaräkningen har kronor och visas bara för admin, som resten av statistiken
+    if(cl&&isAdmin){
       rows+=row('Växelkassa vid start',admKr(cl.cashStart))+row('Kontant försäljning',admKr(cl.cashSales))+row('Ska finnas i kassan',admKr(cl.cashExpected));
       rows+=row('Räknat',cl.cashCounted==null?'Inte räknat':admKr(cl.cashCounted));
       if(cl.cashDiff!=null) rows+=row('Skillnad',cl.cashDiff===0?'Stämmer':`<b class="${cl.cashDiff?'is-off':''}">${cl.cashDiff>0?'+':'−'}${admKr(Math.abs(cl.cashDiff))}</b>`);
     }
-    return `<hr class="day-summary-divider"><div class="day-summary-section"><div class="day-summary-section-title">Dagens rapport</div><table class="rx-report">${rows}</table>${cl&&cl.notes?`<p class="rx-report-notes">${admEsc(cl.notes).replace(/\n/g,'<br>')}</p>`:''}</div>`;
+    return `<div class="sx-till"><p class="sx-till-h">Dagens rapport</p><table class="rx-report">${rows}</table>${cl&&cl.notes?`<p class="rx-report-notes">${admEsc(cl.notes).replace(/\n/g,'<br>')}</p>`:''}</div>`;
   }
   const _admShowDaySummary0=showDaySummaryModal;
   showDaySummaryModal=function(date){
@@ -523,7 +522,8 @@
   const _admBuildExport0=buildDayExportText;
   buildDayExportText=function(date){
     let t=_admBuildExport0(date); const d=loadSalesHistory()[date]||{}; const cl=d.closing;
-    if(cl){ t+=`\n\nDagens rapport\nStängd kl ${admTime(cl.ts)} av ${cl.by}\nKassa: start ${cl.cashStart} kr, kontant ${cl.cashSales} kr, ska finnas ${cl.cashExpected} kr, räknat ${cl.cashCounted==null?'–':cl.cashCounted+' kr'}${cl.cashDiff!=null?`, skillnad ${cl.cashDiff} kr`:''}`; if(cl.notes) t+=`\nAnteckningar: ${cl.notes}`; }
+    if(cl&&!isAdmin){ t+=`\n\nDagens rapport\nStängd kl ${admTime(cl.ts)} av ${cl.by}`; if(cl.notes) t+=`\nAnteckningar: ${cl.notes}`; }
+    else if(cl){ t+=`\n\nDagens rapport\nStängd kl ${admTime(cl.ts)} av ${cl.by}\nKassa: start ${cl.cashStart} kr, kontant ${cl.cashSales} kr, ska finnas ${cl.cashExpected} kr, räknat ${cl.cashCounted==null?'–':cl.cashCounted+' kr'}${cl.cashDiff!=null?`, skillnad ${cl.cashDiff} kr`:''}`; if(cl.notes) t+=`\nAnteckningar: ${cl.notes}`; }
     return t;
   };
 
@@ -774,17 +774,6 @@
       draw(); onChange(list); };
     draw(); return {get:()=>list};
   }
-  /* ---------- Skärmar: välj bland hotellets bilder ---------- */
-  function admRenderImagePicker(){
-    const el=admById('admImagePicker'), ta=admById('displayImagesInput'); if(!el||!ta) return;
-    const base=location.origin+location.pathname.replace(/[^/]*$/,'');
-    const imgs=[['bilder/hotellarkiv-1936.jpg','Hotellet 1936'],['bilder/personalen-1936.jpg','Personalen'],['bilder/vykort-korpen.jpg','Vykortet'],['bilder/hotell-korpen.png','Loggan, ljus'],['bilder/korpen.png','Loggan, mörk']];
-    const lines=()=>ta.value.split('\n').map(s=>movedImageUrl(s)).filter(Boolean);
-    const draw=()=>{ const cur=lines(); el.innerHTML=imgs.map(([f,l])=>`<button type="button" class="adm-img" data-url="${base+f}" aria-pressed="${cur.includes(base+f)}"><img src="${f}" alt="" loading="lazy"><span>${l}</span></button>`).join(''); };
-    el.onclick=e=>{ const b=e.target.closest('.adm-img'); if(!b) return; const cur=lines(); const u=b.dataset.url; ta.value=(cur.includes(u)?cur.filter(x=>x!==u):[...cur,u]).join('\n'); draw(); };
-    ta.oninput=draw; draw();
-  }
-
   /* ============================== RECENSIONER ============================== */
   function admUpdateReviewBadge(){
     const b=admById('admReviewBadge'); if(!b) return;
@@ -991,7 +980,8 @@
     [PRODUCTS_KEY]:'Produkter och priser',[WELCOME_HOTEL_NAME_KEY]:'Gästsidans rubriker',[WELCOME_HEADLINE_KEY]:'Gästsidans rubriker',[WELCOME_TAGLINE_KEY]:'Gästsidans rubriker',
     [WELCOME_TEXT_KEY]:'Säsongstexten',[WELCOME_FAQ_KEY]:'Frågor och svar',[SOCIAL_IG_KEY]:'Sociala länkar',[SOCIAL_FB_KEY]:'Sociala länkar',
     [OPENING_KEY]:'Öppettid idag',[OPEN_DATES_KEY]:'Öppetdagar',[GUEST_HIDDEN_KEY]:'Gästsidans öppettider',[SKILL_CATALOG_KEY]:'Kompetenser',[TASK_CATALOG_KEY]:'Uppgifter',
-    [TASK_DESCRIPTIONS_KEY]:'Uppgiftsbeskrivningar',[WAGE_SETTINGS_KEY]:'Löneinställningar',[SHIFT_PLAN_KEY]:'Schema',[USERS_KEY]:'Personal',[CHECK_KEY]:'Checklistor',[REVIEW_SETTINGS_KEY]:'Granskning av omdömen',siteContentV1:'Sidans texter'
+    [TASK_DESCRIPTIONS_KEY]:'Uppgiftsbeskrivningar',[WAGE_SETTINGS_KEY]:'Löneinställningar',[SHIFT_PLAN_KEY]:'Schema',[USERS_KEY]:'Personal',[CHECK_KEY]:'Checklistor',[REVIEW_SETTINGS_KEY]:'Granskning av omdömen',siteContentV1:'Sidans texter',
+    [DISPLAY_TICKER_KEY]:'Kö- och kundskärmen',[DISPLAY_IMAGES_KEY]:'Kö- och kundskärmen',[DISPLAY_SETTINGS_KEY]:'Kö- och kundskärmen',[SWISH_NUMBER_KEY]:'Kö- och kundskärmen'
   };
   const ADM_NO_UNDO=new Set([USERS_KEY]);
   let _admLastInput=0;
@@ -1032,6 +1022,12 @@
       if(key===USERS_KEY){ const p=prev||{}, n=next||{}; const pn=Object.values(p).map(u=>u.name), nn=Object.values(n).map(u=>u.name); const out=[...nn.filter(x=>!pn.includes(x)).map(x=>'La till '+x),...pn.filter(x=>!nn.includes(x)).map(x=>'Tog bort '+x)];
         Object.values(n).forEach(u=>{ const o=Object.values(p).find(x=>x.name===u.name); if(!o) return; if(!!o.hasAccess!==!!u.hasAccess) out.push(`${u.name}: kassa ${u.hasAccess?'på':'av'}`); if(!!o.hasInslepp!==!!u.hasInslepp) out.push(`${u.name}: insläpp ${u.hasInslepp?'på':'av'}`); if(!!o.isVoluntar!==!!u.isVoluntar) out.push(`${u.name}: ${u.isVoluntar?'volontär':'inte volontär'}`); }); return out.join(', '); }
       if(key===REVIEW_SETTINGS_KEY) return next&&next.moderate?'Granskning på':'Granskning av';
+      if(key===DISPLAY_TICKER_KEY){ const n=String(next||'').split('|').filter(x=>x.trim()).length; return `Köskärmen: ${n} ${n===1?'infotext':'infotexter'}`; }
+      if(key===DISPLAY_IMAGES_KEY){ const n=String(next||'').split('\n').filter(x=>x.trim()).length; return `Köskärmen: ${n} ${n===1?'bild':'bilder'}`; }
+      if(key===SWISH_NUMBER_KEY) return next?`Swish-nummer ${next}`:'Swish-numret borttaget';
+      if(key===DISPLAY_SETTINGS_KEY){ const p=normDisplaySettings(skParse(prev)), n=normDisplaySettings(skParse(next)); const out=[];
+        if(p.slideSec!==n.slideSec) out.push(`${n.slideSec} s per bild`); if(p.prices!==n.prices) out.push(n.prices?'prislistan visas':'prislistan dold');
+        [['cdWelcome','välkomsttexten'],['cdThanks','tackrubriken'],['cdThanksSub','tackundertexten']].forEach(([k,l])=>{ if(p[k]!==n[k]) out.push(n[k]?`"${admShort(n[k],30)}"`:`standardtext för ${l}`); }); return out.join(', '); }
       if(key==='siteContentV1'){ const p=prev||{}, n=next||{}; const diff=s=>{ const a=p[s]||{}, b=n[s]||{}; return [...new Set([...Object.keys(a),...Object.keys(b)])].filter(k=>JSON.stringify(a[k])!==JSON.stringify(b[k])).length; };
         const t=diff('t'), i=diff('i'), h=diff('h'); return [t&&`${t} ${t===1?'text':'texter'}`,i&&`${i} ${i===1?'bild':'bilder'}`,h&&`${h} avsnitt visat eller dolt`].filter(Boolean).join(', '); }
     }catch(_e){}
@@ -1056,7 +1052,7 @@
     ADM.undoing=false;
     await admMutate(LOG_KEY,[],arr=>{ const x=arr.find(y=>y.id===id); if(x&&!x.undone) x.undone={by:_myCanonName(),ts:Date.now()}; });
     openingHours=loadOpeningHours(); queueTime=openingHours==='Stängt'?'Stängt':getEffectiveQueueTime(); guestHidden=loadGuestHidden();
-    updateTopbar(); loadWelcomeHeroTexts(); loadWelcomeText(); loadWelcomeFAQ(); loadSocialLinks(); renderProductButtons(); renderWelcomePrices(); renderUpcomingDates(); window.siteText?.refresh();
+    updateTopbar(); loadWelcomeHeroTexts(); loadWelcomeText(); loadWelcomeFAQ(); loadSocialLinks(); renderProductButtons(); renderWelcomePrices(); renderUpcomingDates(); window.siteText?.refresh(); SK.loadedAt=0;
     notify('Ändringen är ångrad.','ok'); admRenderLog(true);
   }
 
@@ -1079,40 +1075,11 @@
     if(!PRACTICE) return;
     document.body.classList.add('is-practice');
     const b=document.createElement('div'); b.className='rx-practice'; b.setAttribute('role','status');
-    b.innerHTML='<span><b>Övningsläge</b> Köp, kö och insläpp sparas bara på den här enheten.</span><button type="button">Avsluta övningen</button>';
+    b.innerHTML='<span><b>Övningsläge</b> <span class="rx-practice-text">Köp, kö och insläpp sparas bara på den här enheten.</span></span><button type="button">Avsluta övningen</button>';
     b.querySelector('button').onclick=rxStopPractice; document.body.appendChild(b);
   })();
 
-  /* ============================== STATISTIK: JÄMFÖRELSER, TIMMAR OCH EXPORT ============================== */
-  function rxStatsExtraHtml(){
-    const hist=loadSalesHistory(); const g=v=>Number(v.adult||0)+Number(v.child||0);
-    const days=Object.entries(hist).filter(([,v])=>v&&!v._deleted&&(g(v)+Number(v.income||0))>0).sort((a,b)=>b[0].localeCompare(a[0]));
-    if(!days.length) return '';
-    const [ld,lv]=days[0]; const wd=admDate(ld).getDay();
-    const same=days.slice(1).filter(([d])=>admDate(d).getDay()===wd).slice(0,6); const others=days.slice(1,9);
-    const base=same.length>=2?same:others; const baseLbl=same.length>=2?`snittet för ${ADM_WDL[wd]}ar`:'snittet för tidigare dagar';
-    const avg=f=>base.length?base.reduce((s,[,v])=>s+f(v),0)/base.length:null;
-    const cmp=(val,a)=>{ if(a==null||!a) return ''; const p=Math.round((val-a)/a*100); return `<span class="rx-cmp ${p>=0?'is-up':'is-down'}">${p>=0?'+':'−'}${Math.abs(p)} %</span>`; };
-    const perGuest=v=>g(v)?Number(v.income||0)/g(v):0;
-    const tiles=[['Gäster',g(lv),avg(g),x=>Math.round(x)],['Intäkt',Number(lv.income||0),avg(v=>Number(v.income||0)),x=>admKr(Math.round(x))],['Per gäst',perGuest(lv),avg(perGuest),x=>admKr(Math.round(x))],['Köp',Number(lv.count||0),avg(v=>Number(v.count||0)),x=>Math.round(x)]];
-    // Gäster per timme i snitt, räknat från köpens klockslag
-    const buckets=new Array(24).fill(0); let nd=0;
-    days.slice(0,12).forEach(([,v])=>{ const es=Array.isArray(v.entries)?v.entries:[]; if(!es.length) return; nd++; es.forEach(e=>{ const h=parseHourFromTimeStr(e.time); if(h!=null&&h>=0&&h<24) buckets[h]+=Number(e.adult||0)+Number(e.child||0); }); });
-    const avgB=buckets.map(x=>nd?Math.round(x/nd*10)/10:0);
-    const used=avgB.map((v,i)=>v>0?i:-1).filter(i=>i>=0);
-    let hourHtml='';
-    if(used.length){ const s=Math.max(0,used[0]), e=Math.min(24,used[used.length-1]+1); const slice=avgB.slice(s,e); const peak=s+slice.indexOf(Math.max(...slice));
-      hourHtml=`<div class="rx-card"><p class="rx-card-kicker">Gäster per timme i snitt</p><div class="rx-chart">${svgBars24(slice,Math.max(...slice,1),80,{id:'rxHourChart',unit:'gäster',startHour:s})}</div><p class="rx-sub">Flest gäster köper biljett mellan kl ${String(peak).padStart(2,'0')} och ${String(peak+1).padStart(2,'0')}, i snitt ${String(avgB[peak]).replace('.',',')} per öppetdag (${nd} dagar).</p></div>`; }
-    const next=admUpcoming(5).find(d=>d.date>todayStr()); const fc=next?admForecast(next.date,next.hours):null;
-    return `<div class="rx-stats-extra">
-      <div class="rx-card"><p class="rx-card-kicker">${ld===todayStr()?'Idag hittills':admDayLong(ld)} jämfört med ${baseLbl}</p><div class="rx-tiles">${tiles.map(([l,v,a,f])=>`<div class="rx-tile"><span>${l}</span><strong>${f(v)}</strong>${cmp(v,a)}${a!=null?`<small>snitt ${f(a)}</small>`:''}</div>`).join('')}</div></div>
-      ${hourHtml}
-      ${fc?`<div class="rx-card"><p class="rx-card-kicker">Prognos, ${admDayLong(next.date)}</p><p class="rx-forecast"><strong>ca ${fc.guests} gäster</strong> · ${admKr(fc.income)}<span>Snitt av ${fc.n} ${admEsc(fc.how)}</span></p></div>`:''}
-      ${isAdmin?`<div class="rx-actions rx-export"><span class="tiny muted">Exportera för bokföringen:</span><button type="button" class="btn" onclick="rxExportDays()">Dagar (CSV)</button><button type="button" class="btn" onclick="rxExportSales()">Alla köp (CSV)</button></div>`:''}
-    </div>`;
-  }
-  const _admRenderStats0=renderStats;
-  renderStats=function(){ _admRenderStats0.apply(this,arguments); const root=admById('statsList'); if(!root||!loggedInUser) return; root.querySelector('.rx-stats-extra')?.remove(); root.insertAdjacentHTML('afterbegin',rxStatsExtraHtml()); };
+  /* ============================== STATISTIK: EXPORT (sidan finns i statistik.js) ============================== */
   function rxCsv(rows){ return '﻿'+rows.map(r=>r.map(c=>{ const s=String(c??''); return /[;"\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(';')).join('\r\n'); }
   function rxDownload(name,text){ const blob=new Blob([text],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },0); }
   function rxExportDays(){
@@ -1126,6 +1093,129 @@
     Object.keys(hist).filter(d=>hist[d]&&!hist[d]._deleted).sort().forEach(d=>{ (hist[d].entries||[]).forEach(e=>{ const items=(Array.isArray(e.items)?e.items:[]).map(i=>typeof i==='string'?i:`${i.qty||1} × ${i.name}`).join(', ');
       rows.push([d,e.time||'',e.sum||0,e.adult||0,e.child||0,e.payType||'',e.seller||'',items]); }); });
     rxDownload(`korpen-kop-${todayStr()}.csv`,rxCsv(rows));
+  }
+
+  /* ============================== EKONOMI: INTÄKT, UTGIFTER OCH RESULTAT ============================== */
+  // Utgiftskollen: säsongens intäkt, kvällarnas utgifter, säsongskostnader och resultat (mot samma tid i fjol) och en rad per
+  // kväll där utgiften går att skriva in. Dagens utgift sparas med saveDailyCosts (dagens post och historiken), äldre kvällar
+  // direkt i historiken. Lönesidan räknar kvällens överskott från kvällens utgifter, inte från andelen av säsongskostnaderna.
+  // Säsongskostnader (hyra, material, reklam …) sparas per år i seasonCostsV1: {"2026":[{id,name,amount}]}. De fördelas lika
+  // på årets öppetdagar: kvällar som har varit (med intäkt) plus öppetdagar i Kalendern som ligger framför oss.
+  const SEASON_COSTS_KEY='seasonCostsV1';
+  const EKO={ year:null, shown:20 };
+  const admCostOf=d=>Number(getCostsForDate(d)||0);
+  function admSeasonItems(y){ const all=dbGet(SEASON_COSTS_KEY,{})||{}; return Array.isArray(all[y])?all[y].filter(x=>x&&x.id):[]; }
+  // Årets öppetdagar och kvällens andel av säsongskostnaderna
+  function admSeasonShare(y){
+    const today=todayStr(), hist=loadSalesHistory();
+    const been=Object.entries(hist).filter(([d,v])=>d.startsWith(y)&&v&&!v._deleted&&Number(v.income||0)>0).map(([d])=>d);
+    const planned=loadOpenDates().map(e=>typeof e==='string'?e:e&&e.date).filter(d=>d&&d.startsWith(y)&&d>=today&&!been.includes(d));
+    const total=admSeasonItems(y).reduce((s,x)=>s+Number(x.amount||0),0), days=been.length+planned.length;
+    return {total,been:been.length,planned:planned.length,days,share:days&&total?total/days:0};
+  }
+  function admRenderEkonomi(){
+    const el=admById('admEkonomi'); if(!el) return;
+    if(!ADM.ekoFetched){ ADM.ekoFetched=true; Promise.all([dbEnsure(SALESHISTORY_KEY,{}),dbFetch(SEASON_COSTS_KEY,{})]).then(()=>{ if(ADM.panel==='ekonomi') admRenderEkonomi(); }).catch(()=>{}); }
+    const hist=loadSalesHistory(), today=todayStr();
+    const open=loadOpeningHours()!=='Stängt';
+    const rows=Object.entries(hist).filter(([d,v])=>v&&!v._deleted&&(Number(v.income||0)>0||admCostOf(d)>0||(d===today&&open))).sort((a,b)=>b[0].localeCompare(a[0]));
+    if(open&&!rows.some(([d])=>d===today)) rows.unshift([today,{}]);
+    const years=[...new Set([today.slice(0,4),...rows.map(([d])=>d.slice(0,4))])].sort().reverse();
+    if(!EKO.year||!years.includes(EKO.year)) EKO.year=years.find(y=>rows.some(([d])=>d.startsWith(y)))||years[0];
+    const y=EKO.year, inYear=rows.filter(([d])=>d.startsWith(y));
+    const sh=admSeasonShare(y), items=admSeasonItems(y);
+    // Resultat för kvällarna i listan: intäkt − kvällens utgifter − andelen av säsongskostnaderna
+    const sum=(list,share)=>{ const i=list.reduce((s,[,v])=>s+Number(v.income||0),0), c=list.reduce((s,[d])=>s+admCostOf(d),0), a=share*list.filter(([,v])=>Number(v.income||0)>0).length; return {i,c,a,r:i-c-a}; };
+    const a=sum(inYear,sh.share);
+    // Samma tid året före: hela året om det valda året är slut, annars fram till samma datum
+    const py=String(+y-1), cut=y===today.slice(0,4)?py+today.slice(4):py+'-12-31';
+    const prevRows=Object.entries(hist).filter(([d,v])=>d.startsWith(py)&&d<=cut&&v&&!v._deleted);
+    const b=prevRows.length?sum(prevRows,admSeasonShare(py).share):null;
+    const cmp=(x,o)=>{ if(!b||!o) return ''; const p=Math.round((x-o)/Math.abs(o)*100); return `<span class="sx-cmp ${p>=0?'is-up':'is-down'}">${p>0?'▲ +':p<0?'▼ −':'± '}${Math.abs(p)} %</span>`; };
+    const tile=(l,v,c,o,cls='',note='')=>`<div class="sx-tile"><span>${l}</span><strong class="${cls}">${admKr(v)}</strong>${c}${note?`<small>${note}</small>`:b&&o!=null?`<small>i fjol ${admKr(o)}</small>`:''}</div>`;
+    const missing=inYear.filter(([d,v])=>d<today&&Number(v.income||0)>0&&!admCostOf(d)).length;
+    const withShare=sh.share>0;
+    const body=inYear.slice(0,EKO.shown).map(([d,v])=>{ const i=Number(v.income||0), c=admCostOf(d), sa=withShare&&i>0?sh.share:0, r=i-c-sa;
+      return `<tr><th scope="row">${d===today?'Idag':admDayShort(d)}${v.hours&&v.hours!=='Stängt'?`<small>${admEsc(v.hours)}</small>`:''}</th><td>${admKr(i)}</td><td><button type="button" class="sx-link eko-cost" data-cost="${d}" aria-label="Utgifter ${d===today?'idag':admDayLong(d)}">${c?admKr(c):'Skriv in'}</button></td>${withShare?`<td class="eko-share">${sa?admKr(Math.round(sa)):'–'}</td>`:''}<td class="${c||sa?(r>=0?'is-up':'is-down'):''}">${c||sa?admKr(Math.round(r)):'–'}</td></tr>`; }).join('');
+    const more=inYear.length>EKO.shown?`<button type="button" class="btn sx-more" data-eko-more>Visa fler (${inYear.length-EKO.shown} till)</button>`:'';
+    const itemRows=items.map(x=>`<li><span>${admEsc(x.name)}</span><strong>${admKr(x.amount)}</strong><button type="button" class="eko-ibtn" data-sc-edit="${x.id}" aria-label="Ändra ${admEsc(x.name)}">✎</button><button type="button" class="eko-ibtn" data-sc-del="${x.id}" aria-label="Ta bort ${admEsc(x.name)}">×</button></li>`).join('');
+    const split=sh.total?(sh.days
+      ?`<p class="eko-split"><strong>${admKr(sh.total)}</strong> fördelat på <strong>${sh.days}</strong> öppetdagar (${sh.been} har varit, ${sh.planned} ${sh.planned===1?'är planerad':'är planerade'}) = <strong>${admKr(Math.round(sh.share))} per kväll</strong></p><p class="sx-note">Lägger ni till fler öppetdagar i Kalendern blir andelen per kväll mindre. Lönerna räknas utan andelen.</p>`
+      :'<p class="sx-note">Det finns inga öppetdagar att fördela kostnaderna på. Lägg in öppetdagar i Kalendern.</p>')
+      :'<p class="sx-note">Kostnader som gäller hela säsongen, till exempel hyra, material och reklam. De fördelas lika på årets öppetdagar.</p>';
+    el.innerHTML=`<p class="adm-intro">Intäkt, utgifter och resultat per kväll. Tryck på utgiften för att skriva in eller ändra den. Lönesidan räknar kvällens överskott från kvällens utgifter.</p>
+      ${years.length>1?`<div class="sx-years" role="group" aria-label="Välj år">${years.map(x=>`<button type="button" class="sx-year" data-eko-year="${x}" aria-pressed="${x===y}">${x}</button>`).join('')}</div>`:''}
+      <p class="rx-card-kicker">Säsongen ${y}${b?` <small class="eko-sub">jämfört med samma tid ${py}</small>`:''}</p>
+      <div class="sx-tiles eko-tiles${withShare?' is-4':''}">${tile('Intäkt',a.i,cmp(a.i,b&&b.i),b&&b.i)}${tile('Kvällarnas utgifter',a.c,'',b&&b.c)}${withShare?tile('Andel säsongskostnader',Math.round(a.a),'',null,'',`för ${inYear.filter(([,v])=>Number(v.income||0)>0).length} kvällar hittills`):''}${tile(withShare?'Resultat efter allt':'Resultat',Math.round(a.r),cmp(a.r,b&&b.r),b&&Math.round(b.r),a.r>=0?'is-up':'is-down')}</div>
+      ${missing?`<p class="sx-note">${missing} ${missing===1?'kväll':'kvällar'} har ingen utgift inskriven, så resultatet kan vara för högt.</p>`:''}
+      <section class="eko-season"><p class="rx-card-kicker eko-gap">Säsongskostnader ${y}</p>
+        ${items.length?`<ul class="eko-items">${itemRows}<li class="eko-items-sum"><span>Totalt</span><strong>${admKr(sh.total)}</strong></li></ul>`:''}
+        ${split}
+        <div class="sx-tools"><button type="button" class="btn" data-sc-add>Lägg till kostnad</button></div></section>
+      <p class="rx-card-kicker eko-gap">Kväll för kväll</p>
+      <table class="sx-nights eko-table"><thead><tr><th scope="col">Kväll</th><th scope="col">Intäkt</th><th scope="col">Utgifter</th>${withShare?'<th scope="col">Andel</th>':''}<th scope="col">Resultat</th></tr></thead><tbody>${body||`<tr><td colspan="${withShare?5:4}" class="eko-none">Inga kvällar ${y} än.</td></tr>`}</tbody></table>${more}`;
+    el.onclick=async e=>{
+      const yb=e.target.closest('[data-eko-year]'); if(yb){ EKO.year=yb.dataset.ekoYear; EKO.shown=20; admRenderEkonomi(); return; }
+      if(e.target.closest('[data-eko-more]')){ EKO.shown+=30; admRenderEkonomi(); return; }
+      if(e.target.closest('[data-sc-add]')){ admSeasonCostDialog(y); return; }
+      const ed=e.target.closest('[data-sc-edit]'); if(ed){ admSeasonCostDialog(y,admSeasonItems(y).find(x=>x.id===ed.dataset.scEdit)); return; }
+      const dl=e.target.closest('[data-sc-del]'); if(dl){ admSeasonCostDelete(y,dl.dataset.scDel); return; }
+      const cb=e.target.closest('[data-cost]'); if(cb) admEditCost(cb.dataset.cost);
+    };
+  }
+  // Rutan kan inte stoppa sin egen stängning, så vid fel öppnas den igen med det man skrev och ett felmeddelande
+  async function admSeasonCostDialog(y,item,prev){
+    const v=prev||{name:item?item.name:'',amount:item?String(item.amount):'',err:''};
+    const body=document.createElement('div'); body.className='adm-add-form';
+    body.innerHTML=`${v.err?`<p class="adm-add-err" role="alert">${admEsc(v.err)}</p>`:''}
+      <label class="ui-dialog-field"><span class="ui-dialog-label">Vad</span><input class="ui-dialog-input" id="scName" value="${admEsc(v.name)}" placeholder="Till exempel hyra för ladan" autocomplete="off"></label>
+      <label class="ui-dialog-field"><span class="ui-dialog-label">Belopp (kr)</span><input class="ui-dialog-input" id="scAmount" value="${admEsc(v.amount)}" inputmode="numeric" autocomplete="off"></label>`;
+    const res=await openDialog({title:item?'Ändra kostnad':`Ny kostnad för ${y}`,body,dismissValue:null,
+      onOpen:box=>{ box.querySelector(v.name?'#scAmount':'#scName')?.focus(); box.querySelector('#scAmount').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); box.querySelector('.ui-dialog-btn.is-primary')?.click(); } }); },
+      actions:[{label:'Avbryt',value:null},{label:item?'Spara':'Lägg till',primary:true,value:box=>({name:box.querySelector('#scName').value.trim(),amount:box.querySelector('#scAmount').value.trim()})}]});
+    if(!res) return;
+    const n=Number(String(res.amount).replace(/\s/g,'').replace(',','.'));
+    if(!res.name) return admSeasonCostDialog(y,item,{...res,err:'Skriv vad kostnaden gäller.'});
+    if(!Number.isFinite(n)||n<=0) return admSeasonCostDialog(y,item,{...res,err:'Skriv beloppet i kronor, till exempel 12000.'});
+    const rec={id:item?item.id:'sc'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:res.name,amount:Math.round(n)};
+    await admMutate(SEASON_COSTS_KEY,{},o=>{ const list=Array.isArray(o[y])?o[y]:(o[y]=[]); const i=list.findIndex(x=>x&&x.id===rec.id); if(i>=0) list[i]=rec; else list.push(rec); });
+    notify(item?'Kostnaden är ändrad.':'Kostnaden är tillagd.','ok'); admRenderEkonomi();
+  }
+  async function admSeasonCostDelete(y,id){
+    const x=admSeasonItems(y).find(i=>i.id===id); if(!x) return;
+    if(!(await uiConfirm(`Ta bort ${x.name} (${admKr(x.amount)}) ur säsongskostnaderna?`,{okLabel:'Ta bort'}))) return;
+    await admMutate(SEASON_COSTS_KEY,{},o=>{ if(Array.isArray(o[y])) o[y]=o[y].filter(i=>i&&i.id!==id); });
+    notify('Kostnaden är borttagen.','ok'); admRenderEkonomi();
+  }
+  async function admEditCost(date){
+    const today=todayStr(), cur=admCostOf(date);
+    const raw=await uiPrompt(`Utgifter ${date===today?'idag':admDayLong(date)} (kr)`,cur?String(cur):'',{inputMode:'numeric',title:'Utgifter'});
+    if(raw===null) return;
+    const t=String(raw).replace(/\s/g,'').replace(',','.'); const n=t===''?0:Number(t);
+    if(!Number.isFinite(n)||n<0){ notify('Skriv en giltig siffra.','error'); return; }
+    const v=Math.round(n);
+    if(date===today) saveDailyCosts(v);
+    else await mutateSalesHistory(h=>{ if(!h[date]||h[date]._deleted) return; h[date].costs=v; h[date]._clientTs=Date.now(); });
+    _statsDirty=true; notify(`Utgifterna är sparade: ${admKr(v)}.`,'ok'); admRenderEkonomi();
+  }
+
+  /* ============================== WEBBESÖK ============================== */
+  // Besöksräknaren på servern (countVisit_ i Kod.gs) sparar gäster och personal per dag i sju dagar bakåt.
+  function admRenderWebb(force){
+    const el=admById('admWebb'); if(!el) return;
+    const draw=v=>{
+      const days=[]; for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }
+      const g=d=>Number(v?.[d]?.guest||0), p=d=>Number(v?.[d]?.personal||0), today=todayStr();
+      const week=days.reduce((s,d)=>s+g(d),0);
+      el.innerHTML=`<p class="rx-card-kicker">Webbesök</p><p class="rx-sub">Hur många som har öppnat hemsidan. Personalens besök räknas för sig. Servern sparar en vecka bakåt.</p>
+        <div class="sx-tiles eko-tiles"><div class="sx-tile"><span>Gäster idag</span><strong>${g(today).toLocaleString('sv-SE')}</strong></div><div class="sx-tile"><span>Gäster, sju dagar</span><strong>${week.toLocaleString('sv-SE')}</strong><small>snitt ${Math.round(week/7)} per dag</small></div><div class="sx-tile"><span>Personal idag</span><strong>${p(today).toLocaleString('sv-SE')}</strong></div></div>
+        <p class="rx-card-kicker eko-gap">De senaste sju dagarna</p>
+        ${sxHbars(days.slice().reverse().map(d=>({l:d===today?'Idag':admDayShort(d),v:g(d),t:`${g(d)}<small>${p(d)} personal</small>`,hot:d===today})))}
+        <div class="sx-tools"><button type="button" class="btn" data-webb-refresh>Uppdatera</button></div>`;
+    };
+    if(ADM.webb&&!force) draw(ADM.webb); else el.innerHTML='<p class="rx-empty">Hämtar besöken…</p>';
+    apiGet(WEB_VISITS_KEY).then(raw=>{ let v={}; try{ v=JSON.parse(raw||'{}')||{}; }catch(_e){} ADM.webb=v; if(ADM.panel==='skarmar'&&el.isConnected) draw(v); }).catch(()=>{ if(!ADM.webb) el.innerHTML='<p class="rx-empty">Kunde inte hämta besöken. Försök igen om en stund.</p>'; });
+    el.onclick=e=>{ if(e.target.closest('[data-webb-refresh]')) admRenderWebb(true); };
   }
 
   /* ============================== MIN SIDA: KAN DU JOBBA? ============================== */
