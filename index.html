@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Spökhotellet Korpen – skräckattraktion i en ladugård</title>
-  <meta name="description" content="Spökhotellet Korpen är en skräckattraktion byggd i en ladugård. Vågar du checka in på ett hotell som inte borde finnas?">
+  <meta name="description" content="Spökhotellet Korpen är en skräckattraktion byggd i en ladugård. Vågar ni checka in på ett hotell som inte borde finnas?">
   <meta property="og:title" content="Spökhotellet Korpen – skräckattraktion">
-  <meta property="og:description" content="En skräckattraktion byggd i en ladugård. Vågar du checka in?">
+  <meta property="og:description" content="En skräckattraktion byggd i en ladugård. Vågar ni checka in?">
   <meta property="og:image" content="https://spokhotellet.github.io/bilder/hotellarkiv-1936.jpg">
   <meta property="og:url" content="https://spokhotellet.github.io/">
   <meta property="og:type" content="website">
@@ -20,7 +20,7 @@
   <link rel="preload" as="image" href="bilder/hotellarkiv-1936.jpg" media="(min-width: 801px) and (orientation: landscape)">
   <link rel="preload" as="image" href="bilder/hotellarkiv-1936-mobil.jpg" media="(max-width: 800px) and (orientation: landscape)">
   <link rel="preload" as="image" href="bilder/hotellarkiv-1936-staende.jpg" media="(orientation: portrait)">
-  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700&family=Cutive+Mono&family=Gloock&family=Caveat:wght@500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders:opsz,wght@10..72,500..700&family=Big+Shoulders+Display:wght@500;600;700&family=Cutive+Mono&family=Gloock&family=Caveat:wght@500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <meta name="theme-color" content="#182024">
@@ -155,7 +155,7 @@
         </nav>
         <div class="gh-actions">
           <a class="gh-status" id="ghStatus" href="#besok" aria-live="polite">
-            <span class="gh-status-label">Receptionen idag</span>
+            <span class="gh-status-label" id="ghStatusLabel">Receptionen idag</span>
             <span class="gh-status-value"><span class="status-dot dead" id="ghStatusDot"></span><span id="ghStatusText">–</span></span>
           </a>
           <button type="button" class="gh-burger" id="ghBurger" aria-expanded="false" aria-controls="ghLinks" aria-label="Öppna menyn">
@@ -196,7 +196,6 @@
             <span class="welcome-status-value" id="ghPriceFrom"></span>
           </div>
         </div>
-        <p class="gh-hero-social">Öppettiderna finns även på <a class="js-social-ig" target="_blank" rel="noopener">Instagram</a> och <a class="js-social-fb" target="_blank" rel="noopener">Facebook</a>.</p>
 
         <a class="gh-hero-rating" id="ghHeroRating" href="#gastbok" hidden></a>
         <div class="gh-hero-actions">
@@ -440,14 +439,6 @@
     <a href="#top" class="gh-to-top" id="ghToTop" aria-label="Tillbaka till början">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 13V1M1 7l6-6 6 6"/></svg>
     </a>
-
-    <!-- Snabbrad på mobilen -->
-    <nav class="gh-dock" id="ghDock" aria-label="Snabbval">
-      <a href="#besok" class="gh-dock-status"><span class="status-dot dead" id="ghDockDot"></span><span id="ghDockText">–</span></a>
-      <a href="#besok">Priser</a>
-      <a href="#ghQuiz">Hur läskigt?</a>
-      <a href="?boka" class="js-book-link" hidden>Boka</a>
-    </nav>
   </div>
 
   <!-- ===== KÖTID ===== -->
@@ -659,14 +650,16 @@
       <h3 id="payTitle">Välj betalningsmetod</h3>
       <div id="paySum" class="tiny u-mb-8"></div>
       <p id="payTicketReminder" class="pay-ticket-reminder" style="display:none;">Efter betalningen: glöm inte att lämna ut biljetterna till gästen.</p>
+      <!-- Inget betalsätt är förvalt: Bekräfta går att trycka på först när personalen valt hur gästen betalar -->
+      <p id="payPickHint" class="pay-pick-hint">Välj hur gästen betalar.</p>
       <div class="row u-gap-12 u-mb-8">
-        <label class="pill"><input type="radio" name="payModal" value="Swish" checked> Swish</label>
+        <label class="pill"><input type="radio" name="payModal" value="Swish"> Swish</label>
         <label class="pill"><input type="radio" name="payModal" value="Kort"> Kort</label>
         <label class="pill"><input type="radio" name="payModal" value="Kontant"> Kontant</label>
       </div>
       <div class="actions">
         <button id="payCancel" class="btn" onclick="closePayModal()">Avbryt</button>
-        <button id="payConfirm" class="btn btn-green" onclick="handlePayConfirm()">Bekräfta</button>
+        <button id="payConfirm" class="btn btn-green" onclick="handlePayConfirm()" disabled>Bekräfta</button>
       </div>
     </div>
   </div>

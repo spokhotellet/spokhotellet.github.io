@@ -403,7 +403,7 @@
   let _displayActive=false, _suppressDisplayPush=false;
   let cart={}, cartHistory=[], totalIncome=0, openingHours='Stängt', queueTime='', guestCount=0, guestHidden=false;
   let loggedInKey='', loggedInUser='', isAdmin=false, currentHasAccess=false, currentHasInslepp=false;
-  let discountApplied=false, _lastPayChoice='Swish';
+  let discountApplied=false;
   let _pendingPayChoice = null;
   let _pendingPaySumText = '';
   let _pendingKontantChange = 0;
@@ -631,7 +631,7 @@
     const ctrlsHtml=loggedInUser
       ?`<div class="fv-user-menu"><button class="fv-menu-btn" id="fvMenuBtn"><span class="msg-badge-dot" id="fvMsgBadge" style="display:none;position:absolute;top:5px;right:5px;margin:0;"></span><div class="fv-menu-btn-name">${escapeHtml(loggedInUser)}</div><div class="fv-menu-btn-label">Meny</div></button><div class="fv-menu-dropdown" id="fvMenuDropdown"><a href="#" id="fvNavKassa">Kassa</a><a href="#" id="fvNavProfile" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">Min sida<span class="msg-badge-dot" id="fvNavProfileBadge" style="display:none;position:static;margin:0;"></span></a><a href="#" id="fvNavStats">Statistik</a>${isAdmin?'<a href="#" id="fvNavAdmin">Hantera</a>':''}<a href="#" id="fvNavLogout">Logga ut</a></div></div>`
       :`<button class="btn" id="fvClose">Stäng</button>`;
-    root.innerHTML=`<div class="field-header"><div class="field-title">Insläpp</div><div id="fvClock" class="fv-clock"></div><div class="field-ctrls">${ctrlsHtml}</div></div><div class="field-content"><div class="fv-queue"><div class="fv-queue-info"><div class="fv-queue-label">I kön</div><div class="fv-queue-count"><span id="fvQueueCount">0</span> <span class="fv-queue-unit">personer</span></div><div class="fv-queue-time">Kötid: <span id="fvQueueTime">–</span></div></div><div class="fv-queue-actions"><button class="btn btn-green fv-queue-btn" id="fvQueueBtn" type="button">Släpp in 1</button><button class="btn fv-fled-btn" id="fvFledBtn" type="button">Fegade ur</button></div></div><div class="fv-undo" id="fvUndo" hidden><span id="fvUndoText"></span><button class="btn" id="fvUndoBtn" type="button">Ångra</button></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #333;"><div style="max-width:820px;margin:0 auto;"><div class="field-title" style="font-size:22px;margin:0;color:#ddd;text-shadow:none;">Re-entry-pass</div></div><div id="reList"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #999;"><div class="fv-today"><div><span>Insläppta idag</span><strong id="fieldSummary">0</strong></div><div><span>Fegade ur idag</span><strong id="fieldFled">0</strong></div></div></div>`;
+    root.innerHTML=`<div class="field-header"><div class="field-title">Insläpp</div><div id="fvClock" class="fv-clock"></div><div class="field-ctrls">${ctrlsHtml}</div></div><div class="field-content"><div class="fv-queue"><div class="fv-queue-info"><div class="fv-queue-label">I kön</div><div class="fv-queue-count"><span id="fvQueueCount">0</span> <span class="fv-queue-unit">personer</span></div><div class="fv-queue-time">Kötid: <span id="fvQueueTime">–</span></div></div><div class="fv-queue-actions"><button class="btn btn-green fv-queue-btn" id="fvQueueBtn" type="button" aria-expanded="false" aria-controls="fvPick">Släpp in</button><button class="btn fv-fled-btn" id="fvFledBtn" type="button">Fegade ur</button><div class="fv-pick" id="fvPick" role="group" aria-labelledby="fvPickTitle" hidden><div class="fv-pick-title" id="fvPickTitle">Hur många släpps in?</div><div class="fv-pick-nums">${[1,2,3,4].map(n=>`<button class="btn fv-pick-n" type="button" data-n="${n}">${n}</button>`).join('')}</div><button class="btn fv-pick-cancel" id="fvPickCancel" type="button">Avbryt</button></div></div></div><div class="fv-undo" id="fvUndo" hidden><span id="fvUndoText"></span><button class="btn" id="fvUndoBtn" type="button">Ångra</button></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #333;"><div style="max-width:820px;margin:0 auto;"><div class="field-title" style="font-size:22px;margin:0;color:#ddd;text-shadow:none;">Re-entry-pass</div></div><div id="reList"></div><hr style="max-width:820px;margin:16px auto;border:none;border-top:1px solid #999;"><div class="fv-today"><div><span>Insläppta idag</span><strong id="fieldSummary">0</strong></div><div><span>Fegade ur idag</span><strong id="fieldFled">0</strong></div></div></div>`;
     document.body.appendChild(root);
     const reList=root.querySelector('#reList'); const summaryEl=root.querySelector('#fieldSummary');
     function rePassExpired(p){ const range=getOpenHourRange(); if(!range) return false; const now=new Date(); const nowMins=now.getHours()*60+now.getMinutes(); return nowMins>range.end*60; }
@@ -642,28 +642,39 @@
     // så att biljettlistan, statistiken och den automatiska kötiden hålls i takt med vad som faktiskt händer vid dörren.
     const queueCountEl=root.querySelector('#fvQueueCount'); const queueTimeEl=root.querySelector('#fvQueueTime'); const queueBtn=root.querySelector('#fvQueueBtn');
     function queuedTickets(){ return (loadOpenTickets().items||[]).filter(it=>!it.used&&(Number(it.adult||0)+Number(it.child||0))>0); }
-    function renderQueue(){ const n=queuedTickets().reduce((s,it)=>s+Number(it.adult||0)+Number(it.child||0),0); queueCountEl.textContent=String(n); queueCountEl.nextElementSibling.textContent=n===1?'person':'personer'; queueTimeEl.textContent=queueLabel(getEffectiveQueueTime()); if(!queueBtn.dataset.busy){ queueBtn.disabled=n===0; fledBtn.disabled=n===0; } }
+    function renderQueue(){ const q=queuedTickets(); const n=q.reduce((s,it)=>s+Number(it.adult||0)+Number(it.child||0),0); queueCountEl.textContent=String(n); queueCountEl.nextElementSibling.textContent=n===1?'person':'personer'; queueTimeEl.textContent=queueLabel(getEffectiveQueueTime()); if(!queueBtn.dataset.busy){ queueBtn.disabled=n===0; fledBtn.disabled=n===0; }
+      if(n===0) closePick();
+      // Väljaren: fler än som står i kön går inte att välja, och nästa sällskaps storlek (äldsta biljetten) markeras
+      const oldest=q[q.length-1]; const next=oldest?Number(oldest.adult||0)+Number(oldest.child||0):0;
+      pickEl.querySelectorAll('.fv-pick-n').forEach(b=>{ const k=Number(b.dataset.n); b.disabled=k>n; b.classList.toggle('is-next',k===next); b.title=k===next?'Nästa sällskap':''; }); }
     // Ett tryck = "ta en person ur kön", märkt med ett eget id. Ändringen görs på serverns aktuella lista (äldsta biljetten
     // där), och id:t gör att den aldrig räknas två gånger när den görs om efter en krock med kassan.
     // Samma tryck används för "Fegade ur": personen tas ur kön men räknas inte som insläppt. took[id] minns om det var
     // en vuxen eller ett barn, så att ett ångrat tryck lägger tillbaka rätt person.
     const fledBtn=root.querySelector('#fvFledBtn'); const undoEl=root.querySelector('#fvUndo'); const undoText=root.querySelector('#fvUndoText');
+    // "Släpp in" öppnar en väljare med 1–4 personer, eftersom man oftast släpper in ett helt sällskap på en gång
+    const pickEl=root.querySelector('#fvPick');
+    function openPick(){ if(queueBtn.disabled) return; renderQueue(); pickEl.hidden=false; queueBtn.hidden=true; fledBtn.hidden=true; queueBtn.setAttribute('aria-expanded','true'); (pickEl.querySelector('.fv-pick-n.is-next:not(:disabled)')||pickEl.querySelector('.fv-pick-n:not(:disabled)'))?.focus({preventScroll:true}); }
+    function closePick(){ if(pickEl.hidden) return; pickEl.hidden=true; queueBtn.hidden=false; fledBtn.hidden=false; queueBtn.setAttribute('aria-expanded','false'); }
     let lastAct=null, undoTimer=null;
-    function takeOneFromQueue(kind){ if(!queuedTickets().length) return; [queueBtn,fledBtn].forEach(b=>{ b.dataset.busy='1'; b.disabled=true; }); setTimeout(()=>{ [queueBtn,fledBtn].forEach(b=>delete b.dataset.busy); renderQueue(); },600);
-      const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6); const ts=new Date().toISOString(); let emptied=null;
-      mutateOpenTickets(o=>{ if(o.items.some(x=>(Array.isArray(x.admitIds)&&x.admitIds.includes(id))||(Array.isArray(x.fleeIds)&&x.fleeIds.includes(id)))) return; emptied=null; const q=o.items.filter(x=>!x.used&&(Number(x.adult||0)+Number(x.child||0))>0); const x=q[q.length-1]; if(!x) return; const a=Number(x.adult||0),c=Number(x.child||0); let took; if(a>0){ if(!x.originalAdult) x.originalAdult=a; x.adult=a-1; took='adult'; }else{ if(!x.originalChild) x.originalChild=c; x.child=c-1; took='child'; }
+    function takeFromQueue(kind,count){ const inQueue=queuedTickets().reduce((s,it)=>s+Number(it.adult||0)+Number(it.child||0),0); if(!inQueue) return; count=Math.max(1,Math.min(Number(count)||1,inQueue)); [queueBtn,fledBtn].forEach(b=>{ b.dataset.busy='1'; b.disabled=true; }); setTimeout(()=>{ [queueBtn,fledBtn].forEach(b=>delete b.dataset.busy); renderQueue(); },600);
+      // En person per id, som förut; ett insläpp av flera personer är flera id i samma ändring
+      const ids=Array.from({length:count},(_,i)=>Date.now().toString(36)+i+Math.random().toString(36).slice(2,6)); const ts=new Date().toISOString(); let emptied=[];
+      mutateOpenTickets(o=>{ emptied=[]; ids.forEach(id=>{ if(o.items.some(x=>(Array.isArray(x.admitIds)&&x.admitIds.includes(id))||(Array.isArray(x.fleeIds)&&x.fleeIds.includes(id)))) return; const q=o.items.filter(x=>!x.used&&(Number(x.adult||0)+Number(x.child||0))>0); const x=q[q.length-1]; if(!x) return; const a=Number(x.adult||0),c=Number(x.child||0); let took; if(a>0){ if(!x.originalAdult) x.originalAdult=a; x.adult=a-1; took='adult'; }else{ if(!x.originalChild) x.originalChild=c; x.child=c-1; took='child'; }
         const listKey=kind==='fled'?'fleeIds':'admitIds'; if(!Array.isArray(x[listKey])) x[listKey]=[]; x[listKey].push(id); if(!x.took||typeof x.took!=='object') x.took={}; x.took[id]=took; if(kind==='fled') x.fled=Number(x.fled||0)+1;
-        if(Number(x.adult)+Number(x.child)<=0){ x.used=true; x.usedAt=Date.now(); emptied=x.createdAt; } })
-      .then(()=>{ if(emptied){ const uid=emptied; setTimeout(()=>{ const t=loadOpenTickets().items.find(y=>y.createdAt===uid); if(t&&t.used){ try{markSaleTicketUsed(uid,Number(t.fled||0));}catch(_e){} } },11000); } renderQueue(); });
-      if(kind==='fled') registerFled(id,ts); else bumpAdmissions(1,ts);
-      lastAct={kind,id,ts}; showUndo(kind==='fled'?'1 fegade ur':'1 insläppt'); renderSummary(); }
+        if(Number(x.adult)+Number(x.child)<=0){ x.used=true; x.usedAt=Date.now(); emptied.push(x.createdAt); } }); })
+      .then(()=>{ emptied.forEach(uid=>{ setTimeout(()=>{ const t=loadOpenTickets().items.find(y=>y.createdAt===uid); if(t&&t.used){ try{markSaleTicketUsed(uid,Number(t.fled||0));}catch(_e){} } },11000); }); renderQueue(); });
+      if(kind==='fled') registerFled(ids[0],ts); else bumpAdmissions(count,ts);
+      lastAct={kind,ids,ts}; showUndo(kind==='fled'?'1 fegade ur':`${count} insläppt${count===1?'':'a'}`); renderSummary(); }
     function showUndo(text){ clearTimeout(undoTimer); undoText.textContent=text; undoEl.hidden=false; undoTimer=setTimeout(()=>{ undoEl.hidden=true; lastAct=null; },10000); }
     function undoLast(){ const a=lastAct; if(!a) return; lastAct=null; clearTimeout(undoTimer); undoEl.hidden=true;
-      mutateOpenTickets(o=>{ const x=o.items.find(y=>(Array.isArray(y.admitIds)&&y.admitIds.includes(a.id))||(Array.isArray(y.fleeIds)&&y.fleeIds.includes(a.id))); if(!x) return; if(!Array.isArray(x.undoneIds)) x.undoneIds=[]; if(x.undoneIds.includes(a.id)) return; x.undoneIds.push(a.id); const k=(x.took&&x.took[a.id])||'adult'; x[k]=Number(x[k]||0)+1; if(a.kind==='fled') x.fled=Math.max(0,Number(x.fled||0)-1); x.used=false; delete x.usedAt; }).then(renderQueue);
-      if(a.kind==='fled') unregisterFled(a.id); else unbumpAdmission(a.ts);
-      renderSummary(); notify(a.kind==='fled'?'Ångrat: personen står i kön igen.':'Ångrat: personen står i kön igen.','ok'); }
-    queueBtn.addEventListener('click',()=>takeOneFromQueue('in'));
-    fledBtn.addEventListener('click',()=>takeOneFromQueue('fled'));
+      mutateOpenTickets(o=>{ a.ids.forEach(id=>{ const x=o.items.find(y=>(Array.isArray(y.admitIds)&&y.admitIds.includes(id))||(Array.isArray(y.fleeIds)&&y.fleeIds.includes(id))); if(!x) return; if(!Array.isArray(x.undoneIds)) x.undoneIds=[]; if(x.undoneIds.includes(id)) return; x.undoneIds.push(id); const k=(x.took&&x.took[id])||'adult'; x[k]=Number(x[k]||0)+1; if(a.kind==='fled') x.fled=Math.max(0,Number(x.fled||0)-1); x.used=false; delete x.usedAt; }); }).then(renderQueue);
+      if(a.kind==='fled') unregisterFled(a.ids[0]); else unbumpAdmission(a.ts);
+      renderSummary(); notify(a.ids.length>1?`Ångrat: de ${a.ids.length} står i kön igen.`:'Ångrat: personen står i kön igen.','ok'); }
+    queueBtn.addEventListener('click',openPick);
+    pickEl.querySelectorAll('.fv-pick-n').forEach(b=>b.addEventListener('click',()=>{ if(b.disabled) return; closePick(); takeFromQueue('in',Number(b.dataset.n)); queueBtn.focus({preventScroll:true}); }));
+    root.querySelector('#fvPickCancel').addEventListener('click',()=>{ closePick(); queueBtn.focus({preventScroll:true}); });
+    fledBtn.addEventListener('click',()=>takeFromQueue('fled',1));
     root.querySelector('#fvUndoBtn').addEventListener('click',undoLast);
     renderReEntry(); renderSummary(); _liveSync(true).then(()=>{ renderReEntry(); renderSummary(); });
     const tick=setInterval(()=>{renderReEntry();renderSummary();syncUsedTicketsToHistory();},4000);
@@ -686,7 +697,7 @@
     document.addEventListener('click',fvClickAway);
     // Synka notisbadge
     updateMsgBadge();
-    const onKey=(e)=>{ if(e.key==='Escape'){close();} };
+    const onKey=(e)=>{ if(e.key==='Escape'){ if(!pickEl.hidden){ closePick(); queueBtn.focus({preventScroll:true}); return; } close(); } };
     window.addEventListener('keydown',onKey);
   }
 
@@ -839,16 +850,26 @@
     document.getElementById('paySum').textContent=`Summa: ${cartFinalSum()} kr${discountApplied?' (50% rabatt)':''}`;
     const needsLabel=Object.keys(cart).some(n=>{ const l=n.toLowerCase(); return /biljett|entr/.test(l)||l.includes('vuxen')||l.includes('barn')||/(re[-\s]?entry|återinträde|rep\b)/i.test(n); });
     const rem=document.getElementById('payTicketReminder'); if(rem) rem.style.display=needsLabel?'':'none';
+    // Inget betalsätt förvalt (förut Swish, sedan det senast valda), så att ett kortköp inte kan bli Swish av farten
+    document.querySelectorAll('input[name="payModal"]').forEach(r=>{ r.checked=false; });
+    _syncPayConfirm();
     document.getElementById('payModal').style.display='flex';
   }
+  function _syncPayConfirm(){
+    const chosen=!!document.querySelector('input[name="payModal"]:checked');
+    const btn=document.getElementById('payConfirm'); if(btn) btn.disabled=!chosen;
+    const hint=document.getElementById('payPickHint'); if(hint) hint.hidden=chosen;
+  }
+  document.querySelectorAll('input[name="payModal"]').forEach(r=>r.addEventListener('change',_syncPayConfirm));
   function closePayModal(){
     document.getElementById('payModal').style.display='none';
   }
-  function getModalPayChoice(){ const el=document.querySelector('input[name="payModal"]:checked'); return el?el.value:'Swish'; }
+  function getModalPayChoice(){ const el=document.querySelector('input[name="payModal"]:checked'); return el?el.value:null; }
 
   function handlePayConfirm(){
     const choice=getModalPayChoice();
-    _lastPayChoice=choice; _pendingPayChoice=choice;
+    if(!choice){ _syncPayConfirm(); return; }
+    _pendingPayChoice=choice;
     const sum=cartFinalSum();
     _pendingPaySumText=`Summa: ${sum} kr \u2022 Betalning: ${choice}`;
     closePayModal();
@@ -1297,12 +1318,14 @@
       const ghOpen=!guestIsClosed&&!isKvällen;
       const qClosed=['Stängt','Tillfälligt Stängt','Stängt för kvällen'].includes(shownQueue);
       const hasQueue=ghOpen&&!qClosed&&shownQueue!=='Ingen info';
-      const ghText=!ghOpen?(ghNextLabel?'Öppnar '+ghNextLabel:(isKvällen?'Stängt för idag':'Stängt')):qClosed?queueLabel(shownQueue):(hasQueue?'Öppet · kö '+shownQueue:'Öppet '+(openingHours||''));
+      // Övre raden visar dagens öppettid när det är öppet, den nedre kötiden; stängt: "Receptionen idag" och när det öppnar
+      const hrs=(openingHours||'').trim();
+      const ghLabel=ghOpen&&hrs&&(hasQueue||qClosed)?'Idag '+hrs:'Receptionen idag';
+      const ghText=!ghOpen?(ghNextLabel?'Öppnar '+ghNextLabel:(isKvällen?'Stängt för idag':'Stängt')):qClosed?queueLabel(shownQueue):(hasQueue?'Kötid '+shownQueue:('Öppet '+hrs).trim());
       ghStatus.className='gh-status '+(ghOpen&&!qClosed?'is-open':'is-closed');
+      const lbl=document.getElementById('ghStatusLabel'); if(lbl) lbl.textContent=ghLabel;
       const dot=document.getElementById('ghStatusDot'); if(dot) dot.className='status-dot '+(ghOpen&&!qClosed?'live':'dead');
       const txt=document.getElementById('ghStatusText'); if(txt) txt.textContent=ghText;
-      const dockDot=document.getElementById('ghDockDot'); if(dockDot) dockDot.className='status-dot '+(ghOpen&&!qClosed?'live':'dead');
-      const dockTxt=document.getElementById('ghDockText'); if(dockTxt) dockTxt.textContent=ghText;
       const letter=document.getElementById('ghLetterToday');
       if(letter){
         if(ghOpen) letter.innerHTML=`<span class="is-open">I dag hålla vi öppet ${escapeHtml(openingHours||'')}.</span>${hasQueue?' Aktuell kötid: '+escapeHtml(shownQueue)+'.':''}`;
@@ -1418,6 +1441,7 @@
       <div class="review-rating-label" id="reviewRatingLabel"> </div>
       <textarea id="reviewComment" class="review-textarea" placeholder="Berätta mer om din upplevelse… (valfritt)" rows="3"></textarea>
       <button class="btn btn-green review-submit" id="reviewSubmitBtn" onclick="submitReview()" disabled>Skicka betyg</button>
+      <a class="review-back" href="index.html">← Till gästsidan</a>
     </div>`;
     document.body.appendChild(root);
     // Stjärn-hover på desktop
@@ -1859,10 +1883,12 @@
     el.style.opacity='0';
     setTimeout(()=>{ el.textContent=text; el.style.opacity=''; },380);
   }
+  // Två punkter i rad är nästan alltid en felskriven tre-punktsellips; visa den som …
+  const _heroDots=s=>String(s||'').trim().replace(/(^|[^.])\.\.(?!\.)/g,'$1…');
   function setWelcomeHeroTexts(name, headline, tagline){
-    _heroFadeSet(document.getElementById('welcomeHotelName'), (name||'').trim()||'Välkommen');
-    _heroFadeSet(document.getElementById('welcomeHeadline'), (headline||'').trim());
-    _heroFadeSet(document.getElementById('welcomeTagline'),  (tagline||'').trim());
+    _heroFadeSet(document.getElementById('welcomeHotelName'), _heroDots(name)||'Välkommen');
+    _heroFadeSet(document.getElementById('welcomeHeadline'), _heroDots(headline));
+    _heroFadeSet(document.getElementById('welcomeTagline'),  _heroDots(tagline));
   }
   function loadWelcomeHeroTexts(){ setWelcomeHeroTexts(dbGet(WELCOME_HOTEL_NAME_KEY,''),dbGet(WELCOME_HEADLINE_KEY,''),dbGet(WELCOME_TAGLINE_KEY,'')); }
 
@@ -1968,7 +1994,7 @@
 
   function isPayModalOpen(){ const el=document.getElementById('payModal');return el&&el.style.display==='flex'; }
   function isApproveModalOpen(){ const el=document.getElementById('approveModal');return el&&el.style.display==='flex'; }
-  function setPayChoice(choice){ const input=document.querySelector(`input[name="payModal"][value="${choice}"]`);if(input) input.checked=true; }
+  function setPayChoice(choice){ const input=document.querySelector(`input[name="payModal"][value="${choice}"]`);if(input) input.checked=true; _syncPayConfirm(); }
   document.addEventListener('keydown',(e)=>{
     if(e.repeat) return;
     closeKbHelp();
@@ -2036,6 +2062,9 @@
       ticking=false;
       const y=window.scrollY||0;
       nav.classList.toggle('is-scrolled', y>30);
+      // På mobilen visas receptionens läge i menyraden först när hero (som visar samma sak) är förbi
+      const hero=document.querySelector('.gh-hero');
+      nav.classList.toggle('is-past-hero', !!hero&&hero.getBoundingClientRect().bottom<nav.offsetHeight+8);
       const max=document.documentElement.scrollHeight-window.innerHeight;
       if(progress) progress.style.transform=`scaleX(${max>0?Math.min(1,y/max):0})`;
       if(toTop) toTop.classList.toggle('visible', y>700);

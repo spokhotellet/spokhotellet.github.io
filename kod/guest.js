@@ -110,6 +110,12 @@
     return `<div class="gb-page-inner"><ol class="gb-rows">${pages[i]}</ol><span class="gb-num">— ${i+1} —</span></div>`;
   }
 
+  // Baksidan av ett blad på mobilen: samma sida, spegelvänd och svag, som bläck som lyser igenom papperet
+  function gbBackHtml(pages,i){
+    if(i<0||i>=pages.length) return '<div class="gb-page-inner is-blank"></div>';
+    return `<div class="gb-page-inner gb-showthrough" aria-hidden="true"><ol class="gb-rows">${pages[i]}</ol></div>`;
+  }
+
   function renderGuestbook(reviews){
     GB.reviews=Array.isArray(reviews)?reviews:[];
     if(GB.busy){ GB.pending=true; return; }
@@ -172,19 +178,33 @@
     const right=book.querySelector('.gb-right'), left=book.querySelector('.gb-left');
     if(dbl&&dir>0){ leaf.classList.add('gb-leaf--right'); front=pages&&gbPageHtml(pages,p+1); back=gbPageHtml(pages,p+2); right.innerHTML=gbPageHtml(pages,p+3); from=0; to=-180; }
     else if(dbl&&dir<0){ leaf.classList.add('gb-leaf--left'); front=gbPageHtml(pages,p); back=gbPageHtml(pages,p-1); left.innerHTML=gbPageHtml(pages,p-2); from=0; to=180; }
-    else if(dir>0){ leaf.classList.add('gb-leaf--full'); front=gbPageHtml(pages,p); back='<div class="gb-page-inner is-blank"></div>'; right.innerHTML=gbPageHtml(pages,p+1); from=0; to=-180; }
-    else { leaf.classList.add('gb-leaf--full'); front=gbPageHtml(pages,p-1); back='<div class="gb-page-inner is-blank"></div>'; from=-180; to=0; }
+    // En sida i taget (mobilen): bladet vänds ett halvt varv runt vänsterkanten. Baksidan (med texten svagt
+    // genomlyst, spegelvänd) blir synlig, och bladet glider samtidigt ut åt vänster, så att det ligger uppvänt
+    // utanför bild när det är klart – det försvinner aldrig framför ögonen. Bakåt kommer bladet tillbaka samma väg.
+    else if(dir>0){ leaf.classList.add('gb-leaf--full'); front=gbPageHtml(pages,p); back=gbBackHtml(pages,p); right.innerHTML=gbPageHtml(pages,p+1); from=0; to=-180; }
+    else { leaf.classList.add('gb-leaf--full'); front=gbPageHtml(pages,p-1); back=gbBackHtml(pages,p-1); from=-180; to=0; }
+    const single=!dbl;
     leaf.innerHTML=`<div class="gb-face gb-front">${front}</div><div class="gb-face gb-back">${back}</div>`;
     book.appendChild(leaf); book.classList.add('is-turning');
+    // Så långt åt vänster bladet måste glida för att hela baksidan ska hamna utanför skärmen
+    const away=single?leaf.getBoundingClientRect().left+24:0;
     const turn={dir,leaf,book,from,to,t:0,
-      apply(t){ this.t=t; const a=from+(to-from)*t; const lift=Math.sin(Math.PI*t);
+      apply(t){ this.t=t; const a=from+(to-from)*t;
+        if(single){
+          const k=Math.abs(a)/180, lift=Math.sin(Math.PI*k);
+          const slide=k>0.25?Math.pow((k-0.25)/0.75,2):0; // börjar glida när bladet lyfts och är ute när det vänts
+          leaf.style.transform=`translateX(${(-away*slide).toFixed(1)}px) rotateY(${a}deg)`;
+          leaf.style.setProperty('--shade',(lift*0.5).toFixed(3)); leaf.style.setProperty('--lift',lift.toFixed(3));
+          book.style.setProperty('--under',Math.max(0,1-2*k).toFixed(3)); // sidan under ligger i bladets skugga tills bladet står på kant
+          return; }
+        const lift=Math.sin(Math.PI*t);
         leaf.style.transform=`rotateY(${a}deg) rotateZ(${(dir>0?-1:1)*lift*2.5}deg)`;
         leaf.style.setProperty('--shade',(lift*0.5).toFixed(3)); leaf.style.setProperty('--lift',lift.toFixed(3)); },
       animate(target,ms,done){ const t0=this.t, s=performance.now(); const ease=x=>x<0.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
         if(ghReduceMotion()) ms=1;
         const tick=now=>{ const k=Math.min(1,(now-s)/ms); this.apply(t0+(target-t0)*ease(k)); if(k<1) requestAnimationFrame(tick); else done(); };
         requestAnimationFrame(tick); },
-      finish(committed){ if(committed) GB.page+=dir*step; leaf.remove(); book.classList.remove('is-turning'); GB.busy=false; renderGuestbook(GB.reviews); GB.pending=false; }
+      finish(committed){ if(committed) GB.page+=dir*step; leaf.remove(); book.classList.remove('is-turning'); book.style.removeProperty('--under'); GB.busy=false; renderGuestbook(GB.reviews); GB.pending=false; }
     };
     turn.apply(0);
     return turn;
@@ -192,7 +212,7 @@
   function gbTurn(dir){
     const turn=gbStartTurn(dir); if(!turn) return;
     ghSound('pageTurn',0.75);
-    turn.animate(1,900,()=>turn.finish(true));
+    turn.animate(1,gbDouble()?900:850,()=>turn.finish(true));
   }
   function gbBind(el){
     el.addEventListener('click',e=>{ const b=e.target.closest('[data-gb]'); if(b&&!b.disabled) gbTurn(Number(b.dataset.gb)); const t=e.target.closest('.gb-text.is-long'); if(t&&!GB.busy) gbOpenFull(t); });

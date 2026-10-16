@@ -383,6 +383,9 @@
       position: relative;
       font-family: var(--f-body);
       color: var(--cream);
+      overflow-x: clip; /* gästbokens blad glider ut till vänster på mobilen; inget får göra sidan bredare än skärmen */
+      /* Big Shoulders med optisk storlek: i små storlekar får versalerna mer luft, så att prickarna i Ö inte flyter ihop med O */
+      --f-label: 'Big Shoulders', 'Big Shoulders Display', 'Arial Narrow', 'Helvetica Neue', sans-serif;
     }
     /* Ingen transform-animation här – den skulle bryta position:fixed för toppmenyn */
     body #welcomeMessage { animation: ghFade 0.5s ease both; }
@@ -493,7 +496,7 @@
     .gh-hero-frame::after { content: ''; position: absolute; inset: 5px; border: 1px solid var(--line); }
     #welcomeMessage .welcome-hero { position: relative; z-index: 2; width: min(720px, 100%); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0; padding: 0; }
     #welcomeMessage .welcome-hotel-name { font-family: var(--f-type); font-size: clamp(0.85rem, 1.6vw, 0.98rem); line-height: 1.5; color: var(--paper-bg-2); letter-spacing: 0.3px; margin: 0 0 18px; max-width: 36em; text-shadow: 0 1px 8px rgba(0,0,0,0.6); transition: opacity 0.38s ease; }
-    #welcomeMessage #welcomeKorpenLogo { width: min(300px, 70vw); max-width: none; height: auto; display: block; margin: 0 auto 22px; filter: drop-shadow(0 6px 18px rgba(0,0,0,0.6)); animation: none; }
+    #welcomeMessage #welcomeKorpenLogo { width: min(300px, 70vw); max-width: none; height: auto; display: block; margin: 0 auto 22px; filter: drop-shadow(0 0 1px rgba(226,231,225,0.55)) drop-shadow(0 0 16px rgba(226,231,225,0.22)) drop-shadow(0 6px 18px rgba(0,0,0,0.6)); animation: none; } /* svart logga mot mörkt skrivbord: en kant av månljus, som korparna */
     .gh-hero-title { font-family: var(--f-display); font-weight: 500; font-size: clamp(2.1rem, 5.4vw, 3.6rem); line-height: 1.05; letter-spacing: -0.5px; color: var(--cream); margin: 0 0 18px; text-shadow: 0 2px 20px rgba(0,0,0,0.55); }
     #welcomeMessage h1 { font-family: var(--f-body); font-style: italic; font-weight: 500; font-size: clamp(1.05rem, 2.2vw, 1.25rem); line-height: 1.5; color: var(--cream); margin: 0; max-width: 34em; transition: opacity 0.38s ease; }
     #welcomeMessage .welcome-tagline { font-family: var(--f-body); font-style: italic; font-size: 1rem; color: var(--muted); margin: 6px 0 0; transition: opacity 0.38s ease; }
@@ -523,6 +526,8 @@
     .gh-ribbon { position: relative; z-index: 2; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 10px 28px; padding: 16px 20px; background: var(--olive); border-top: 1px solid var(--gas-dim); border-bottom: 1px solid var(--gas-dim); font-family: var(--f-label); font-size: 15px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
     .gh-ribbon i { font-style: normal; color: var(--gas-dim); }
     @media (max-width: 700px) { .gh-ribbon span:nth-of-type(2), .gh-ribbon i:nth-of-type(2) { display: none; } }
+    /* Smal skärm: två rader utan tankstreck, annars blir strecket hängande ensamt i slutet av första raden */
+    @media (max-width: 520px) { .gh-ribbon { flex-direction: column; gap: 4px; } .gh-ribbon i { display: none; } }
 
     /* ---------- Innehåll ---------- */
     .gh-main { position: relative; z-index: 2; width: 100%; max-width: 1140px; margin: 0 auto; padding: 0 clamp(18px, 4vw, 44px); }
@@ -598,7 +603,7 @@
     #wsPrices .ds-price-dots, #wsOpenDates .ds-price-dots { border-bottom: 1px dotted rgba(29,31,28,0.35); }
     #wsPrices .ds-price-val { font-family: var(--f-display); font-weight: 400; font-size: 1.55rem; color: var(--paper-ink); text-shadow: none; white-space: nowrap; }
     #wsOpenDates .ds-price-val { font-family: var(--f-type); font-size: 0.95rem; color: var(--paper-ink); text-shadow: none; white-space: nowrap; }
-    .gh-tariff-note { font-family: var(--f-type); font-size: 12.5px; line-height: 1.6; color: var(--paper-ink-soft); margin: 18px 0 0; padding-top: 14px; border-top: 1px dashed rgba(29,31,28,0.5); }
+    .gh-tariff-note { font-family: var(--f-type); font-size: 12.5px; line-height: 1.6; color: #3d413b; margin: 18px 0 0; padding-top: 14px; border-top: 1px dashed rgba(29,31,28,0.5); }
     .gh-letter-today { font-family: var(--f-body); font-size: 1.08rem; line-height: 1.6; margin: -6px 0 12px; }
     .gh-letter-today .is-open { color: #2f6b48; }
     .ws-dates-month { margin: 10px 0 14px; }
@@ -645,10 +650,8 @@
     .gh-contact { text-align: center; }
     .gh-contact .gh-sub { margin-left: auto; margin-right: auto; }
     .welcome-social { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
-    .social-btn { display: inline-flex; align-items: center; gap: 10px; padding: 13px 26px; border: 1px solid var(--gas-dim); color: var(--cream) !important; font-family: var(--f-label); font-size: 15px; letter-spacing: 2.5px; text-transform: uppercase; text-decoration: none; transition: background 0.2s, border-color 0.2s; }
-    .social-btn:first-child { background: var(--paper-bg-2); border-color: var(--paper-bg-2); color: var(--paper-ink) !important; }
-    .social-btn:hover { border-color: var(--gas-light); }
-    .social-btn:first-child:hover { background: var(--paper-bg); }
+    .social-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 11em; gap: 10px; padding: 13px 26px; border: 1px solid var(--gas-dim); color: var(--cream) !important; font-family: var(--f-label); font-size: 15px; letter-spacing: 2.5px; text-transform: uppercase; text-decoration: none; transition: background 0.2s, border-color 0.2s; }
+    .social-btn:hover { border-color: var(--gas-light); background: rgba(226,231,225,0.06); }
 
     /* ---------- Sidfot ---------- */
     .gh-footer { position: relative; z-index: 2; padding: 34px 20px; border-top: 1px solid var(--gas-dim); background: var(--soot-2); }
@@ -675,7 +678,7 @@
     @media (max-width: 520px) {
       .welcome-status-row { width: 100%; }
       .welcome-status-card { min-width: 0; flex: 1 1 33%; padding: 12px 10px; }
-      .welcome-status-value { font-size: 16px; white-space: normal; text-align: center; }
+      .welcome-status-value { font-size: 16px; white-space: normal; text-align: center; text-wrap: balance; }
       .gh-footer-inner { flex-direction: column; text-align: center; }
     }
 
@@ -1217,6 +1220,12 @@
     .review-title { font-family: var(--f-display); font-size: 30px; }
     .review-subtitle { font-family: var(--f-type); font-style: normal; color: var(--muted); }
     .review-textarea { border-radius: 0; border-color: var(--gas-dim); font-family: var(--f-body); }
+    /* Svart logga och tomma stjärnor syntes knappt mot den mörka bakgrunden: månljuskant och tydlig kontur */
+    .review-logo { filter: drop-shadow(0 0 1px rgba(226,231,225,0.55)) drop-shadow(0 0 14px rgba(226,231,225,0.2)); opacity: 1; }
+    .star-btn { color: transparent; -webkit-text-stroke: 1.4px rgba(226,231,225,0.45); min-width: 48px; min-height: 48px; }
+    .star-btn.active { color: #d6cfbd; -webkit-text-stroke: 0; }
+    @media (max-width: 380px) { .review-stars { gap: 2px; } .star-btn { font-size: 40px; padding: 4px; min-width: 44px; } }
+    .review-back { display: inline-flex; align-items: center; min-height: 44px; margin-top: 14px; font-family: var(--f-type); font-size: 14px; color: var(--muted) !important; text-decoration: underline; text-underline-offset: 3px; }
     .star-btn.active { color: var(--gas-light); }
 
     /* Rullningslist */
@@ -1225,6 +1234,10 @@
     #statsContainer .disclosure { font-family: var(--f-body) !important; text-transform: none; letter-spacing: 0; font-size: 15px !important; }
 
     /* Påminnelse om biljetter (betalningsruta + bekräftelse efter köp) */
+    .pay-pick-hint { margin: 2px 0 10px; font-family: var(--f-type); font-size: 14px; color: var(--muted); }
+    .pay-pick-hint[hidden] { display: none; }
+    #payModal .pill:has(input:checked) { border-color: var(--cream); color: var(--cream); }
+    #payConfirm:disabled { opacity: 0.35; cursor: not-allowed; }
     .pay-ticket-reminder { margin: 4px 0 14px; padding: 10px 12px; background: var(--paper-bg); color: var(--paper-ink); font-family: var(--f-type); font-size: 13px; line-height: 1.5; }
     .checkout-flash { position: fixed; inset: 0; z-index: 99999; pointer-events: none; display: flex; align-items: center; justify-content: center; background: rgba(6,9,10,0.55); }
     .checkout-flash.has-tickets { pointer-events: auto; cursor: pointer; }
@@ -1240,9 +1253,6 @@
     .gh-letter-social { font-family: var(--f-body); font-size: 0.98rem; line-height: 1.6; color: var(--paper-ink-soft); margin: 14px 0 0; }
     .gh-letter-social a[href] { color: var(--paper-ink) !important; text-decoration: none; border-bottom: 1px solid rgba(29,31,28,0.4); }
     .gh-letter-social a[href]:hover { border-bottom-color: var(--paper-ink); }
-    .gh-hero-social { font-family: var(--f-body); font-size: 0.92rem; color: var(--muted); margin: -12px 0 22px; }
-    .gh-hero-social a[href] { color: var(--cream); text-decoration: none; border-bottom: 1px solid var(--gas-dim); }
-    .gh-hero-social a[href]:hover { border-bottom-color: var(--cream); }
 
     /* Fotografi i arkivdelen – dokumentär papperskopia */
     .gh-photo { margin: 38px 0 0; max-width: 470px; padding: 12px 12px 16px; background: #e6e2d6; box-shadow: 0 18px 40px rgba(0,0,0,0.5); transform: rotate(-2deg); }
@@ -1268,7 +1278,7 @@
     @media (max-width: 860px) {
       .gh-intro { grid-template-columns: 1fr; }
       .gh-intro-text { order: -1; }
-      .gh-postcard { max-width: 300px; }
+      .gh-postcard { max-width: 300px; margin-top: 28px; } /* plats för korpen ovanför vykortet */
       .gh-postcard, .gh-postcard.gh-reveal.is-visible { transform: rotate(-1.5deg); }
     }
 
@@ -1313,14 +1323,16 @@
     .gh-regcard-lead { font-family: var(--f-type); font-size: 14px; margin: 0 0 16px; color: var(--paper-ink-soft); }
     .gh-regcard-q { border: none; margin: 0; padding: 12px 0 14px; border-bottom: 1px dotted rgba(29,31,28,0.35); transition: background 0.3s; }
     .gh-regcard-q.is-missing { background: rgba(138,59,54,0.14); }
-    .gh-regcard-q legend { font-family: var(--f-body); font-size: 1.08rem; font-weight: 500; padding: 0; margin-bottom: 8px; }
-    .gh-regcard-q label { display: inline-flex; align-items: center; gap: 8px; margin: 4px 18px 4px 0; font-family: var(--f-type); font-size: 15px; cursor: pointer; }
-    .gh-regcard-q input { appearance: none; -webkit-appearance: none; width: 20px; height: 20px; margin: 0; border: 1.5px solid var(--paper-ink); background: rgba(255,255,255,0.35); cursor: pointer; position: relative; flex-shrink: 0; }
-    .gh-regcard-q input:checked::after { content: '✕'; position: absolute; inset: -6px -3px 0 0; font-family: var(--f-hand); font-size: 22px; line-height: 1; color: #1f3d6b; }
+    .gh-regcard-q legend { font-family: var(--f-body); font-size: 1.08rem; font-weight: 500; padding: 0; margin-bottom: 2px; }
+    /* Ett svar per fråga: runda rutor (inte fyrkantiga, som ser ut som flerval) och etiketter på minst 44 px för fingret */
+    .gh-regcard-q label { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; margin: 0 18px 0 0; padding: 0 4px 0 0; font-family: var(--f-type); font-size: 15px; cursor: pointer; }
+    .gh-regcard-q input { appearance: none; -webkit-appearance: none; width: 22px; height: 22px; margin: 0; border: 1.5px solid var(--paper-ink); border-radius: 50%; background: rgba(255,255,255,0.35); cursor: pointer; position: relative; flex-shrink: 0; }
+    .gh-regcard-q input:checked::after { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: #1f3d6b; }
+    .gh-regcard-q label:has(input:checked) span { color: #1f3d6b; }
     .gh-regcard-q input:focus-visible { outline: 2px solid #1f3d6b; outline-offset: 2px; }
     .gh-regcard-foot { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 20px; }
     .gh-regcard.is-stamped .gh-regcard-foot [type="submit"] { display: none; }
-    .gh-regcard-reset { background: none; border: none; font-family: var(--f-type); font-size: 14px; color: var(--paper-ink-soft); text-decoration: underline; cursor: pointer; }
+    .gh-regcard-reset { min-height: 44px; padding: 0 6px; background: none; border: none; font-family: var(--f-type); font-size: 14px; color: var(--paper-ink-soft); text-decoration: underline; cursor: pointer; }
     .gh-regcard-result { position: relative; margin-top: 20px; padding: 18px 20px 14px; background: rgba(255,255,255,0.4); border: 1px solid rgba(29,31,28,0.25); }
     .gh-regcard-result p { font-family: var(--f-body); font-size: 1.05rem; line-height: 1.6; margin: 10px 0 0; }
     .gh-regcard-result .gh-regcard-rule { font-family: var(--f-type); font-size: 13px; color: var(--paper-ink-soft); }
@@ -1383,6 +1395,9 @@
     .gb-back { transform: rotateY(180deg); }
     .gb-face::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(0,0,0,calc(var(--shade) * 0.9)), rgba(0,0,0,calc(var(--shade) * 0.25)) 45%, rgba(255,255,255,calc(var(--shade) * 0.35)) 85%, rgba(0,0,0,calc(var(--shade) * 0.2))); }
     .gb-leaf--left .gb-face::after, .gb-back::after { transform: scaleX(-1); }
+    /* En sida i taget: sidan under ligger i bladets skugga, som lättar när bladet lyfts bort */
+    .gb-showthrough { transform: scaleX(-1); opacity: 0.14; filter: blur(0.4px); padding-bottom: 26px; }
+    .gb-book.is-single.is-turning .gb-right::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: linear-gradient(90deg, rgba(0,0,0,0.32), rgba(0,0,0,0.08) 55%, transparent); opacity: var(--under, 0); }
 
     /* Nederkanten man tar tag i, med ett hundöra i hörnet */
     .gb-grab { position: absolute; bottom: 12px; z-index: 6; height: 76px; width: calc(50% - 12px); padding: 0; background: none; border: none; cursor: grab; touch-action: none; }
@@ -1429,17 +1444,62 @@
     .gh-postmark b { font-family: var(--f-type); font-weight: 400; font-size: 15px; letter-spacing: 1px; padding: 2px 0; border-top: 1px solid var(--moon-dim); border-bottom: 1px solid var(--moon-dim); margin: 2px 0; }
     @media (max-width: 560px) { .gh-postmark { width: 66px; height: 66px; font-size: 9px; top: 10px; right: 10px; } .gh-postmark b { font-size: 12px; } .gh-postcard-back { padding-top: 70px; } }
 
-    /* Snabbrad på mobilen */
-    .gh-dock { display: none; }
+    /* Mobilen: receptionens läge (öppettid och kötid) i menyraden, men först när hero är förbi – hero visar samma sak */
     @media (max-width: 760px) {
-      .gh-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 560; display: grid; grid-template-columns: 1.6fr 1fr 1.2fr; background: rgba(24,32,36,0.96); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-top: 1px solid var(--gas-dim); padding-bottom: env(safe-area-inset-bottom); }
-      .gh-dock a { display: flex; align-items: center; justify-content: center; gap: 2px; min-height: 54px; padding: 6px 8px; font-family: var(--f-label); font-weight: 600; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; text-decoration: none; color: var(--cream) !important; border-left: 1px solid var(--line); text-align: center; }
-      .gh-dock a:first-child { border-left: none; font-family: var(--f-body); font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 14px; }
-      .gh-dock a:active { background: rgba(214,207,189,0.12); }
-      .gh-status { display: none; } /* status visas i snabbraden längst ned */
-      .gh-footer { padding-bottom: 90px; }
-      .gh-to-top { display: none; } /* snabbraden räcker på mobilen */
-      .ui-toasts { bottom: 72px; }
+      .gh-status { min-width: 0; padding: 2px 0 2px 12px; opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s; }
+      .gh-nav.is-past-hero .gh-status { opacity: 1; visibility: visible; transform: none; }
+      .gh-nav.menu-open .gh-status { opacity: 0; visibility: hidden; }
+      .gh-status-label { font-size: 11px; letter-spacing: 1.6px; white-space: nowrap; }
+      /* overflow: hidden (för … vid för lång text) klipper annars prickarna i Ö, som sticker upp över den täta raden */
+      .gh-status-value { font-size: 14px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; }
+      .gh-actions { min-width: 0; }
+    }
+
+    /* Rubriker bryts jämnt, så att inget ord blir ensamt på sista raden ("Vågar ni checka / in?") */
+    .gh-hero-title, .gh-title, .gh-card-title, .gh-regcard-title, .gh-ledger-title, .gh-faq-title { text-wrap: balance; }
+
+    /* ---------- Telefon ---------- */
+    @media (max-width: 520px) {
+      /* Betyget i hero: stjärnorna ovanför texten i stället för en sned radbrytning bredvid */
+      .gh-hero-rating { flex-direction: column; gap: 2px; text-align: center; }
+      /* Telegrammets huvud: ordet TELEGRAM överst, avsändare och mottagare på en rad under */
+      .gh-telegram { padding: 18px 20px 22px; }
+      .gh-telegram-head { grid-template-columns: 1fr 1fr; row-gap: 6px; }
+      .gh-telegram-word { grid-column: 1 / -1; grid-row: 1; text-align: center; }
+      /* Registerkortet: ett svar per rad, så att alternativen bildar en ren lista */
+      .gh-regcard-q label { display: flex; margin-right: 0; }
+      /* Prislistan: långa namn bryts, priset står kvar på sista raden och prickarna syns */
+      #wsPrices .ds-price-row { align-items: last baseline; }
+      #wsPrices .ds-price-dots { min-width: 1.2em; }
+      /* Hero: tätare, så att knappen "Planera ert besök" hamnar närmare första skärmen */
+      .gh-hero { padding-top: calc(var(--nav-h) + 20px); padding-bottom: 44px; }
+      #welcomeMessage .welcome-hotel-name { margin-bottom: 12px; }
+      #welcomeMessage #welcomeKorpenLogo { width: min(260px, 64vw); margin-bottom: 14px; }
+      .gh-hero-title { margin-bottom: 12px; }
+      .welcome-status-row { margin: 20px 0 20px; }
+      /* Big Shoulders sätter prickarna i versalt Ö så tätt mot O:et att de försvinner i den här storleken på skärmar
+         utan hög upplösning ("OPPNAR"). Med gemener står prickarna fritt i alla storlekar; första bokstaven blir versal. */
+      .welcome-status-value { font-size: 21px; line-height: 1.15; text-transform: none; letter-spacing: 0.8px; }
+      .welcome-status-value::first-letter { text-transform: uppercase; }
+      .gh-hero-rating { margin: -4px 0 16px; }
+    }
+    @media (max-width: 360px) {
+      .gh-nav-inner { gap: 10px; }
+      .gh-brand-top { font-size: 12px; letter-spacing: 3.5px; }
+      .gh-brand-main { font-size: 19px; }
+      .gh-status-label { letter-spacing: 1px; }
+      /* Biljetten på de smalaste telefonerna: mindre luft och siffror, så att namn och kontrollavi inte bryts sönder */
+      .gh-tariff { padding: 22px 18px; }
+      #wsPrices .ds-price-name { font-size: 0.9rem; }
+      #wsPrices .ds-price-val { font-size: 1.35rem; }
+      .gh-stub-front { padding: 0 18px; }
+      .gh-stub-kicker { font-size: 12px; letter-spacing: 1.2px; }
+      .gh-stub-no { font-size: 1.1rem; white-space: nowrap; }
+      .gh-regcard { padding: 22px 18px; }
+      .gh-telegram-org, .gh-telegram-to { letter-spacing: 1px; }
+      .welcome-status-value { letter-spacing: 0.4px; }
+      .welcome-status-card { padding: 12px 6px; }
+      .gh-regcard-head { font-size: 12px; letter-spacing: 1.2px; gap: 10px; }
     }
 
     /* Avvikelser */
@@ -2199,7 +2259,9 @@
       #payModal .row.u-gap-12 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
       #payModal .pill { position: relative; display: flex; align-items: center; justify-content: center; min-height: 84px; font-size: 22px; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; border: 2px solid var(--gas-dim); background: rgba(221,227,220,0.05); }
       #payModal .pill input { position: absolute; opacity: 0; pointer-events: none; }
-      #payModal .pill:has(input:checked) { background: var(--paper-bg-2); border-color: var(--paper-bg-2); color: var(--paper-ink); }
+      /* Valt betalsätt: tjock ljus ram och bock. Ljus fyllning är förbehållen Bekräfta, så att "vald" och "gör det" inte ser likadana ut */
+      #payModal .pill:has(input:checked) { background: rgba(221,227,220,0.14); border-color: var(--cream); color: var(--cream); box-shadow: inset 0 0 0 2px var(--cream); }
+      #payModal .pill:has(input:checked)::before { content: '✓'; margin-right: 10px; font-size: 0.95em; }
       #payModal .pill:has(input:focus-visible) { outline: 2px solid var(--moon); outline-offset: 3px; }
       #paySum { font-size: 20px !important; }
       #kontantReceivedInput { width: 170px !important; min-height: 64px; font-size: 28px !important; }
@@ -2337,6 +2399,18 @@
     .fv-fled-btn, .field-view .fv-fled-btn { min-height: 56px; font-size: 17px; letter-spacing: 1.5px; background: transparent; border: 1px solid var(--gas-dim); color: var(--muted); }
     .fv-fled-btn:hover { background: rgba(221,227,220,0.06); color: var(--cream); }
     .fv-fled-btn:disabled, .fv-queue-btn:disabled { opacity: 0.4; }
+    .fv-queue-btn[hidden], .fv-fled-btn[hidden] { display: none; }
+    /* Väljaren efter "Släpp in": fyra stora sifferknappar, nästa sällskaps storlek markerad */
+    .fv-pick { display: flex; flex-direction: column; gap: 10px; }
+    .fv-pick[hidden] { display: none; }
+    .fv-queue-actions:has(.fv-pick:not([hidden])) { min-width: min(340px, 100%); }
+    .fv-pick-title { font-family: var(--f-label); font-weight: 600; font-size: 16px; letter-spacing: 2px; text-transform: uppercase; color: var(--gas); text-align: center; }
+    .fv-pick-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .field-view .fv-pick-n { position: relative; min-height: 76px; padding: 0; font-family: var(--f-display); font-size: 34px; line-height: 1; background: var(--paper-bg-2); border: 1px solid var(--paper-bg-2); color: var(--paper-ink); }
+    .field-view .fv-pick-n:disabled { opacity: 0.25; cursor: default; }
+    .field-view .fv-pick-n.is-next:not(:disabled) { box-shadow: 0 0 0 3px var(--soot-2), 0 0 0 5px var(--cream); }
+    .fv-pick-n.is-next:not(:disabled)::after { content: 'nästa'; position: absolute; left: 0; right: 0; bottom: 6px; font-family: var(--f-label); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--paper-ink-soft); }
+    .field-view .fv-pick-cancel { min-height: 48px; font-size: 16px; background: transparent; border: 1px solid var(--gas-dim); color: var(--muted); }
     .fv-undo { max-width: 820px; margin: 10px auto 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px 10px 18px; border: 1px solid var(--gas-dim); background: rgba(221,227,220,0.06); font-family: var(--f-label); font-size: 18px; letter-spacing: 1px; color: var(--cream); animation: fvUndoIn 0.2s ease; }
     .fv-undo[hidden] { display: none; }
     .fv-undo .btn { min-height: 52px; min-width: 120px; font-size: 17px; }
@@ -2557,7 +2631,7 @@
     .st-editing .st-changed[data-st], .st-editing .st-changed[data-sts] { outline: 2px solid #d9b25f; }
     .st-editing [data-st]:empty::before { content: '(tom text)'; opacity: .5; font-style: italic; }
     .st-editing [data-st].st-active, .st-editing [data-sts].st-active { outline: 3px solid #a3b8cc; outline-offset: 4px; background-color: rgba(163,184,204,0.12); cursor: text; -webkit-user-select: text; user-select: text; }
-    .st-editing .gh-dock, .st-editing .gh-to-top { display: none !important; }
+    .st-editing .gh-to-top { display: none !important; }
     /* Inställningar som annars döljs när de är tomma syns i redigeringsläget, med en uppmaning */
     .st-editing [data-sts] { cursor: pointer; }
     .st-editing [data-sts]:empty::before, .st-editing #welcomeFaqContent:empty::before { content: attr(data-st-ph); opacity: .6; font-style: italic; font-size: 16px; }
@@ -2643,7 +2717,7 @@
        Personalens delar (kassan, Översikt, panelen Bokningar) följer rx-/adm-stilen. */
     #boka[hidden], .js-book-link[hidden], .bk-kassa[hidden], .bk-form[hidden], .bk-mine[hidden], .bk-closed[hidden], .bk-error[hidden] { display: none !important; }
     /* Bokningssidan (index.html?boka): bara toppmenyn, bokningen och sidfoten */
-    html.bk-page .gh-skip, html.bk-page .gh-hero, html.bk-page .gh-ribbon, html.bk-page .gh-main > :not(#boka), html.bk-page .gh-dock, html.bk-page .gh-to-top { display: none !important; }
+    html.bk-page .gh-skip, html.bk-page .gh-hero, html.bk-page .gh-ribbon, html.bk-page .gh-main > :not(#boka), html.bk-page .gh-to-top { display: none !important; }
     html.bk-page #boka { padding-top: calc(var(--nav-h) + clamp(28px, 5vw, 56px)); min-height: 70vh; }
     .bk-back { display: inline-block; margin-bottom: 18px; }
     .gh-visit-col { display: flex; flex-direction: column; gap: clamp(22px, 3vw, 30px); min-width: 0; }
@@ -2716,7 +2790,6 @@
     .bk-stamp { position: absolute; top: 26px; right: 4px; }
     .bk-confirm-text { margin: 18px 0 0; font-family: var(--f-body); font-size: 1.08rem; line-height: 1.55; }
     @media (max-width: 520px) { .bk-stamp { top: 12px; font-size: 16px; } .bk-confirm-list > div { grid-template-columns: 6.5em 1fr; } .bk-day { width: 60px; } }
-    @media (max-width: 979px) { .gh-dock:has(.js-book-link:not([hidden])) { grid-template-columns: 1.4fr 0.9fr 1.2fr 0.9fr; } .gh-dock:has(.js-book-link:not([hidden])) a { font-size: 13px; letter-spacing: 0.6px; padding: 6px 4px; } }
 
     /* Kassan: kvällens bokningar över produktknapparna */
     .bk-kassa { margin: 0 0 14px; padding: 10px 12px 12px; background: rgba(0,0,0,0.2); border: 1px solid var(--line); text-align: left; }

@@ -41,6 +41,10 @@
   .lx-quill { width: 56px; left: calc(50% + 100px); top: -50px; }
   .lx-perch-letter { left: 0; }
 }
+/* De smalaste telefonerna: pennan får inte plats bredvid knappen (den stack ut så att sidan gick att dra i sidled) */
+@media (max-width: 360px) {
+  .lx-quill { display: none; }
+}
 
 /* ---------- Av: ?lager=av, eller stilla vid minska rörelse ---------- */
 .lx-off .lx-scene, .lx-off .lx-perch, .lx-off .lx-quill { display: none; }
