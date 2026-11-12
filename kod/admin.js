@@ -1,7 +1,8 @@
 /* ============================== HANTERA OCH PERSONALENS VERKTYG ==============================
    Laddas efter app.js och använder dess datalager (dbGet/dbSet/_mutateShared) och globala tillstånd.
-   Här finns: personalmenyn, Hanteras meny och paneler (Läget, Öppna & stäng, Kalender med öppetdagar och schema, Produkter, Listor,
-   Personal, Recensioner, Ändringslogg), förhandsvisningen av gästsidan, notisen till personalen,
+   Här finns: personalmenyn, Hanteras meny och paneler (Kalender med öppetdagar och schema, Personal med uppgifter och
+   kompetenser, Produkter, Recensioner, Ekonomi, Ändringslogg), korten för läget som Min sida visar (minsida.js),
+   förhandsvisningen av gästsidan, notisen till personalen,
    enheternas livstecken, övningsläget, jämförelser och export i statistiken samt "Kan du jobba?" på Min sida.
    Allt sparas i vanliga nycklar i Apps Script; inget kräver ändringar på servern. */
 
@@ -48,7 +49,7 @@
     }
     return {on,warn};
   }
-  // Prognos: snittet av upp till sex tidigare kvällar, i första hand med samma veckodag och öppettid (sxForecast i statistik.js)
+  // Prognos: snittet av upp till sex tidigare dagar, i första hand med samma veckodag och öppettid (sxForecast i statistik.js)
   const admForecast=(date,hours)=>sxForecast(date,hours);
   function admQueued(){ const items=(loadOpenTickets().items||[]).filter(t=>!t.used&&(Number(t.adult||0)+Number(t.child||0))>0); return {tickets:items.length,people:items.reduce((s,t)=>s+Number(t.adult||0)+Number(t.child||0),0),items}; }
   function admHoursOptions(current,extra=[]){
@@ -110,13 +111,13 @@
     const st=admTodayState(); dot.className='status-dot '+(st.open?'live':'dead');
     admById('openBlock')?.classList.toggle('is-open',st.open);
   }
-  // Märken för olästa meddelanden: på Min sida för personalen, på Hantera och Meddelanden för admin
+  // Märken för olästa meddelanden: på Min sida, där meddelandena finns för både personal och admin
   const _admUpdateMsgBadge0=updateMsgBadge;
   updateMsgBadge=function(){
     _admUpdateMsgBadge0.apply(this,arguments);
     const has=admById('msgBadgeDot')?.style.display==='inline-block';
     const set=(id,v)=>{ const e=admById(id); if(e) e.hidden=!v; };
-    set('snProfileBadge',has&&!isAdmin); set('snAdminBadge',has&&isAdmin); set('admMsgBadge',has&&isAdmin);
+    set('snProfileBadge',has); set('snAdminBadge',false);
   };
 
   const _admSelectMenu0=selectMenu;
@@ -134,35 +135,32 @@
   /* ============================== HANTERAS MENY OCH PANELER ============================== */
   const ADM_RENDER={
     lage:()=>admRenderLage(),
-    oppnastang:()=>{ ADM.ocStep=null; admRenderOpenClose(); },
-    meddelanden:()=>admRenderMessages(),
     schema:()=>admRenderSchema(),
     produkter:()=>admRenderProducts(),
     recensioner:()=>renderReviewsAdmin(),
     loner:()=>initLonPanel(),
     ekonomi:()=>admRenderEkonomi(),
-    personal:()=>admRenderStaff(),
-    listor:()=>admRenderLists(),
+    personal:()=>{ admRenderStaff(); admRenderLists(); },
     skarmar:()=>admRenderSkarmar(),
     logg:()=>admRenderLog(),
     kopia:()=>renderLocalBackup(),
     sidan:()=>window.siteText?.openPanel()
   };
-  const ADM_ALIAS={dagar:'schema',katalog:'listor',checklistor:'listor'};
+  const ADM_ALIAS={dagar:'schema',katalog:'personal',checklistor:'personal',listor:'personal'};
   // Gamla och direkta vägar till en flik på Skärmar & enheter (kod/skarmar.js). Webbesök ligger nu under Översikt där.
   const ADM_SK_TAB={webb:'oversikt',kassaenheter:'kassa',koskarm:'ko',kundskarm:'kund'};
   function admOpen(name,{keepScroll=false}={}){
     name=ADM_ALIAS[name]||name;
     if(ADM_SK_TAB[name]){ skSetTab(ADM_SK_TAB[name]); name='skarmar'; }
-    if(!ADM_RENDER[name]) name='lage';
+    if(!ADM_RENDER[name]) name='schema';
     ADM.panel=name; localStorage.setItem('admPanelV1',name);
     document.querySelectorAll('#adminSettings .adm-panel').forEach(p=>{ p.hidden=p.dataset.panel!==name; });
     document.querySelectorAll('#admNav button[data-adm]').forEach(b=>{ if(b.dataset.adm===name) b.setAttribute('aria-current','true'); else b.removeAttribute('aria-current'); });
+    admNavMenu(false);
     const line=admById('admDateLine'); if(line) line.textContent=`Receptionen · ${admDayLong(todayStr())}`;
     try{ ADM_RENDER[name](); }catch(e){ console.error(e); }
     admStopTimers();
     if(name==='lage'){ ADM.timer=setInterval(()=>{ if(admVisible()) admUpdateLage(); },4000); ADM.devTimer=setInterval(()=>{ if(admVisible()) admRefreshDevices(); },30000); }
-    if(name==='meddelanden') ADM.timer=setInterval(()=>{ if(admVisible()){ renderStaffMsgSection(); markMsgSeen(); } },15000);
     if(name==='skarmar') ADM.devTimer=setInterval(()=>{ if(admVisible()) admRefreshDevices(); },30000);
     admUpdateReviewBadge();
     if(window.matchMedia('(max-width: 979px)').matches){ const nb=document.querySelector('#admNav button[aria-current]'); const nav=admById('admNav'); if(nb&&nav) nav.scrollTo({left:Math.max(0,nb.offsetLeft-nav.clientWidth/2+nb.offsetWidth/2),behavior:'smooth'}); }
@@ -171,9 +169,17 @@
   const admVisible=()=>admById('adminSettings')?.style.display==='block'&&!document.hidden;
   function admStopTimers(){ clearInterval(ADM.timer); clearInterval(ADM.devTimer); ADM.timer=ADM.devTimer=null; }
   // Äldre anrop (knappar som tidigare fällde ut en sektion) öppnar motsvarande panel
-  function adminAccordion(id){ const map={personalContent:'personal',catalogContent:'listor',productsContent:'produkter',displayAdminContent:'skarmar',welcomeEditContent:'sidan',reviewsContent:'recensioner',lonContent:'loner'}; admOpen(map[id]||'lage'); }
+  function adminAccordion(id){ const map={personalContent:'personal',catalogContent:'personal',productsContent:'produkter',displayAdminContent:'skarmar',welcomeEditContent:'sidan',reviewsContent:'recensioner',lonContent:'loner'}; admOpen(map[id]||'lage'); }
+  // Menyn på smala skärmar: knappen visar sidan man är på och fäller ut alla sidor (app.css, HANTERAS MENY)
+  function admNavMenu(open){
+    const nav=admById('admNav'), t=admById('admNavToggle'); if(!nav||!t) return;
+    nav.classList.toggle('is-open',!!open); t.setAttribute('aria-expanded',String(!!open));
+    const cur=nav.querySelector('button[data-adm][aria-current]'); const lbl=admById('admNavCurrent');
+    if(lbl&&cur) lbl.textContent=[...cur.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim();
+  }
   admById('admNav')?.addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b) return;
+    if(b.id==='admNavToggle'){ admNavMenu(!admById('admNav').classList.contains('is-open')); return; }
     if(b.dataset.admGo){ selectMenu(b.dataset.admGo); return; }
     if(b.dataset.adm) admOpen(b.dataset.adm);
   });
@@ -222,11 +228,27 @@
       </div>
       ${!st.auto&&st.open?'<p class="tiny muted">En handinställd kötid gäller i fem minuter. Sedan räknas den från biljetterna igen.</p>':''}
       <label class="rx-switch"><input type="checkbox" id="lgHidden"${st.hidden?' checked':''}><span>Visa "Stängt" för gästerna, till exempel under en testdag</span></label>
-      <div class="rx-actions">${st.closedDone?`<button type="button" class="btn" id="lgReport">Kvällens rapport</button>`:`<button type="button" class="btn ${st.open?'':'btn-green'}" data-adm-open="oppnastang">${st.open?'Stäng dagen…':'Öppna dagen…'}</button>`}</div>`;
+      <div class="rx-actions">${st.open?'<button type="button" class="btn" id="lgCloseNow">Stäng nu</button>':`<button type="button" class="btn btn-green" id="lgOpenNow">${st.evening?'Öppna igen':st.scheduled?`Öppna nu, ${admEsc(st.scheduled)}`:'Öppna nu…'}</button>`}${st.closedDone?'<button type="button" class="btn" id="lgReport">Dagens rapport</button>':''}</div>`;
     admById('lgHoursEdit').onclick=async()=>{ const v=await admTodayHoursDialog(st); if(!v) return; await presetSelected(v); notify(v==='Stängt'?'Dagen är stängd.':`Öppettiden är ${v}.`,'ok'); admRenderToday(true); admUpdateLage(); };
     const rep=admById('lgReport'); if(rep) rep.onclick=()=>showDaySummaryModal(todayStr());
+    const cn=admById('lgCloseNow'); if(cn) cn.onclick=admCloseNow;
+    const on=admById('lgOpenNow'); if(on) on.onclick=()=>admOpenNow(st);
     admById('lgQueue').onchange=e=>{ applyQueuePreset(e.target.value); admRenderToday(true); };
     admById('lgHidden').onchange=async()=>{ await toggleGuestHidden(); admRenderToday(true); };
+  }
+  // Stäng nu: gästerna ser "Stängt för idag" (samma som när stängningstiden passerats). Öppettiden ligger kvar, så
+  // Öppna igen tar tillbaka den. De som redan står i kön finns kvar på insläppet.
+  async function admCloseNow(){
+    const q=admQueued();
+    const ok=await uiConfirm(`Gästsidan och köskärmen visar "Stängt för idag".${q.people?` ${q.people} ${q.people>1?'gäster':'gäst'} i kön finns kvar på insläppet.`:''}`,{title:'Stäng för idag?',okLabel:'Stäng nu'});
+    if(!ok) return;
+    applyQueuePreset('Stängt för kvällen'); updateTopbar();
+    notify('Stängt för idag.','ok'); admRenderToday(true); admUpdateLage();
+  }
+  async function admOpenNow(st){
+    if(st.evening){ applyQueuePreset('__auto__'); updateTopbar(); notify(`Öppet igen, ${st.oh}.`,'ok'); admRenderToday(true); admUpdateLage(); return; }
+    const v=st.scheduled||await admTodayHoursDialog(st); if(!v||v==='Stängt') return;
+    await presetSelected(v); notify(`Öppet ${v}.`,'ok'); admRenderToday(true); admUpdateLage();
   }
   // Dagens öppettid: en ruta med de vanliga tiderna, Stängt och Annan tid
   async function admTodayHoursDialog(st){
@@ -266,7 +288,7 @@
     if(st.open&&!admCoverage(todayStr()).on.length) items.push({lvl:'warn',text:'Ingen personal är inlagd i schemat idag',btn:'Schema',go:'schema'});
     if(st.open){ const w=admCoverage(todayStr()).warn.filter(x=>x!=='Ingen i schemat'); if(w.length) items.push({lvl:'info',text:`Idag: ${w.join(', ').toLowerCase()}`,btn:'Schema',go:'schema'}); }
     const bk=localBackupIssues(); if(bk) items.push({lvl:'warn',text:`Statistiken på servern saknar ${bk} ${bk>1?'dagar':'dag'} som finns i kopian på den här enheten`,btn:'Återställ',go:'kopia'});
-    if(admById('msgBadgeDot')?.style.display==='inline-block') items.push({lvl:'info',text:'Nytt meddelande från personalen',btn:'Läs',go:'meddelanden'});
+    if(admById('msgBadgeDot')?.style.display==='inline-block') items.push({lvl:'info',text:'Nytt meddelande från personalen',btn:'Läs',act:'msg'});
     if(st.open){ const reg=loadRegisteredDevices(); ADM.devices.filter(d=>reg[d.id]&&Date.now()-d.ts>3*60000&&Date.now()-d.ts<12*3600000).forEach(d=>items.push({lvl:'warn',text:`Kassaenheten ${d.name} hördes senast av ${admAgo(d.ts)}`,btn:'Enheter',go:'webb'})); ADM.devices.filter(d=>!reg[d.id]&&(d.view==='Kötidsskärm'||d.view==='Kundskärm')&&Date.now()-d.ts>3*60000&&Date.now()-d.ts<12*3600000).forEach(d=>items.push({lvl:'warn',text:`${d.view==='Kundskärm'?'Kundskärmen':'Köskärmen'} (${d.name}) hördes senast av ${admAgo(d.ts)}`,btn:'Skärmar',go:'webb'})); }
     if(PRACTICE) items.push({lvl:'info',text:'Övningsläget är på i den här enheten',btn:'Avsluta',act:'practice'});
     const next=admUpcoming(3).find(d=>d.date>todayStr());
@@ -277,7 +299,7 @@
     const el=admById('lgAttention'); if(!el) return;
     const items=admAttentionItems();
     el.innerHTML=`<p class="rx-card-kicker">Kräver åtgärd</p>${items.length?`<ul class="rx-list">${items.map((it,i)=>`<li class="rx-att rx-att--${it.lvl}"><span>${admEsc(it.text)}</span><button type="button" class="btn" data-att="${i}">${admEsc(it.btn)}</button></li>`).join('')}</ul>`:'<p class="rx-empty">Inget kräver åtgärd just nu.</p>'}`;
-    el.onclick=e=>{ const b=e.target.closest('[data-att]'); if(!b) return; const it=items[Number(b.dataset.att)]; if(!it) return; if(it.go) admOpen(it.go); else if(it.act==='stale') admClearStale(); else if(it.act==='practice') rxStopPractice(); };
+    el.onclick=e=>{ const b=e.target.closest('[data-att]'); if(!b) return; const it=items[Number(b.dataset.att)]; if(!it) return; if(it.go) admOpen(it.go); else if(it.act==='stale') admClearStale(); else if(it.act==='practice') rxStopPractice(); else if(it.act==='msg') admGoMessages(); };
   }
   async function admClearStale(){
     if(!(await uiConfirm('Ta bort biljetterna som stått i kön i över en timme? Gästerna räknas inte som insläppta.',{okLabel:'Ta bort ur kön'}))) return;
@@ -304,15 +326,20 @@
       <button type="button" class="adm-linkbtn" data-adm-open="schema">Schemat ›</button>`;
   }
   /* ---------- Meddelanden: anslag, direktmeddelanden och notis på allas skärmar ----------
-     Meddelandefunktionen (renderStaffMsgSection i app.js) ligger på Min sida för personalen. För admin flyttas samma
-     ruta hit, och när anslaget går till alla kan det också visas som notis överst på skärmarna (staffBroadcastV1). */
+     Meddelandefunktionen (renderStaffMsgSection i app.js) ligger längst ned på Min sida, för både personal och admin.
+     När admins anslag går till alla kan det också visas som notis överst på skärmarna (staffBroadcastV1). */
   const ADM_MSG_HOME={parent:admById('staffMsgSection')?.parentNode,next:admById('staffMsgSection')?.nextSibling};
   function admPlaceMessages(){
     const box=admById('staffMsgSection'); if(!box) return;
-    const target=isAdmin?admById('admMeddelanden'):ADM_MSG_HOME.parent;
-    if(target&&box.parentNode!==target){ if(isAdmin) target.appendChild(box); else target.insertBefore(box,ADM_MSG_HOME.next||null); }
+    const target=ADM_MSG_HOME.parent;
+    if(target&&box.parentNode!==target) target.insertBefore(box,ADM_MSG_HOME.next||null);
   }
-  function admRenderMessages(){ admPlaceMessages(); renderStaffMsgSection(); markMsgSeen(); }
+  // Genvägen Meddelanden (Min sida, Kräver åtgärd): till Min sida och ned till meddelandena
+  function admGoMessages(){
+    if(admById('profileContainer')?.style.display!=='block') selectMenu('profile');
+    renderStaffMsgSection(); markMsgSeen();
+    setTimeout(()=>{ const box=admById('staffMsgSection'); box?.scrollIntoView({behavior:'smooth',block:'start'}); admById('adminMsgInput')?.focus({preventScroll:true}); },60);
+  }
   const _admRenderMsg0=renderStaffMsgSection;
   renderStaffMsgSection=function(){
     _admRenderMsg0.apply(this,arguments);
@@ -386,115 +413,9 @@
     if(typeof skDevicesUpdated==='function') skDevicesUpdated();
   }
 
-  /* ============================== ÖPPNA OCH STÄNG DAGEN ============================== */
-  const ADM_DEFAULT_CHECKS={
-    open:['Ljus, ljud och effekter påslagna','Nödutgångar fria och skyltarna tända','Växelkassan räknad','Kassan och insläppet inloggade','Kötidsskärmen igång'],
-    close:['Alla gäster har gått ut','Kassan räknad','Ljus, ljud och effekter avstängda','Dörrar låsta']
-  };
-  function admChecklists(){ const v=dbGet(CHECK_KEY,null); return (v&&Array.isArray(v.open)&&Array.isArray(v.close))?v:_clone(ADM_DEFAULT_CHECKS); }
-  function admChecks(){ try{ const o=JSON.parse(localStorage.getItem('admChecksV1')||'{}'); if(o&&o.date===todayStr()) return {open:o.open||[],close:o.close||[],date:o.date}; }catch(_e){} return {date:todayStr(),open:[],close:[]}; }
-  function admSetCheck(kind,item,on){ const o=admChecks(); o[kind]=o[kind].filter(x=>x!==item); if(on) o[kind].push(item); localStorage.setItem('admChecksV1',JSON.stringify(o)); }
-  function admChecklistHtml(kind){
-    const items=admChecklists()[kind]; const done=admChecks()[kind];
-    if(!items.length) return '<p class="rx-empty">Ingen checklista. Lägg till punkter under <button type="button" class="adm-linkbtn" data-adm-open="listor">Listor</button>.</p>';
-    return `<ul class="rx-checklist" data-kind="${kind}">${items.map(t=>`<li><label><input type="checkbox" value="${admEsc(t)}"${done.includes(t)?' checked':''}><span>${admEsc(t)}</span></label></li>`).join('')}</ul>`;
-  }
-  function admCheckProgress(kind){ const items=admChecklists()[kind]; const done=admChecks()[kind].filter(x=>items.includes(x)); return {done:done.length,total:items.length}; }
-  function admCashSales(date){ const d=loadSalesHistory()[date]||{}; return (Array.isArray(d.entries)?d.entries:[]).filter(e=>e.payType==='Kontant').reduce((s,e)=>s+Number(e.sum||0),0); }
-  async function admRenderOpenClose(){
-    const el=admById('admOppnaStang'); if(!el) return;
-    await dbEnsure(CHECK_KEY,null).catch(()=>{});
-    const today=todayStr(); const day=loadSalesHistory()[today]||{}; const st=admTodayState();
-    const op=day.opening||null, cl=day.closing||null;
-    const {on}=admCoverage(today); const q=admQueued();
-    const pOpen=admCheckProgress('open'), pClose=admCheckProgress('close');
-    const cashStart=cl?.cashStart??op?.cashStart??'';
-    // Vilket steg: efter stängning en sammanfattning, efter öppning (eller om dagen öppnat av sig själv) stängningen, annars öppningen
-    const step=ADM.ocStep||(cl?'done':(op||st.open)?'close':'open');
-    const swap=(to,label)=>`<button type="button" class="adm-linkbtn" data-ocstep="${to}">${label}</button>`;
-    const openCard=`<article class="rx-card rx-paper">
-        <p class="rx-card-kicker">Före första gästen</p><h4 class="rx-card-title">Öppna dagen</h4>
-        ${op?`<p class="rx-stamp">Öppnad kl ${admTime(op.ts)} av ${admEsc(op.by)}</p>`:''}
-        <ol class="rx-steps">
-          <li><strong>Öppettid idag</strong><select id="ocHours" class="input">${admHoursOptions(st.oh!=='Stängt'?st.oh:(st.scheduled||HOUR_PRESETS[0]),[st.scheduled])}<option value="__custom__">Annan tid…</option></select></li>
-          <li><strong>Personal idag</strong>${on.length?`<ul class="rx-mini">${on.map(([n,v])=>`<li>${admEsc(n)} <span>${admEsc(v.hours||'')}${v.task?' · '+admEsc(v.task):''}</span></li>`).join('')}</ul>`:'<p class="rx-empty">Ingen inlagd.</p>'}<button type="button" class="adm-linkbtn" data-adm-open="schema">Ändra i schemat ›</button></li>
-          <li><strong>Checklista</strong> <span class="rx-prog" id="ocOpenProg">${pOpen.done} av ${pOpen.total}</span>${admChecklistHtml('open')}</li>
-          <li><strong>Växelkassa vid start</strong><label class="rx-inline"><input id="ocCashStart" class="input" type="number" inputmode="numeric" min="0" step="1" value="${admEsc(cashStart)}" placeholder="0"> kr</label></li>
-        </ol>
-        <button type="button" class="btn btn-green rx-big" onclick="admDoOpen()">${st.open?'Spara öppningen':'Öppna dagen'}</button>
-      </article>`;
-    const closeCard=`<article class="rx-card rx-paper">
-        <p class="rx-card-kicker">Efter sista gästen</p><h4 class="rx-card-title">Stäng dagen</h4>
-        ${cl?`<p class="rx-stamp">Stängd kl ${admTime(cl.ts)} av ${admEsc(cl.by)}</p>`:''}
-        <ol class="rx-steps">
-          <li><strong>Räkna kassan</strong>
-            <table class="rx-cash"><tbody>
-              <tr><th>Växelkassa vid start</th><td><input id="ocCashStart2" class="input" type="number" inputmode="numeric" min="0" step="1" value="${admEsc(cashStart)}" placeholder="0"></td></tr>
-              <tr><th>Kontant försäljning idag</th><td id="ocCashSales">${admKr(admCashSales(today))}</td></tr>
-              <tr><th>Ska finnas i kassan</th><td id="ocCashExpected"></td></tr>
-              <tr><th>Räknat</th><td><input id="ocCounted" class="input" type="number" inputmode="numeric" min="0" step="1" value="${admEsc(cl?.cashCounted??'')}" placeholder="0"></td></tr>
-              <tr class="rx-cash-diff"><th>Skillnad</th><td id="ocCashDiff">–</td></tr>
-            </tbody></table></li>
-          <li><strong>Kön</strong>${q.people?`<p>${q.people} ${q.people>1?'gäster':'gäst'} på ${q.tickets} ${q.tickets>1?'biljetter':'biljett'} står kvar i kön.</p><button type="button" class="btn" onclick="admEmptyQueue()">Töm kön</button>`:'<p>Ingen står kvar i kön.</p>'}</li>
-          <li><strong>Checklista</strong> <span class="rx-prog" id="ocCloseProg">${pClose.done} av ${pClose.total}</span>${admChecklistHtml('close')}</li>
-          <li><strong>Anteckningar</strong><textarea id="ocNotes" class="admin-textarea" rows="3" placeholder="Något som hänt under dagen? T.ex. rökmaskinen krånglade kl 20.10.">${admEsc(cl?.notes||'')}</textarea></li>
-        </ol>
-        <button type="button" class="btn btn-green rx-big" onclick="admDoClose()">${cl?'Spara stängningen igen':'Stäng dagen och spara rapporten'}</button>
-      </article>`;
-    const diff=cl&&cl.cashDiff!=null?(cl.cashDiff===0?'Kassan stämde.':`Kassan skilde ${cl.cashDiff>0?'+':'−'}${admKr(Math.abs(cl.cashDiff))}.`):'Kassan räknades inte.';
-    const doneCard=`<article class="rx-card rx-paper oc-done"><p class="rx-card-kicker">Kvällen är slut</p><h4 class="rx-card-title">Dagen är stängd</h4>
-      ${cl?`<p class="rx-stamp">Stängd kl ${admTime(cl.ts)} av ${admEsc(cl.by)}</p>`:''}<p>${diff}${cl&&cl.notes?` Anteckning: ${admEsc(cl.notes)}`:''}</p>
-      <div class="rx-actions"><button type="button" class="btn btn-green" onclick="showDaySummaryModal(todayStr())">Visa kvällens rapport</button><button type="button" class="btn" data-ocstep="close">Ändra stängningen</button></div></article>`;
-    const intro={open:'Gå igenom stegen uppifrån innan första gästen. Bockarna sparas på den här enheten under dagen och kommer med i rapporten.',close:'Gå igenom stegen när sista gästen har gått.',done:''}[step];
-    el.innerHTML=`${intro?`<p class="adm-intro">${intro}</p>`:''}
-      <div class="oc-one">${step==='open'?openCard:step==='close'?closeCard:doneCard}</div>
-      <p class="oc-swap">${step==='open'?swap('close','Gå direkt till stängningen ›'):step==='close'?swap('open','‹ Visa öppningen'):''}</p>`;
-    el.onclick=e=>{ const b=e.target.closest('[data-ocstep]'); if(!b) return; ADM.ocStep=b.dataset.ocstep; admRenderOpenClose(); };
-    el.querySelectorAll('.rx-checklist').forEach(ul=>ul.addEventListener('change',e=>{ if(e.target.type!=='checkbox') return; admSetCheck(ul.dataset.kind,e.target.value,e.target.checked); const p=admCheckProgress(ul.dataset.kind); const prog=admById(ul.dataset.kind==='open'?'ocOpenProg':'ocCloseProg'); if(prog) prog.textContent=`${p.done} av ${p.total}`; }));
-    const syncCash=src=>{ const a=admById('ocCashStart'), b=admById('ocCashStart2'); if(src===a&&b) b.value=a.value; if(src===b&&a) a.value=b.value; admCashCalc(); };
-    ['ocCashStart','ocCashStart2','ocCounted'].forEach(id=>admById(id)?.addEventListener('input',e=>syncCash(e.target)));
-    if(admById('ocHours')) admById('ocHours').onchange=async e=>{ if(e.target.value==='__custom__'){ const v=await admAskHours(''); if(v){ const o=document.createElement('option'); o.value=o.textContent=v; e.target.prepend(o); e.target.value=v; } else e.target.selectedIndex=0; } };
-    admCashCalc();
-  }
-  function admCashCalc(){
-    const start=Number(admById('ocCashStart2')?.value||0); const sales=admCashSales(todayStr()); const exp=start+sales;
-    const ex=admById('ocCashExpected'); if(ex) ex.textContent=admKr(exp);
-    const cRaw=admById('ocCounted')?.value; const d=admById('ocCashDiff'); if(!d) return;
-    if(cRaw===''||cRaw==null){ d.textContent='–'; d.className=''; return; }
-    const diff=Number(cRaw)-exp; d.textContent=diff===0?'Stämmer':`${diff>0?'+':'−'}${admKr(Math.abs(diff))}`; d.className=diff===0?'is-ok':'is-off';
-  }
-  async function admDoOpen(){
-    let hrs=admById('ocHours')?.value; if(!hrs||hrs==='__custom__'){ notify('Välj en öppettid.','error'); return; }
-    const p=admCheckProgress('open');
-    if(p.done<p.total&&!(await uiConfirm(`${p.total-p.done} ${p.total-p.done>1?'punkter':'punkt'} på checklistan är inte avbockade. Öppna ändå?`,{okLabel:'Öppna ändå'}))) return;
-    const cashStart=Number(admById('ocCashStart')?.value||0);
-    await presetSelected(hrs);
-    const rec={by:_myCanonName(),ts:new Date().toISOString(),cashStart,checklist:p};
-    mutateSalesHistory(h=>{ const d=ensureHistDay(h,todayStr()); d.opening=Object.assign({},d.opening||{},rec,{ts:(d.opening&&d.opening.ts)||rec.ts}); });
-    notify(`Dagen är öppnad, ${hrs}.`,'ok');
-    ADM.ocStep=null; admRenderOpenClose();
-  }
-  async function admEmptyQueue(){
-    if(!(await uiConfirm('Töm kön? Biljetterna som står kvar tas bort ur kön utan att räknas som insläppta.',{okLabel:'Töm kön'}))) return;
-    await mutateOpenTickets(o=>{ o.items.forEach(t=>{ if(!t.used&&(Number(t.adult||0)+Number(t.child||0))>0){ t.used=true; t.stale=true; } }); });
-    queueTime=getEffectiveQueueTime(); updateTopbar(); admRenderOpenClose();
-  }
-  async function admDoClose(){
-    const p=admCheckProgress('close');
-    const counted=admById('ocCounted')?.value;
-    if(counted===''&&!(await uiConfirm('Kassan är inte räknad. Stäng dagen ändå?',{okLabel:'Stäng ändå'}))) return;
-    if(p.done<p.total&&!(await uiConfirm(`${p.total-p.done} ${p.total-p.done>1?'punkter':'punkt'} på checklistan är inte avbockade. Stäng ändå?`,{okLabel:'Stäng ändå'}))) return;
-    const today=todayStr(); const cashStart=Number(admById('ocCashStart2')?.value||0); const cashSales=admCashSales(today);
-    const rec={by:_myCanonName(),ts:new Date().toISOString(),cashStart,cashSales,cashExpected:cashStart+cashSales,cashCounted:counted===''?null:Number(counted),notes:(admById('ocNotes')?.value||'').trim(),checklist:p};
-    rec.cashDiff=rec.cashCounted==null?null:rec.cashCounted-rec.cashExpected;
-    await mutateSalesHistory(h=>{ const d=ensureHistDay(h,today); d.closing=rec; });
-    if(loadOpeningHours()!=='Stängt') applyQueuePreset('Stängt för kvällen');
-    updateTopbar();
-    notify('Dagen är stängd och rapporten sparad.','ok');
-    ADM.ocStep=null; admRenderOpenClose();
-    showDaySummaryModal(today);
-  }
-
+  /* ---------- Öppna och stäng ----------
+     Dagen öppnar och stänger efter öppetdagarna i Kalendern (checkScheduledOpen/-Close i app.js). Stegen "Öppna & stäng"
+     med checklistor och kassaräkning är borttagna (2026-11-12); kassan räknas på papper. Äldre rapporter visas fortfarande. */
   // Dagssammanfattningen får dagens rapport (öppning, kassaräkning, anteckningar) och en utskriftsknapp
   function admReportHtml(date){
     const d=loadSalesHistory()[date]||{}; const op=d.opening, cl=d.closing; if(!op&&!cl) return '';
@@ -654,7 +575,7 @@
   const admLocked=(u,k)=>(k==='hasAccess'&&admCore(u.name))||(k==='hasInslepp'&&u.name==='Casper')||(k==='isVoluntar'&&admCore(u.name))||(k==='admin'&&admOwner(u));
   const admPerm=(u,k)=>k==='hasAccess'?(!!u.hasAccess||admCore(u.name)):k==='hasInslepp'?(!!u.hasInslepp||u.name==='Casper'):k==='isVoluntar'?(!!u.isVoluntar&&!admCore(u.name)):!!u[k];
   const ADM_PERMS=[['hasAccess','Kassa','Kan sälja i kassan'],['hasInslepp','Insläpp','Kan släppa in gäster'],['isVoluntar','Volontär','Får ingen grundlön'],['admin','Admin','Kommer åt Hantera']];
-  // Tidigare kvällar: det som sparades i historiken den kvällen, annars det som stod i schemat. Senaste först.
+  // Tidigare dagar: det som sparades i historiken den dagen, annars det som stod i schemat. Senaste först.
   function admWorkedNights(name){
     const h=loadSalesHistory(), plan=loadShiftPlan(), today=todayStr(), out={};
     Object.keys(plan).forEach(d=>{ const x=plan[d]?.[name]; if(d<today&&x&&(x.hours||x.task)) out[d]={date:d,hours:x.hours||'',task:x.task||''}; });
@@ -675,11 +596,11 @@
       const skills=userData[u.name]?.skills||[];
       const perms=ADM_PERMS.map(([k,l,hint])=>{ const self=k==='admin'&&u.id===loggedInKey; const lock=admLocked(u,k)||self;
         return `<label class="rx-switch"><input type="checkbox" data-perm="${k}"${admPerm(u,k)?' checked':''}${lock?' disabled':''}><span><strong>${l}</strong>${k==='admin'&&admOwner(u)?'Sidans ägare, alltid admin':self?'Du kan inte ta bort din egen admin':lock?(k==='isVoluntar'?'Gäller inte ':'Alltid på för ')+admEsc(u.name):hint}</span></label>`; }).join('');
-      const skillHtml=catalog.length?`<div class="adm-sc-skills" role="group" aria-label="Kompetenser för ${admEsc(u.name)}">${catalog.map(sk=>`<button type="button" class="adm-skill" data-skill="${admEsc(sk)}" aria-pressed="${skills.includes(sk)}">${admEsc(sk)}</button>`).join('')}</div>`:'<p class="tiny muted">Inga kompetenser ännu. <button type="button" class="adm-linkbtn" data-adm-open="listor">Lägg till ›</button></p>';
+      const skillHtml=catalog.length?`<div class="adm-sc-skills" role="group" aria-label="Kompetenser för ${admEsc(u.name)}">${catalog.map(sk=>`<button type="button" class="adm-skill" data-skill="${admEsc(sk)}" aria-pressed="${skills.includes(sk)}">${admEsc(sk)}</button>`).join('')}</div>`:'<p class="tiny muted">Inga kompetenser ännu. <button type="button" class="adm-linkbtn" data-sc-lists>Lägg till ›</button></p>';
       const shiftHtml=up.length?`<ul class="adm-sc-shifts">${up.slice(0,6).map(d=>{ const x=plan[d][u.name]; return `<li><strong>${admEsc(admDayShort(d))}</strong><span>${admEsc(x.hours||'Tid saknas')} · ${admEsc(x.task||'Uppgift saknas')}</span>${shiftNeedsConfirm(x)?'<span class="rx-chip rx-chip--warn">Ej bekräftat</span>':'<span class="rx-chip rx-chip--ok">Bekräftat</span>'}</li>`; }).join('')}</ul>${up.length>6?`<p class="tiny muted">och ${up.length-6} till</p>`:''}`:'<p class="tiny muted">Inga kommande pass.</p>';
       const worked=admWorkedNights(u.name); const allPast=ADM.staffPastAll?.has(u.id);
       // Stängd från början; listan kan bli lång
-      const pastHtml=worked.length?`<button type="button" class="adm-sc-pastbtn" data-sc-past aria-expanded="${!!allPast}">Tidigare jobbade kvällar <span>(${worked.length})</span></button>${allPast?`<ul class="adm-sc-shifts adm-sc-past">${worked.map(x=>`<li><strong>${admEsc(admDayShort(x.date))}</strong><span>${admEsc(x.hours||'Tid saknas')} · ${admEsc(x.task||'Ingen uppgift')}</span></li>`).join('')}</ul>`:''}`:'<p class="tiny muted">Inga tidigare jobbade kvällar.</p>';
+      const pastHtml=worked.length?`<button type="button" class="adm-sc-pastbtn" data-sc-past aria-expanded="${!!allPast}">Tidigare jobbade dagar <span>(${worked.length})</span></button>${allPast?`<ul class="adm-sc-shifts adm-sc-past">${worked.map(x=>`<li><strong>${admEsc(admDayShort(x.date))}</strong><span>${admEsc(x.hours||'Tid saknas')} · ${admEsc(x.task||'Ingen uppgift')}</span></li>`).join('')}</ul>`:''}`:'<p class="tiny muted">Inga tidigare jobbade dagar.</p>';
       return `<li class="adm-sc${open?' is-open':''}" data-id="${admEsc(u.id)}">
         <button type="button" class="adm-sc-head" data-sc-toggle aria-expanded="${open}"><span class="adm-sc-name">${admEsc(u.name)}${u.id===loggedInKey?' <small>(du)</small>':''}</span><span class="adm-sc-chips">${chips||'<span class="muted">Ingen behörighet</span>'}</span><span class="adm-sc-next">${nx?`Nästa pass ${admEsc(admDayShort(nx))}${shiftNeedsConfirm(plan[nx][u.name])?' · ej bekräftat':''}`:'Inga pass inlagda'}</span></button>
         ${open?`<div class="adm-sc-body">
@@ -702,6 +623,7 @@
     notify(`${ADM_PERMS.find(p=>p[0]===k)[1]} ${cb.checked?'på':'av'} för ${u.name}.`,'ok'); admRenderStaff();
   }
   async function admStaffClick(e){
+    if(e.target.closest('[data-sc-lists]')){ admById('admListor')?.scrollIntoView({behavior:'smooth',block:'start'}); return; }
     const b=e.target.closest('button'); if(!b||b.hasAttribute('data-adm-open')) return;
     if(b.hasAttribute('data-sc-add')){ admAddPerson(); return; }
     const hit=admStaffUser(e); if(!hit) return; const {id,u}=hit;
@@ -790,7 +712,8 @@
     if(latest) localStorage.setItem('admReviewsSeenV1',latest);
     admUpdateReviewBadge();
   }
-  function admReviewUrl(){ return location.origin+location.pathname+'?review'; }
+  // Gästbokens adress utgår från mappen, inte från sidan admin står på: /personal?review skulle skicka gästen till personalinloggningen
+  function admReviewUrl(){ return location.origin+location.pathname.replace(/[^/]*$/,'')+'?review'; }
   function admDrawReviews(){
     const el=admById('reviewsContent'); if(!el) return;
     const reviews=(dbGet(REVIEWS_KEY,[])||[]).filter(r=>r&&r.ts);
@@ -921,14 +844,11 @@
   }
   async function admRenderLists(){
     const el=admById('admListor'); if(!el) return;
-    await dbEnsure(CHECK_KEY,null).catch(()=>{});
-    const descs=loadTaskDescriptions(); const cl=admChecklists();
-    el.innerHTML=`<p class="adm-intro">Listorna som används i schemat, på personalkorten och under Öppna &amp; stäng. Allt sparas direkt.</p>
+    const descs=loadTaskDescriptions();
+    el.innerHTML=`<p class="adm-intro">Uppgifterna väljs i schemat och kompetenserna bockas i på personalkorten ovan. Allt sparas direkt.</p>
       <div class="adm-grid adm-grid--2 adm-lists">
         <article class="rx-card" id="lsTasks"><div class="adm-list-head"><h4 class="rx-card-title">Uppgifter</h4><span class="adm-saved" aria-live="polite"></span></div><p class="tiny muted">Det man gör under ett pass. Beskrivningen visas på Min sida för den som har uppgiften.</p><div class="adm-list-editor"></div></article>
         <article class="rx-card" id="lsSkills"><div class="adm-list-head"><h4 class="rx-card-title">Kompetenser</h4><span class="adm-saved" aria-live="polite"></span></div><p class="tiny muted">Det någon kan. Bockas i på personalkorten.</p><div class="adm-list-editor"></div></article>
-        <article class="rx-card" id="lsOpen"><div class="adm-list-head"><h4 class="rx-card-title">Checklista vid öppning</h4><span class="adm-saved" aria-live="polite"></span></div><div class="adm-list-editor"></div></article>
-        <article class="rx-card" id="lsClose"><div class="adm-list-head"><h4 class="rx-card-title">Checklista vid stängning</h4><span class="adm-saved" aria-live="polite"></span></div><div class="adm-list-editor"></div></article>
       </div>`;
     const card=id=>admById(id), box=id=>card(id).querySelector('.adm-list-editor');
 
@@ -967,10 +887,6 @@
         if(removed.length) showUndoToast(`${removed.length===1?`"${removed[0]}"`:removed.length+' kompetenser'} borttagen`,()=>{ saveSkillCatalog(prevCat); userData=prevUD; saveUserData(); admRenderLists(); });
       }});
 
-    // Checklistorna
-    const saveChecks=async()=>{ const clean=ed=>ed.get().map(x=>(x.t||'').trim()).filter(Boolean); const next={open:clean(eo),close:clean(ec)}; if(JSON.stringify(next)===JSON.stringify({open:admChecklists().open,close:admChecklists().close})) return; try{ await dbSet(CHECK_KEY,next); admSavedFlash(card(ADM.lastCheck||'lsOpen')); }catch(_e){ notify('Checklistan kunde inte sparas. Försök igen.','error'); } };
-    const eo=admAutoList(box('lsOpen'),cl.open.map(t=>({t})),{addLabel:'+ Ny punkt',fields:[{key:'t',ph:'Punkt',type:'input'}],save:()=>{ ADM.lastCheck='lsOpen'; saveChecks(); }});
-    const ec=admAutoList(box('lsClose'),cl.close.map(t=>({t})),{addLabel:'+ Ny punkt',fields:[{key:'t',ph:'Punkt',type:'input'}],save:()=>{ ADM.lastCheck='lsClose'; saveChecks(); }});
   }
 
   /* ============================== ÄNDRINGSLOGG OCH ÅNGRA ==============================
@@ -1058,12 +974,49 @@
 
   /* ============================== ÖVNINGSLÄGE ============================== */
   async function rxStartPractice(){
-    if(!(await uiConfirm('I övningsläget kan du sälja biljetter och släppa in gäster utan att något sparas på riktigt. Det gäller bara den här enheten tills du avslutar. Sidan laddas om.',{title:'Starta övningsläge?',okLabel:'Starta övningen'}))) return;
+    if(!(await uiConfirm('I övningsläget kan du sälja biljetter, släppa in gäster och öppna och stänga dagen utan att något sparas på riktigt. Dagen börjar med några påhittade gäster som redan gått in, och Min sida och statistiken visar övningen ovanpå de riktiga tidigare dagarna, precis som i drift. Det gäller bara den här enheten tills du avslutar. Sidan laddas om.',{title:'Starta övningsläge?',okLabel:'Starta övningen'}))) return;
     const h=new Date().getHours(); const pad=n=>String(n).padStart(2,'0');
-    const hrs=`${pad(h)}:00–${pad(Math.min(h+3,23))}:${h+3>23?'59':'00'}`;
-    localStorage.setItem('practiceStoreV1',JSON.stringify({openingHoursV1:JSON.stringify(hrs),queueTimeV1:JSON.stringify({value:null,until:null})}));
+    // Dagens tid ur Kalendern om det är en öppetdag, så att jämförelsen med liknande dagar blir som i drift; annars tre timmar från nu
+    const sched=loadOpenDates().find(e=>e&&typeof e==='object'&&e.date===todayStr()&&e.hours);
+    const hrs=sched?sched.hours:`${pad(h)}:00–${pad(Math.min(h+3,23))}:${h+3>23?'59':'00'}`;
+    // Övningen får en kopia av de riktiga tidigare dagarna, så att Min sida (Hur går dagen) och statistiken jämför och
+    // visar säsongen som i drift. Dagens övningsköp läggs ovanpå. Kopian finns bara i den här webbläsaren och raderas
+    // när övningen avslutas. Får den inte plats tas köpen bort från äldre dagar, och i sista hand från alla.
+    const today=todayStr(); let hist={};
+    try{ hist=await dbFetch(SALESHISTORY_KEY,{})||{}; }catch(_e){ hist=loadSalesHistory()||{}; }
+    const past={}; Object.entries(hist).forEach(([d,v])=>{ if(d<today&&v&&!v._deleted) past[d]=v; });
+    // Dagen har redan haft några gäster: påhittade sällskap som köpt och gått in under den senaste timmen eller två
+    const fake=rxPracticeFakeDay(hrs);
+    const base={openingHoursV1:JSON.stringify(hrs),queueTimeV1:JSON.stringify({value:null,until:null}),
+      dailyStats:JSON.stringify({date:today,guestCount:fake.guests,totalIncome:fake.day.income}),
+      admissionsTodayV1:JSON.stringify({date:today,count:fake.guests,entries:fake.admits})};
+    const cutoff=(()=>{ const x=new Date(); x.setDate(x.getDate()-90); return x.toISOString().slice(0,10); })();
+    const tries=[past,
+      Object.fromEntries(Object.entries(past).map(([d,v])=>[d,d>=cutoff?v:Object.assign({},v,{entries:[]})])),
+      Object.fromEntries(Object.entries(past).map(([d,v])=>[d,Object.assign({},v,{entries:[]})]))];
+    let saved=false;
+    for(const h of tries){ try{ localStorage.setItem('practiceStoreV1',JSON.stringify(Object.assign({},base,{salesHistoryV1:JSON.stringify(Object.assign({},h,{[today]:fake.day}))}))); saved=true; break; }catch(_e){} }
+    if(!saved) localStorage.setItem('practiceStoreV1',JSON.stringify(Object.assign({},base,{salesHistoryV1:JSON.stringify({[today]:fake.day})})));
     localStorage.setItem('practiceModeV1','1');
     location.reload();
+  }
+  // 6–10 påhittade sällskap som köpt biljett och släppts in under förra timmen (kl 20.00–20.59 om klockan är 21.15)
+  function rxPracticeFakeDay(hrs){
+    const today=todayStr(), pad=n=>String(n).padStart(2,'0');
+    const prods=loadProducts(); const price=(re,d)=>Number((prods.find(p=>re.test(p.name))||{}).price||d);
+    const pa=price(/vuxen/i,50), pc=price(/barn/i,30);
+    const now=new Date(), from=Math.max(0,now.getHours()-1)*60;
+    const n=6+Math.floor(Math.random()*5);
+    const mins=Array.from({length:n},()=>from+Math.floor(Math.random()*55)).sort((x,y)=>x-y);
+    const entries=mins.map((m,i)=>{ const adult=1+Math.floor(Math.random()*3), child=Math.random()<0.4?1+Math.floor(Math.random()*2):0;
+      const x=new Date(now); x.setHours(Math.floor(m/60),m%60,Math.floor(Math.random()*60),0);
+      const items=[adult?`${adult} × Vuxenbiljett`:'',child?`${child} × Barnbiljett`:''].filter(Boolean);
+      const pay=Math.random(); return {saleId:'ovn'+i+x.getTime().toString(36),time:`${pad(x.getHours())}:${pad(x.getMinutes())}:${pad(x.getSeconds())}`,items,sum:adult*pa+child*pc,adult,child,
+        seller:'Övning',payType:pay<0.6?'Swish':pay<0.9?'Kort':'Kontant',ticketUid:x.toISOString(),ticketLabel:null,used:true,breakdown:null,reEntryCreated:0,reEntryIds:[]}; });
+    const sum=k=>entries.reduce((s,e)=>s+e[k],0);
+    const day={hours:hrs,adult:sum('adult'),child:sum('child'),income:sum('sum'),count:entries.length,entries,reEntryPasses:[],_clientTs:Date.now()};
+    const admits=entries.map(e=>({ts:new Date(Math.min(Date.now()-1000,Date.parse(e.ticketUid)+(2+Math.floor(Math.random()*6))*60000)).toISOString(),n:e.adult+e.child}));
+    return {day,guests:day.adult+day.child,admits};
   }
   async function rxStopPractice(){
     if(!(await uiConfirm('Avsluta övningen? Övningsköpen och insläppen raderas från enheten.',{okLabel:'Avsluta övningen'}))) return;
@@ -1096,16 +1049,16 @@
   }
 
   /* ============================== EKONOMI: INTÄKT, UTGIFTER OCH RESULTAT ============================== */
-  // Utgiftskollen: säsongens intäkt, kvällarnas utgifter, säsongskostnader och resultat (mot samma tid i fjol) och en rad per
-  // kväll där utgiften går att skriva in. Dagens utgift sparas med saveDailyCosts (dagens post och historiken), äldre kvällar
-  // direkt i historiken. Lönesidan räknar kvällens överskott från kvällens utgifter, inte från andelen av säsongskostnaderna.
+  // Utgiftskollen: säsongens intäkt, dagarnas utgifter, säsongskostnader och resultat (mot samma tid i fjol) och en rad per
+  // dag där utgiften går att skriva in. Dagens utgift sparas med saveDailyCosts (dagens post och historiken), äldre dagar
+  // direkt i historiken. Lönesidan räknar dagens överskott från dagens utgifter, inte från andelen av säsongskostnaderna.
   // Säsongskostnader (hyra, material, reklam …) sparas per år i seasonCostsV1: {"2026":[{id,name,amount}]}. De fördelas lika
-  // på årets öppetdagar: kvällar som har varit (med intäkt) plus öppetdagar i Kalendern som ligger framför oss.
+  // på årets öppetdagar: dagar som har varit (med intäkt) plus öppetdagar i Kalendern som ligger framför oss.
   const SEASON_COSTS_KEY='seasonCostsV1';
   const EKO={ year:null, shown:20 };
   const admCostOf=d=>Number(getCostsForDate(d)||0);
   function admSeasonItems(y){ const all=dbGet(SEASON_COSTS_KEY,{})||{}; return Array.isArray(all[y])?all[y].filter(x=>x&&x.id):[]; }
-  // Årets öppetdagar och kvällens andel av säsongskostnaderna
+  // Årets öppetdagar och dagens andel av säsongskostnaderna
   function admSeasonShare(y){
     const today=todayStr(), hist=loadSalesHistory();
     const been=Object.entries(hist).filter(([d,v])=>d.startsWith(y)&&v&&!v._deleted&&Number(v.income||0)>0).map(([d])=>d);
@@ -1124,7 +1077,7 @@
     if(!EKO.year||!years.includes(EKO.year)) EKO.year=years.find(y=>rows.some(([d])=>d.startsWith(y)))||years[0];
     const y=EKO.year, inYear=rows.filter(([d])=>d.startsWith(y));
     const sh=admSeasonShare(y), items=admSeasonItems(y);
-    // Resultat för kvällarna i listan: intäkt − kvällens utgifter − andelen av säsongskostnaderna
+    // Resultat för dagarna i listan: intäkt − dagens utgifter − andelen av säsongskostnaderna
     const sum=(list,share)=>{ const i=list.reduce((s,[,v])=>s+Number(v.income||0),0), c=list.reduce((s,[d])=>s+admCostOf(d),0), a=share*list.filter(([,v])=>Number(v.income||0)>0).length; return {i,c,a,r:i-c-a}; };
     const a=sum(inYear,sh.share);
     // Samma tid året före: hela året om det valda året är slut, annars fram till samma datum
@@ -1140,20 +1093,20 @@
     const more=inYear.length>EKO.shown?`<button type="button" class="btn sx-more" data-eko-more>Visa fler (${inYear.length-EKO.shown} till)</button>`:'';
     const itemRows=items.map(x=>`<li><span>${admEsc(x.name)}</span><strong>${admKr(x.amount)}</strong><button type="button" class="eko-ibtn" data-sc-edit="${x.id}" aria-label="Ändra ${admEsc(x.name)}">✎</button><button type="button" class="eko-ibtn" data-sc-del="${x.id}" aria-label="Ta bort ${admEsc(x.name)}">×</button></li>`).join('');
     const split=sh.total?(sh.days
-      ?`<p class="eko-split"><strong>${admKr(sh.total)}</strong> fördelat på <strong>${sh.days}</strong> öppetdagar (${sh.been} har varit, ${sh.planned} ${sh.planned===1?'är planerad':'är planerade'}) = <strong>${admKr(Math.round(sh.share))} per kväll</strong></p><p class="sx-note">Lägger ni till fler öppetdagar i Kalendern blir andelen per kväll mindre. Lönerna räknas utan andelen.</p>`
+      ?`<p class="eko-split"><strong>${admKr(sh.total)}</strong> fördelat på <strong>${sh.days}</strong> öppetdagar (${sh.been} har varit, ${sh.planned} ${sh.planned===1?'är planerad':'är planerade'}) = <strong>${admKr(Math.round(sh.share))} per dag</strong></p><p class="sx-note">Lägger ni till fler öppetdagar i Kalendern blir andelen per dag mindre. Lönerna räknas utan andelen.</p>`
       :'<p class="sx-note">Det finns inga öppetdagar att fördela kostnaderna på. Lägg in öppetdagar i Kalendern.</p>')
       :'<p class="sx-note">Kostnader som gäller hela säsongen, till exempel hyra, material och reklam. De fördelas lika på årets öppetdagar.</p>';
-    el.innerHTML=`<p class="adm-intro">Intäkt, utgifter och resultat per kväll. Tryck på utgiften för att skriva in eller ändra den. Lönesidan räknar kvällens överskott från kvällens utgifter.</p>
+    el.innerHTML=`<p class="adm-intro">Intäkt, utgifter och resultat per dag. Tryck på utgiften för att skriva in eller ändra den. Lönesidan räknar dagens överskott från dagens utgifter.</p>
       ${years.length>1?`<div class="sx-years" role="group" aria-label="Välj år">${years.map(x=>`<button type="button" class="sx-year" data-eko-year="${x}" aria-pressed="${x===y}">${x}</button>`).join('')}</div>`:''}
       <p class="rx-card-kicker">Säsongen ${y}${b?` <small class="eko-sub">jämfört med samma tid ${py}</small>`:''}</p>
-      <div class="sx-tiles eko-tiles${withShare?' is-4':''}">${tile('Intäkt',a.i,cmp(a.i,b&&b.i),b&&b.i)}${tile('Kvällarnas utgifter',a.c,'',b&&b.c)}${withShare?tile('Andel säsongskostnader',Math.round(a.a),'',null,'',`för ${inYear.filter(([,v])=>Number(v.income||0)>0).length} kvällar hittills`):''}${tile(withShare?'Resultat efter allt':'Resultat',Math.round(a.r),cmp(a.r,b&&b.r),b&&Math.round(b.r),a.r>=0?'is-up':'is-down')}</div>
-      ${missing?`<p class="sx-note">${missing} ${missing===1?'kväll':'kvällar'} har ingen utgift inskriven, så resultatet kan vara för högt.</p>`:''}
+      <div class="sx-tiles eko-tiles${withShare?' is-4':''}">${tile('Intäkt',a.i,cmp(a.i,b&&b.i),b&&b.i)}${tile('Dagarnas utgifter',a.c,'',b&&b.c)}${withShare?tile('Andel säsongskostnader',Math.round(a.a),'',null,'',`för ${inYear.filter(([,v])=>Number(v.income||0)>0).length} dagar hittills`):''}${tile(withShare?'Resultat efter allt':'Resultat',Math.round(a.r),cmp(a.r,b&&b.r),b&&Math.round(b.r),a.r>=0?'is-up':'is-down')}</div>
+      ${missing?`<p class="sx-note">${missing} ${missing===1?'dag':'dagar'} har ingen utgift inskriven, så resultatet kan vara för högt.</p>`:''}
       <section class="eko-season"><p class="rx-card-kicker eko-gap">Säsongskostnader ${y}</p>
         ${items.length?`<ul class="eko-items">${itemRows}<li class="eko-items-sum"><span>Totalt</span><strong>${admKr(sh.total)}</strong></li></ul>`:''}
         ${split}
         <div class="sx-tools"><button type="button" class="btn" data-sc-add>Lägg till kostnad</button></div></section>
-      <p class="rx-card-kicker eko-gap">Kväll för kväll</p>
-      <table class="sx-nights eko-table"><thead><tr><th scope="col">Kväll</th><th scope="col">Intäkt</th><th scope="col">Utgifter</th>${withShare?'<th scope="col">Andel</th>':''}<th scope="col">Resultat</th></tr></thead><tbody>${body||`<tr><td colspan="${withShare?5:4}" class="eko-none">Inga kvällar ${y} än.</td></tr>`}</tbody></table>${more}`;
+      <p class="rx-card-kicker eko-gap">Dag för dag</p>
+      <table class="sx-nights eko-table"><thead><tr><th scope="col">Dag</th><th scope="col">Intäkt</th><th scope="col">Utgifter</th>${withShare?'<th scope="col">Andel</th>':''}<th scope="col">Resultat</th></tr></thead><tbody>${body||`<tr><td colspan="${withShare?5:4}" class="eko-none">Inga dagar ${y} än.</td></tr>`}</tbody></table>${more}`;
     el.onclick=async e=>{
       const yb=e.target.closest('[data-eko-year]'); if(yb){ EKO.year=yb.dataset.ekoYear; EKO.shown=20; admRenderEkonomi(); return; }
       if(e.target.closest('[data-eko-more]')){ EKO.shown+=30; admRenderEkonomi(); return; }

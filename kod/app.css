@@ -2978,3 +2978,69 @@
     html.skarm-preview, html.skarm-preview body { overflow: hidden; }
     html.skarm-preview .display-view { cursor: default; }
     html.skarm-preview .ui-toasts { display: none !important; }
+    /* ==========================================================================
+       HANTERAS MENY: åtta sidor i fyra grupper (2026-11-12)
+       På dator står menyn till vänster som förut. På smala skärmar visar en knapp vilken sida man är på,
+       och ett tryck fäller ut alla sidor som ett rutnät (admin.js, admNavToggle).
+       ========================================================================== */
+    #adminSettings .adm-nav .adm-nav-toggle { display: none; }
+    #adminSettings .adm-sub-title { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--line); }
+    @media (max-width: 979px) {
+      .adm-nav { flex-direction: column; gap: 12px; overflow: visible; max-height: calc(100vh - 80px); overflow-y: auto; }
+      #adminSettings .adm-nav .adm-nav-toggle { display: flex; width: 100%; min-height: 48px; padding: 10px 14px; justify-content: space-between; align-items: center; background: var(--paper-bg); color: var(--paper-ink); border: 1px solid var(--paper-bg-2); font-size: 17px; box-shadow: 3px 3px 0 rgba(0,0,0,0.25); }
+      .adm-nav-toggle-hint { font-family: var(--f-label); font-weight: 600; font-size: 13px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--paper-ink-soft); display: inline-flex; align-items: center; gap: 6px; }
+      .adm-nav-toggle-hint::after { content: '▾'; font-size: 14px; }
+      .adm-nav-toggle[aria-expanded="true"] .adm-nav-toggle-hint::after { content: '▴'; }
+      .adm-nav:not(.is-open) .adm-nav-group, .adm-nav:not(.is-open) .adm-nav-foot { display: none; }
+      .adm-nav.is-open .adm-nav-group { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex-shrink: 0; }
+      .adm-nav.is-open .adm-nav-group + .adm-nav-group { border-left: none; padding-left: 0; }
+      .adm-nav.is-open .adm-nav-label { display: block; grid-column: 1 / -1; writing-mode: horizontal-tb; transform: none; border: none; padding: 4px 0 0; font-size: 12px; letter-spacing: 2px; }
+      #adminSettings .adm-nav.is-open .adm-nav-group button { white-space: normal; text-align: left; min-height: 46px; border-color: var(--line); }
+      .adm-nav.is-open .adm-nav-foot { display: flex; gap: 6px; padding-top: 4px; }
+    }
+
+    /* Statistik: Idag överst under en öppetdag och dagens stapel i Dag för dag (statistik.js, sxTodayHtml) */
+    .sx-today .sx-today-pace { margin-bottom: 14px; }
+    .sx-today .sx-tools { margin-top: 12px; }
+    .sx-tiles.is-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .sx-tile .sx-live-note { color: var(--moon); }
+    .sx-sb.is-live button { background: var(--moon); opacity: .85; }
+    .sx-sb.is-live > span { color: var(--moon); }
+
+    /* Kassan på stående telefon: bokningarna döljs, så att biljettknapparna kommer direkt (önskemål 2026-11-12).
+       På surfplatta och liggande skärm syns de som förut. */
+    @media (max-width: 760px) and (orientation: portrait) { #kassaContainer #kassaBookings { display: none !important; } }
+
+    /* ==========================================================================
+       SÄKERHETSKOPIA AV ALLT OCH KATASTROFÖVNING (kopia.js)
+       ========================================================================== */
+    .kp { display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px; }
+    .kp .rx-card { max-width: 760px; }
+    .kp-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 12px 0 4px; }
+    .kp-facts div { background: rgba(0,0,0,0.2); border: 1px solid var(--line); padding: 10px 12px; }
+    .kp-facts dt { font-family: var(--f-label); font-weight: 600; font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--faint); }
+    .kp-facts dd { margin: 2px 0 0; font-size: 17px; color: var(--cream); }
+    .kp-facts dd.is-warn, .kp-warn { color: #ecc98a; }
+    #adminSettings .kp .rx-actions .btn { margin: 0; }
+    .kp-sub { font-family: var(--f-label); font-weight: 600; font-size: 13px; letter-spacing: 2.2px; text-transform: uppercase; color: var(--gas); margin: 10px 0 -6px; }
+    .kp-drill-card { border-color: #d9a95b; }
+    .kp-drill-card .rx-card-kicker { color: #ecc98a; }
+    .rx-practice.kp-drill { background: repeating-linear-gradient(-45deg, #c97b5b 0 14px, #bd6f4f 14px 28px); }
+    .rx-practice.kp-drill button + button { margin-left: -6px; }
+    .kp-dialog .kp-dlg-note { font-size: 15px; line-height: 1.45; margin: 0 0 10px; }
+    .kp-rows { list-style: none; margin: 0; padding: 0; max-height: 46vh; overflow-y: auto; border-top: 1px solid var(--line); }
+    .kp-rows li { border-bottom: 1px solid var(--line); }
+    .kp-rows label { display: flex; gap: 12px; align-items: flex-start; padding: 9px 2px; cursor: pointer; }
+    .kp-rows input { width: 20px; height: 20px; margin: 2px 0 0; flex-shrink: 0; }
+    .kp-rows span { display: flex; flex-direction: column; gap: 1px; }
+    .kp-rows small { font-size: 13px; opacity: .7; }
+    .kp-rows input:disabled + span { opacity: .5; }
+    .kp-what { margin: 12px 0 4px; }
+    .kp-what summary { cursor: pointer; font-size: 15px; color: var(--gas); padding: 6px 0; }
+    .kp-what ul { list-style: none; margin: 6px 0 8px; padding: 0; border-top: 1px solid var(--line); }
+    .kp-what li { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 1.6fr) auto; gap: 4px 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+    .kp-what li strong { font-weight: 500; color: var(--cream); }
+    .kp-what li span { color: var(--muted); overflow-wrap: anywhere; }
+    .kp-what li small { font-size: 13px; color: var(--faint); white-space: nowrap; }
+    @media (max-width: 620px) { .kp-what li { grid-template-columns: 1fr auto; } .kp-what li span { grid-column: 1 / -1; grid-row: 2; } }
+    .kp-how { font-size: 15px; color: var(--muted); line-height: 1.45; margin: 12px 0 0; }

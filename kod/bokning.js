@@ -70,8 +70,8 @@
   function bkPracticeSeed(){
     const today=todayStr(); const all=bkPracticeRead(); if(Array.isArray(all[today])) return;
     const n=new Date(); const base=Math.floor((n.getHours()*60+n.getMinutes())/30)*30;
-    // [minuter från nu, redan kommit]: en som har kommit, en sen, två just nu och resten senare
-    const plan=[[-60,true],[-60,false],[0,false],[0,false],[30,false],[60,false],[90,false],[90,false],[120,false]];
+    // [minuter från nu, redan kommit]: en som har kommit, en just nu och två senare
+    const plan=[[-60,true],[0,false],[30,false],[90,false]];
     const day=[];
     plan.forEach(([off,arrived],i)=>{ const m=Math.min(23*60+30,Math.max(0,base+off));
       day.push({id:'bovn'+i+Date.now().toString(36),code:bkFakeCode(day),slot:bkHHMM(m),adult:1+Math.floor(Math.random()*3),child:Math.random()<0.4?1+Math.floor(Math.random()*2):0,name:BK_FAKE_NAMES[i],ts:new Date(Date.now()-(10-i)*3600e3).toISOString(),...(arrived?{arrived:true}:{})}); });

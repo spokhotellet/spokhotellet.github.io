@@ -26,6 +26,7 @@
   <meta name="theme-color" content="#182024">
   <link rel="stylesheet" href="kod/app.css">
   <link rel="stylesheet" href="kod/lager.css">
+  <link rel="stylesheet" href="kod/minsida.css">
 </head>
 
 <body>
@@ -43,6 +44,7 @@
   </div>
   <div id="statsLossBanner" role="alert" style="display:none;">
     <span id="statsLossMsg"></span>
+    <button id="statsLossReview" onclick="showLocalBackupModal()" hidden>Granska kopian</button>
     <button onclick="muteStatsLoss()">Påminn om 6 timmar</button>
   </div>
 
@@ -467,45 +469,39 @@
       <h3>Hantera</h3>
     </header>
 
-    <!-- Menyn: sorterad efter när man behöver sakerna -->
+    <!-- Menyn: läget för dagen finns på Min sida; här planerar och ställer man in. På mobilen fälls menyn ut från knappen. -->
     <nav class="adm-nav" id="admNav" aria-label="Hantera">
-      <div class="adm-nav-group"><span class="adm-nav-label">Idag</span>
-        <button type="button" data-adm="lage">Översikt</button>
-        <button type="button" data-adm="oppnastang">Öppna &amp; stäng</button>
-        <button type="button" data-adm="meddelanden">Meddelanden <span class="adm-badge" id="admMsgBadge" hidden>!</span></button>
-      </div>
-      <div class="adm-nav-group"><span class="adm-nav-label">Planering</span>
+      <button type="button" class="adm-nav-toggle" id="admNavToggle" aria-expanded="false" aria-controls="admNav"><span id="admNavCurrent">Kalender</span><span class="adm-nav-toggle-hint">Alla sidor</span></button>
+      <div class="adm-nav-group"><span class="adm-nav-label">Planera</span>
         <button type="button" data-adm="schema">Kalender</button>
         <button type="button" data-adm="bokning">Bokningar</button>
-        <button type="button" data-adm="produkter">Produkter &amp; priser</button>
-        <button type="button" data-adm="sidan">Redigera sidan</button>
-      </div>
-      <div class="adm-nav-group"><span class="adm-nav-label">Uppföljning</span>
-        <button type="button" data-adm="recensioner">Recensioner <span class="adm-badge" id="admReviewBadge" hidden></span></button>
-        <button type="button" data-adm="loner">Löner</button>
-        <button type="button" data-adm="ekonomi">Ekonomi</button>
-      </div>
-      <div class="adm-nav-group"><span class="adm-nav-label">Inställningar</span>
         <button type="button" data-adm="personal">Personal</button>
-        <button type="button" data-adm="listor">Listor</button>
+      </div>
+      <div class="adm-nav-group"><span class="adm-nav-label">Försäljning</span>
+        <button type="button" data-adm="produkter">Produkter &amp; priser</button>
+        <button type="button" data-adm="ekonomi">Ekonomi</button>
+        <button type="button" data-adm="loner">Löner</button>
+      </div>
+      <div class="adm-nav-group"><span class="adm-nav-label">Gästerna</span>
+        <button type="button" data-adm="sidan">Redigera sidan</button>
+        <button type="button" data-adm="recensioner">Recensioner <span class="adm-badge" id="admReviewBadge" hidden></span></button>
+      </div>
+      <div class="adm-nav-group"><span class="adm-nav-label">Teknik</span>
         <button type="button" data-adm="skarmar">Skärmar &amp; enheter</button>
       </div>
       <div class="adm-nav-foot"><button type="button" data-adm="kopia">Säkerhetskopia</button><button type="button" data-adm="logg">Ändringslogg</button></div>
     </nav>
 
     <div class="adm-main">
-    <section class="adm-panel" data-panel="lage" id="admLage" aria-label="Läget"></section>
-    <section class="adm-panel" data-panel="oppnastang" id="admOppnaStang" aria-label="Öppna och stäng" hidden></section>
-    <section class="adm-panel" data-panel="meddelanden" id="admMeddelanden" aria-label="Meddelanden" hidden>
-      <h4 class="adm-panel-title">Meddelanden</h4>
-      <p class="adm-intro">Anslaget visas överst på allas Min sida tills du tar bort det. Direktmeddelanden går till en person, som kan svara.</p>
-    </section>
     <section class="adm-panel" data-panel="schema" id="admSchema" aria-label="Kalender" hidden></section>
     <section class="adm-panel" data-panel="bokning" id="admBokning" aria-label="Bokningar" hidden></section>
 
     <div class="section adm-panel" data-panel="personal" hidden>
       <h4 class="adm-panel-title">Personal</h4>
       <div id="personalContent" class="content"></div>
+      <!-- Uppgifter och kompetenser (förut egen flik, Listor). Ritas av admRenderLists i admin.js. -->
+      <h4 class="adm-panel-title adm-sub-title">Uppgifter &amp; kompetenser</h4>
+      <div id="admListor"></div>
     </div>
 
     <div class="section adm-panel" data-panel="produkter" hidden>
@@ -526,7 +522,6 @@
       <div id="lonContent" class="content"></div>
     </div>
     <section class="adm-panel" data-panel="sidan" id="admSidan" aria-label="Redigera sidan" hidden></section>
-    <section class="adm-panel" data-panel="listor" id="admListor" aria-label="Listor" hidden></section>
     <section class="adm-panel" data-panel="logg" id="admLogg" aria-label="Ändringslogg" hidden></section>
     <section class="adm-panel" data-panel="ekonomi" id="admEkonomi" aria-label="Ekonomi" hidden></section>
     <section class="adm-panel" data-panel="kopia" id="admKopia" aria-label="Säkerhetskopia" hidden></section>
@@ -783,6 +778,8 @@
   <script src="kod/skarmar.js"></script>
   <script src="kod/admin.js"></script>
   <script src="kod/bokning.js"></script>
+  <script src="kod/minsida.js"></script>
+  <script src="kod/kopia.js"></script>
   <script src="kod/guest.js"></script>
   <!-- EXPERIMENT: three.js-scen i hero (ficklampa och damm). Stäng av med ?3d=av -->
   <script src="kod/korpen3d.js"></script>
